@@ -5,7 +5,7 @@ run graph tests
 
 USAGE
 
-   python -m geoledit.graph_test [OPTIONS] [output.obj]
+   python -m albion.graph_test [OPTIONS] [output.obj]
 
    if output.obj is specified, the volume is saved in this format
 
@@ -18,7 +18,7 @@ OPTIONS
         run in graphic debug mode (vigual output)
 """
 
-from geoledit import graph
+from albion import graph
 
 import numpy as np
 

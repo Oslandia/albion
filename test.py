@@ -4,7 +4,7 @@
 run all tests
 
 USAGE
-    python -m geoledit.test [-h, -etest]
+    python -m albion.test [-h, -etest]
 
 OPTIONS
     -h
@@ -63,10 +63,10 @@ def list_tests():
                 test = '.'.join(
                             os.path.abspath(
                                 os.path.join(root, file_)
-                            ).replace(base_dir, "geoledit").split(os.sep))[:-3]
+                            ).replace(base_dir, "albion").split(os.sep))[:-3]
                 if test not in excludes:
                     tests.append(test)
-    #tests += ['geoledit.docs.build']
+    #tests += ['albion.docs.build']
 
     return tests
 
