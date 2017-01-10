@@ -511,34 +511,6 @@ class Plugin():
         logging.basicConfig(level=logging.DEBUG)
 
         self.__iface = iface
-        self.__section_main = MainWindow(iface, 'section')
-        self.__dock = QDockWidget('Section')
-        self.__dock.setWidget(self.__section_main)
-
-        # self.__legend_dock = QDockWidget('Section Legend')
-        # self.__legend_dock.setWidget(self.__section_main.tree_view)
-
-        self.viewer3d = Viewer3D()
-
-        self.graphLayerHelper = GraphLayerHelper("graph_layer")
-        self.subGraphLayerHelper = GraphLayerHelper("sub_graph_layer")
-
-        self.toolbar = DataToolbar(iface, self.__section_main, self.viewer3d, self.graphLayerHelper, self.subGraphLayerHelper)
-        self.edit_graph_tool = GraphEditTool(self.__section_main.canvas)
-        self.select_graph_tool = SelectionTool(self.__section_main.canvas)
-
-        self.__section_main.toolbar.line_clicked.connect(self.edit_graph_tool._reset)
-        self.__section_main.toolbar.line_clicked.connect(self.display_graph_polygons)
-        self.edit_graph_tool.graph_modified.connect(self.on_graph_modified)
-        self.graphLayerHelper.graph_layer_tagged.connect(self.graph_layer_tagged)
-
-
-        self.toolbar.addAction('Clean graph').triggered.connect(self.cleanup_data)
-
-        # in case we are reloading
-        self.toolbar.add_layers(QgsMapLayerRegistry.instance().mapLayers().values())
-
-        # self.__section_main.section.section_layer_modified.connect(self.__update_graphs_geometry)
 
     def cleanup_data(self):
         if self.graphLayerHelper.layer() is None:
@@ -612,6 +584,34 @@ class Plugin():
         self.__iface.mapCanvas().refresh()
 
     def initGui(self):
+        self.__section_main = MainWindow(self.__iface, 'section')
+        self.__dock = QDockWidget('Section')
+        self.__dock.setWidget(self.__section_main)
+
+        # self.__legend_dock = QDockWidget('Section Legend')
+        # self.__legend_dock.setWidget(self.__section_main.tree_view)
+
+        self.viewer3d = Viewer3D()
+
+        self.graphLayerHelper = GraphLayerHelper("graph_layer")
+        self.subGraphLayerHelper = GraphLayerHelper("sub_graph_layer")
+
+        self.toolbar = DataToolbar(self.__iface, self.__section_main, self.viewer3d, self.graphLayerHelper, self.subGraphLayerHelper)
+        self.edit_graph_tool = GraphEditTool(self.__section_main.canvas)
+        self.select_graph_tool = SelectionTool(self.__section_main.canvas)
+
+        self.__section_main.toolbar.line_clicked.connect(self.edit_graph_tool._reset)
+        self.__section_main.toolbar.line_clicked.connect(self.display_graph_polygons)
+        self.edit_graph_tool.graph_modified.connect(self.on_graph_modified)
+        self.graphLayerHelper.graph_layer_tagged.connect(self.graph_layer_tagged)
+
+
+        self.toolbar.addAction('Clean graph').triggered.connect(self.cleanup_data)
+
+        # in case we are reloading
+        self.toolbar.add_layers(QgsMapLayerRegistry.instance().mapLayers().values())
+
+        # self.__section_main.section.section_layer_modified.connect(self.__update_graphs_geometry)
         self.__iface.addToolBar(self.toolbar)
         self.viewer3d_dock = QDockWidget('3d View')
         self.viewer3d_window = QMainWindow(None)
