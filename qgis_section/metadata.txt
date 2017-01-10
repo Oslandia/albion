@@ -1,0 +1,9 @@
+[general]
+name=qgis-section
+qgisMinimumVersion=2.8
+description=module to display maps sections
+version=0.1
+author=Oslandia
+email=infos@oslandia.com
+experimental=True
+deprecated=False
