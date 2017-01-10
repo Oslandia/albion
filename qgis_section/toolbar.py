@@ -41,6 +41,7 @@ class Toolbar(QToolBar):
         h.add_is_enabled_test(lambda action: (iface.mapCanvas().currentLayer().customProperty("section_id") is None, "Select layer is a projection"))
         h.add_is_enabled_test(lambda action: (not is_layer_projected_in_section(iface.mapCanvas().currentLayer().id(), self.__section_id), "Layer is already projected"))
         h.add_is_enabled_test(lambda action: (hasZ(iface.mapCanvas().currentLayer()), "Selected layer doens't have XYZ geom"))
+        self.__action_helper = h
 
 
         self.selectLineAction = self.addAction(icon('select_line.svg'), 'select line')

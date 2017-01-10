@@ -71,7 +71,6 @@ class GraphLayerHelper(QObject):
         else:
             return "No '{}' layer defined".format(self.custom_property)
 
-
     def __tag_layer(self, layer):
         self.graphLayer = layer
         self.graphLayer.setCustomProperty(self.custom_property, True)
@@ -509,7 +508,7 @@ class DataToolbar(QToolBar):
 
 class Plugin():
     def __init__(self, iface):
-        # logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.DEBUG)
 
         self.__iface = iface
         self.__section_main = MainWindow(iface, 'section')
