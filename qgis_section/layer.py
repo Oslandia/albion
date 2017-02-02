@@ -47,11 +47,14 @@ class Layer(object):
         source = self.source_layer
         line = section.line
         features = []
-        # square cap style for the buffer -> less points
+
         buf = line.buffer(section.width, cap_style=2)
-        for feature in source.getFeatures():
-            centroid = feature.geometry().boundingBox().center()
-            if Point(centroid.x(), centroid.y()).intersects(buf):
+        bbox = QgsRectangle(buf.bounds[0], buf.bounds[1], buf.bounds[2], buf.bounds[3])
+        # square cap style for the buffer -> less points
+
+        for feature in source.getFeatures(QgsFeatureRequest(bbox)):
+            extents = loads(feature.geometry().boundingBox().asWktPolygon())
+            if buf.intersects(extents):
                 geom = feature.geometry()
                 new_feature = QgsFeature(feature.id())
                 new_feature.setGeometry(section.project(geom))

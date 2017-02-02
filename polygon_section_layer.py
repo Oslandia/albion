@@ -68,24 +68,30 @@ class PolygonLayerProjection(Layer):
                       [v.coords[1][0], v.coords[1][1], v.coords[1][2]] ]]
 
 
-        for feature in graphLayer.getFeatures():
-            centroid = feature.geometry().boundingBox().center()
-            if (not buf is None) and (not Point(centroid.x(), centroid.y()).intersects(buf)):
+        if not buf is None:
+            bbox = QgsRectangle(buf.bounds[0], buf.bounds[1], buf.bounds[2], buf.bounds[3])
+            for feature in graphLayer.getFeatures(QgsFeatureRequest(bbox)):
+                # centroid = feature.geometry().boundingBox().center()
+                # if Point(centroid.x(), centroid.y()).intersects(buf):
                 continue
+                print feature.geometry().boundingBox().asWktCoordinates()
+                extents = loads(feature.geometry().boundingBox().asWktCoordinates())
+                if not buf.intersects(extents):
+                    continue
 
-            layer = QgsMapLayerRegistry.instance().mapLayer(feature.attribute("layer"))
-            start = layer.getFeatures(QgsFeatureRequest(feature.attribute("start"))).next()
-            end = layer.getFeatures(QgsFeatureRequest(feature.attribute("end"))).next()
+                layer = QgsMapLayerRegistry.instance().mapLayer(feature.attribute("layer"))
+                start = layer.getFeatures(QgsFeatureRequest(feature.attribute("start"))).next()
+                end = layer.getFeatures(QgsFeatureRequest(feature.attribute("end"))).next()
 
-            if not(start.id() in indices):
-                indices[start.id()] = len(vertices)
-                vertices += addProjectedVertices(section, start) if with_projection else addVertices(start)
+                if not(start.id() in indices):
+                    indices[start.id()] = len(vertices)
+                    vertices += addProjectedVertices(section, start) if with_projection else addVertices(start)
 
-            if not(end.id() in indices):
-                indices[end.id()] = len(vertices)
-                vertices += addProjectedVertices(section, end) if with_projection else addVertices(end)
+                if not(end.id() in indices):
+                    indices[end.id()] = len(vertices)
+                    vertices += addProjectedVertices(section, end) if with_projection else addVertices(end)
 
-            edges += [(indices[start.id()], indices[end.id()])]
+                edges += [(indices[start.id()], indices[end.id()])]
 
 
         nodes = np.array(vertices)
