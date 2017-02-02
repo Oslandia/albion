@@ -6,7 +6,7 @@ from qgis.gui import *
 from PyQt4.QtCore import Qt, pyqtSignal, QObject, QVariant, QTimer
 from PyQt4.QtGui import QDockWidget, QMenu, QColor, QToolBar, QDialog, QIcon, QCursor, QMainWindow, QProgressDialog, QPixmap, QFileDialog, QLineEdit, QLabel, QMessageBox, QComboBox
 
-import os
+import os, traceback
 import math
 import numpy as np
 from operator import xor
@@ -152,9 +152,10 @@ class DataToolbar(QToolBar):
             return (False, "Selected layer has no features")
         return (True, "")
 
-    def remove_me(self, layer, section_id):
+    def create_projected_layer(self, layer, section_id):
         if layer is None:
             return
+
         section = QgsVectorLayer(
             "{geomType}?crs={crs}&index=yes".format(
                 geomType={
@@ -205,64 +206,66 @@ class DataToolbar(QToolBar):
         out_file.close()
 
 
-    def __export_polygons_impl(self, graphLayer, layer):
+    def __export_polygons_impl(self, graph_layer, sections_layer):
         result = []
 
-        scratch = self.remove_me(graphLayer, "dummy")
-        QgsMapLayerRegistry.instance().addMapLayer(scratch, False)
+        # build a scratch (temporary) layer to hold graph_layer features projections
+        scratch_projection = self.create_projected_layer(graph_layer, "dummy")
+        QgsMapLayerRegistry.instance().addMapLayer(scratch_projection, False)
 
         try:
-
-            s = Section("dummy")
-
-            graph_section_layer = Layer(graphLayer, scratch)
+            section = Section("dummy")
+            # associate graph_layer to its projection layer
+            graph_section_layer = Layer(graph_layer, scratch_projection)
 
             line_width = float(self.__section.toolbar.buffer_width.text())
 
             logging.info('Start polygon export')
 
-            # export polygon per layer
-            layer_attr_index = scratch.fields().fieldNameIndex('layer')
-            layers = graphLayer.uniqueValues(layer_attr_index)
+            # read unique layers (of generating lines) that are connected in the graph
+            layers = graph_layer.uniqueValues(graph_layer.fields().fieldNameIndex('layer'))
 
-            logging.debug('UNIQUE LAYERS {}'.format(layers))
             for lid in layers:
                 logging.info('Processing layer {}'.format(lid))
                 generatrice_layer = QgsMapLayerRegistry.instance().mapLayer(lid)
-                ids = generatrice_layer.allFeatureIds()
+                gen_ids = generatrice_layer.allFeatureIds()
                 fakes = fg_fake_generatrices(generatrice_layer, generatrice_layer)
                 fakes_id = [f.id() for f in fakes]
 
+                # a valid path starts and ends on a fake generatrice, so skip this layer
+                # if there aren't any fakes
                 if len(fakes_id) == 0:
                     logging.warning('No fake generatrices in {}'.format(generatrice_layer.id()))
                     continue
 
                 request = QgsFeatureRequest().setFilterExpression(u"'layer' = '{0}'".format(lid))
 
-                # For each section line
-                for feature in layer.getFeatures():
+                # for each section line
+                for feature in sections_layer.getFeatures():
                     logging.info('Processing section {}'.format(feature.id()))
                     wkt_line = QgsGeometry.exportToWkt(feature.geometry())
-                    s.update(wkt_line, line_width) # todo
-                    graph_section_layer.apply(s, True)
+                    section.update(wkt_line, line_width) # todo
 
-                    if scratch.featureCount() == 0:
+                    # project graph features in scratch_projection layer using current section line
+                    graph_section_layer.apply(section, True)
+
+                    if scratch_projection.featureCount() == 0:
                         continue
 
-                    connections = [[] for id_ in ids]
+                    connections = [[] for id_ in gen_ids]
 
                     # browse edges
-                    for edge in scratch.getFeatures(): #request):
+                    for edge in scratch_projection.getFeatures(): #request):
                         if edge.attribute('layer')  != lid:
                             continue
                         e1 = edge.attribute('start')
                         e2 = edge.attribute('end')
 
-                        connections[ids.index(e1)] += [e2]
-                        connections[ids.index(e2)] += [e1]
+                        connections[gen_ids.index(e1)] += [e2]
+                        connections[gen_ids.index(e2)] += [e1]
 
                     # export graph
-                    paths = extract_paths(ids, fakes_id, connections)
+                    paths = extract_paths(gen_ids, fakes_id, connections)
 
                     if paths == None or len(paths) == 0:
                         logging.warning('No path found ({})'.format(request.filterExpression().expression()))
@@ -270,7 +273,7 @@ class DataToolbar(QToolBar):
 
                     logging.info('Found {} paths: {}'.format(len(paths), paths))
 
-                    # export polygon for each path
+
                     for path in paths:
                         edges = []
                         vertices = []
@@ -286,10 +289,12 @@ class DataToolbar(QToolBar):
                         if len(vertices) > 0:
                             result += [vertices]
         except Exception as e:
+
             logging.error(e)
+            logging.error(traceback.format_exception(e, 10, None))
         finally:
-            s.unload()
-            QgsMapLayerRegistry.instance().removeMapLayer(scratch.id())
+            section.unload()
+            QgsMapLayerRegistry.instance().removeMapLayer(scratch_projection.id())
             return result
 
 
@@ -861,8 +866,6 @@ class Plugin():
                 logging.info('Add generatrices for subgraph')
                 self.__add_generatrices_impl(self.subGraphLayerHelper.layer())
 
-        except Exception as e:
-            raise e
         finally:
             self.__section_main.section.enable()
             if not self.graphLayerHelper.layer() is None:

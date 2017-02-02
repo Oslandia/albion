@@ -71,11 +71,7 @@ class PolygonLayerProjection(Layer):
         if not buf is None:
             bbox = QgsRectangle(buf.bounds[0], buf.bounds[1], buf.bounds[2], buf.bounds[3])
             for feature in graphLayer.getFeatures(QgsFeatureRequest(bbox)):
-                # centroid = feature.geometry().boundingBox().center()
-                # if Point(centroid.x(), centroid.y()).intersects(buf):
-                continue
-                print feature.geometry().boundingBox().asWktCoordinates()
-                extents = loads(feature.geometry().boundingBox().asWktCoordinates())
+                extents = loads(feature.geometry().boundingBox().asWktPolygon())
                 if not buf.intersects(extents):
                     continue
 
