@@ -31,6 +31,8 @@ class Layer(object):
         self.__points = None
         self.skip_selection_signal = False
 
+        assert QgsWKBTypes.geometryType(int(source_layer.wkbType())) == QgsWKBTypes.LineGeometry
+
     def apply(self, section, remove_all):
         "project source features on section plnae defined by line"
 
@@ -55,7 +57,9 @@ class Layer(object):
         # square cap style for the buffer -> less points
 
         for feature in source.getFeatures(QgsFeatureRequest(bbox)):
-            extents = loads(feature.geometry().boundingBox().asWktPolygon())
+            bb = feature.geometry().boundingBox()
+            extents = loads('LINESTRING ({} {}, {} {})'.format(bb.xMinimum(), bb.yMinimum(), bb.xMaximum(), bb.yMaximum()))
+
             if buf.intersects(extents):
                 geom = feature.geometry()
                 new_feature = QgsFeature(feature.id())
