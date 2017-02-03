@@ -94,7 +94,7 @@ class Canvas(QgsMapCanvas):
             return
         self.__highlighter = QgsRubberBand(self.__iface.mapCanvas(), QGis.Line)
         self.__highlighter.addGeometry(QgsGeometry.fromWkt(line_wkt), None) # todo use section.line
-        self.__highlighter.setWidth(width/self.__iface.mapCanvas().getCoordinateTransform().mapUnitsPerPixel())
+        self.__highlighter.setWidth((2 * width) / self.__iface.mapCanvas().getCoordinateTransform().mapUnitsPerPixel())
         color = QColor(255, 0, 0, 128)
         self.__highlighter.setColor(color)
 
@@ -159,7 +159,7 @@ class Canvas(QgsMapCanvas):
         if self.__highlighter is not None:
             self.__highlighter.reset()
             self.__highlighter.addGeometry(QgsGeometry.fromPolyline(vertices), None)
-            self.__highlighter.setWidth(self.__section.width/self.__iface.mapCanvas().getCoordinateTransform().mapUnitsPerPixel())
+            self.__highlighter.setWidth((2.0 * self.__section.width)/self.__iface.mapCanvas().getCoordinateTransform().mapUnitsPerPixel())
 
     def __toggle_edit(self, checked):
         #TODO: simplistic implementation. Would be nice to be able to use QgisApp::toggleEditing( QgsMapLayer *layer, bool allowCancel)
