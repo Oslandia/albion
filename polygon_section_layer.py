@@ -54,10 +54,7 @@ class PolygonLayerProjection(Layer):
 
             wkt = 'POLYGON Z (({}))'.format(wkt)
 
-            print 'MIEN', wkt
-            print 'AUTR', PolygonLayerProjection.buildPolygon(section, source, buf, with_projection=True).wkt
             polygon = QgsGeometry.fromWkt(wkt)
-
 
             if polygon is None:
                 return
@@ -76,51 +73,3 @@ class PolygonLayerProjection(Layer):
     def synchronize_selection_proj_to_source(self):
         # Doesn't make sense for the polygon
         pass
-
-
-    @staticmethod
-    def buildPolygon(section, graphLayer, buf, with_projection=True):
-        logging.info('_rebuildPolygon')
-
-        vertices = []
-        indices = {}
-        edges = []
-
-        def addProjectedVertices(section, geom):
-            v = loads(geom.geometry().exportToWkt().replace('Z', ' Z'))
-            return [[ list(section.project_point(v.coords[0][0], v.coords[0][1], v.coords[0][2])),
-                      list(section.project_point(v.coords[1][0], v.coords[1][1], v.coords[1][2]))]]
-
-        def addVertices(geom):
-            v = loads(geom.geometry().exportToWkt().replace('Z', ' Z'))
-            return [[ [v.coords[0][0], v.coords[0][1], v.coords[0][2]],
-                      [v.coords[1][0], v.coords[1][1], v.coords[1][2]] ]]
-
-
-        if not buf is None:
-            bbox = QgsRectangle(buf.bounds[0], buf.bounds[1], buf.bounds[2], buf.bounds[3])
-            for feature in graphLayer.getFeatures(QgsFeatureRequest(bbox)):
-                extents = loads(feature.geometry().boundingBox().asWktPolygon())
-                if not buf.intersects(extents):
-                    continue
-
-                layer = QgsMapLayerRegistry.instance().mapLayer(feature.attribute("layer"))
-                start = layer.getFeatures(QgsFeatureRequest(feature.attribute("start"))).next()
-                end = layer.getFeatures(QgsFeatureRequest(feature.attribute("end"))).next()
-
-                if not(start.id() in indices):
-                    indices[start.id()] = len(vertices)
-                    vertices += addProjectedVertices(section, start) if with_projection else addVertices(start)
-
-                if not(end.id() in indices):
-                    indices[end.id()] = len(vertices)
-                    vertices += addProjectedVertices(section, end) if with_projection else addVertices(end)
-
-                edges += [(indices[start.id()], indices[end.id()])]
-
-
-        nodes = np.array(vertices)
-        surface = to_surface(nodes, tuple(edges))
-
-        logging.debug(surface.wkt)
-        return surface
