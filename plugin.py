@@ -183,7 +183,7 @@ class DataToolbar(QToolBar):
 
         layer = self.mapCanvas.currentLayer()
 
-        polygons = self.__export_polygons_impl(graphLayer, layer)
+        polygons = self.export_polygons_impl(graphLayer, layer)
 
         out_file = open(file, 'w')
         for index in range(0, len(polygons)):
@@ -206,15 +206,65 @@ class DataToolbar(QToolBar):
         out_file.close()
 
 
-    def __export_polygons_impl(self, graph_layer, sections_layer):
+
+    def __export_polygons_for_one_section_line(self, section, graph_section_layer, scratch_projection, gen_ids, fakes_id, request, lid, generatrice_layer):
+        # project graph features in scratch_projection layer using current section line
+        graph_section_layer.apply(section, True)
+
+        # export for real
+        if scratch_projection.featureCount() == 0:
+            return []
+
+        connections = [[] for id_ in gen_ids]
+
+        # browse edges
+        for edge in scratch_projection.getFeatures(): #request):
+            if edge.attribute('layer')  != lid:
+                continue
+            e1 = edge.attribute('start')
+            e2 = edge.attribute('end')
+
+            connections[gen_ids.index(e1)] += [e2]
+            connections[gen_ids.index(e2)] += [e1]
+
+        # export graph
+        paths = extract_paths(gen_ids, fakes_id, connections)
+
+        if paths == None or len(paths) == 0:
+            logging.warning('No path found ({})'.format(request.filterExpression().expression()))
+            return []
+
+        logging.info('Found {} paths: {}'.format(len(paths), paths))
+
+
+        result = []
+        for path in paths:
+            edges = []
+            vertices = []
+
+            for v in path:
+                p = generatrice_layer.getFeatures(QgsFeatureRequest(v)).next()
+                v = loads(p.geometry().exportToWkt().replace('Z', ' Z'))
+                logging.debug(p.geometry().exportToWkt())
+
+                vertices += [[ v.coords[0][0], v.coords[0][1], v.coords[0][2] ]]
+                vertices += [[ v.coords[1][0], v.coords[1][1], v.coords[1][2] ]]
+
+            if len(vertices) > 0:
+                result += [vertices]
+
+        return result
+
+    def export_polygons_impl(self, graph_layer, sections_layer, section_param = None):
         result = []
 
-        # build a scratch (temporary) layer to hold graph_layer features projections
-        scratch_projection = self.create_projected_layer(graph_layer, "dummy")
-        QgsMapLayerRegistry.instance().addMapLayer(scratch_projection, False)
-
         try:
-            section = Section("dummy")
+            section = section_param if section_param else Section("dummy")
+
+            # build a scratch (temporary) layer to hold graph_layer features projections
+            scratch_projection = self.create_projected_layer(graph_layer, section.id)
+            # QgsMapLayerRegistry.instance().addMapLayer(scratch_projection, False)
+
             # associate graph_layer to its projection layer
             graph_section_layer = Layer(graph_layer, scratch_projection)
 
@@ -240,61 +290,26 @@ class DataToolbar(QToolBar):
 
                 request = QgsFeatureRequest().setFilterExpression(u"'layer' = '{0}'".format(lid))
 
-                # for each section line
-                for feature in sections_layer.getFeatures():
-                    logging.info('Processing section {}'.format(feature.id()))
-                    wkt_line = QgsGeometry.exportToWkt(feature.geometry())
-                    section.update(wkt_line, line_width) # todo
+                if section_param is None:
+                    # for each section line
+                    for feature in sections_layer.getFeatures():
+                        logging.info('Processing section {}'.format(feature.id()))
+                        wkt_line = QgsGeometry.exportToWkt(feature.geometry())
+                        section.update(wkt_line, line_width) # todo
 
-                    # project graph features in scratch_projection layer using current section line
-                    graph_section_layer.apply(section, True)
+                        # export for real
+                        result += self.__export_polygons_for_one_section_line(section, graph_section_layer, scratch_projection, gen_ids, fakes_id, request, lid, generatrice_layer)
+                else:
+                    # export for real
+                    result += self.__export_polygons_for_one_section_line(section, graph_section_layer, scratch_projection, gen_ids, fakes_id, request, lid, generatrice_layer)
 
-                    if scratch_projection.featureCount() == 0:
-                        continue
-
-                    connections = [[] for id_ in gen_ids]
-
-                    # browse edges
-                    for edge in scratch_projection.getFeatures(): #request):
-                        if edge.attribute('layer')  != lid:
-                            continue
-                        e1 = edge.attribute('start')
-                        e2 = edge.attribute('end')
-
-                        connections[gen_ids.index(e1)] += [e2]
-                        connections[gen_ids.index(e2)] += [e1]
-
-                    # export graph
-                    paths = extract_paths(gen_ids, fakes_id, connections)
-
-                    if paths == None or len(paths) == 0:
-                        logging.warning('No path found ({})'.format(request.filterExpression().expression()))
-                        continue
-
-                    logging.info('Found {} paths: {}'.format(len(paths), paths))
-
-
-                    for path in paths:
-                        edges = []
-                        vertices = []
-
-                        for v in path:
-                            p = generatrice_layer.getFeatures(QgsFeatureRequest(v)).next()
-                            v = loads(p.geometry().exportToWkt().replace('Z', ' Z'))
-                            logging.debug(p.geometry().exportToWkt())
-
-                            vertices += [[ v.coords[0][0], v.coords[0][1], v.coords[0][2] ]]
-                            vertices += [[ v.coords[1][0], v.coords[1][1], v.coords[1][2] ]]
-
-                        if len(vertices) > 0:
-                            result += [vertices]
         except Exception as e:
-
             logging.error(e)
-            logging.error(traceback.format_exception(e, 10, None))
         finally:
-            section.unload()
-            QgsMapLayerRegistry.instance().removeMapLayer(scratch_projection.id())
+            if section_param is None:
+                section.unload()
+            # QgsMapLayerRegistry.instance().removeMapLayer(scratch_projection.id())
+            print "DONE DONE"
             return result
 
 
@@ -406,7 +421,7 @@ class DataToolbar(QToolBar):
             for layer in section_layers:
                 color = [1, 0, 0, 1] if section_layers.index(layer) == 0 else [0, 0, 1, 1]
                 if not layer is None:
-                    v = self.__export_polygons_impl(graphLayer, layer)
+                    v = self.export_polygons_impl(graphLayer, layer)
                     self.viewer3d.polygons_vertices += v
 
                     for i in range(0, len(v)):
@@ -466,7 +481,7 @@ class DataToolbar(QToolBar):
         assert not(group is None)
         group.addLayer(polygon_layer)
         logging.debug('register polygon!')
-        self.__section.section.register_projection_layer(PolygonLayerProjection(layer, polygon_layer))
+        self.__section.section.register_projection_layer(PolygonLayerProjection(layer, polygon_layer, self))
 
     def add_layers(self, layers):
         self.graphLayerHelper.lookup(layers)
@@ -478,7 +493,7 @@ class DataToolbar(QToolBar):
                     and layer.customProperty("section_id") == self.__section.section.id :
                 source_layer = projected_layer_to_original(layer, "polygon_projected_layer")
                 if source_layer is not None:
-                    l = PolygonLayerProjection(source_layer, layer)
+                    l = PolygonLayerProjection(source_layer, layer, self)
                     self.__section.section.register_projection_layer(l)
                     l.apply(self.__section.section, True)
 

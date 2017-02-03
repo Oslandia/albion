@@ -12,6 +12,7 @@ from shapely.ops import transform
 from .helpers import projected_layer_to_original, projected_feature_to_original
 from .layer import Layer
 import numpy
+import logging
 
 class Section(QObject):
     changed = pyqtSignal(str, float)
@@ -138,10 +139,12 @@ class Section(QObject):
     def update_projections(self, sourceId):
         if not self.__enabled:
             return
-
+        print 'update_projections {} {}!!!'.format(sourceId, len(self.__projections[sourceId]['layers']))
         self.__points = []
         for p in self.__projections[sourceId]['layers']:
+            print '########################',sourceId, p
             p.apply(self, True)
+        print '@@@@@@@@@ done'
 
     def unregister_projected_layer(self, layerId):
         for sourceId in self.__projections:
@@ -149,6 +152,7 @@ class Section(QObject):
 
             # removal of source layer
             if sourceId == layerId:
+                logging.debug('  > removing source layer {}'.format(layerId))
                 sourceLayer.featureAdded.disconnect(self.__projections[sourceId]['needs_update_fn'])
                 sourceLayer.editCommandEnded.disconnect(self.__projections[sourceId]['needs_update_fn'])
                 sourceLayer.editCommandEnded.disconnect(self.request_canvas_redraw)
@@ -167,11 +171,14 @@ class Section(QObject):
                 projections = self.__projections[sourceId]['layers']
                 for p in projections:
                     if p.projected_layer.id() == layerId:
+                        old_projections_count = len(self.__projections[sourceId]['layers'])
                         projection_removed = [ p.projected_layer ]
                         p.projected_layer.beforeCommitChanges.disconnect(self.__propagateChangesToSourceLayer)
                         p.projected_layer.selectionChanged.disconnect(self.__synchronize_selection)
-
                         self.__projections[sourceId]['layers'] = [p for p in projections if p.projected_layer.id() != layerId]
+
+                        logging.debug('  > removed projection layer {} [{} projections old/new count = {}/{}]'.format(layerId, sourceId, old_projections_count, len(self.__projections[sourceId]['layers'])))
+
                         if len(self.__projections[sourceId]['layers']) == 0:
                             sourceLayer.featureAdded.disconnect(self.__projections[sourceId]['needs_update_fn'])
                             sourceLayer.editCommandEnded.disconnect(self.__projections[sourceId]['needs_update_fn'])
@@ -219,6 +226,7 @@ class Section(QObject):
                     l.apply(self, True)
 
     def __remove_layers(self, layer_ids):
+        logging.debug('Removing layers {}'.format(layer_ids))
         for layer_id in layer_ids:
             projected_layers = self.unregister_projected_layer(layer_id)
 
