@@ -35,6 +35,46 @@ from .fake_generatrice import fake_generatrices as fg_fake_generatrices
 import numpy as np
 import logging
 
+def edges_from_feature_projected_graph_feature(source_feature, projected_feature_centroid_x, source_layer, projected_graph):
+    feature_id = source_feature.id()
+
+    connected_edges = {'L':[], 'R':[]}
+
+    graph_attr = ['start', 'end'] if projected_graph.fields().fieldNameIndex('start') >= 0 else ['start:Integer64(10,0)', 'end:Integer64(10,0)']
+
+    # Lookup all edges connected to this feature
+    for edge in projected_graph.getFeatures():
+        # TODO: filter in getFeatures() instead
+        if edge.attribute('layer') != source_layer.id():
+            continue
+
+        if edge.attribute(graph_attr[0]) == feature_id or edge.attribute(graph_attr[1]) == feature_id:
+            # edge is connected, check direction
+            edge_center = edge.geometry().centroid().asPoint()
+
+            # if feature is to the left of the projected edge
+            if projected_feature_centroid_x < edge_center[0]:
+                connected_edges['R'] += [edge]
+                logging.debug('R edges += {}'.format(edge.id()))
+            else:
+                connected_edges['L'] += [edge]
+                logging.debug('L edges += {}'.format(edge.id()))
+
+    return connected_edges
+
+def feature_on_the_other_side(edge, feature_id, projected_graph):
+    graph_attr = ['start', 'end'] if projected_graph.fields().fieldNameIndex('start') >= 0 else ['start:Integer64(10,0)', 'end:Integer64(10,0)']
+    if edge.attribute(graph_attr[0]) == feature_id:
+        return edge.attribute(graph_attr[1])
+    else:
+        return edge.attribute(graph_attr[0])
+
+def centroid_z(feature_id, layer):
+    feature = layer.getFeatures(QgsFeatureRequest(feature_id)).next()
+    v = loads(feature.geometry().exportToWkt().replace('Z', ' Z'))
+    return (v.coords[1][2] + v.coords[0][2]) * 0.5
+
+
 def icon(name):
     return QIcon(os.path.join(os.path.dirname(__file__), 'icons', name))
 
@@ -207,13 +247,43 @@ class DataToolbar(QToolBar):
 
 
 
-    def __export_polygons_for_one_section_line(self, section, graph_section_layer, scratch_projection, gen_ids, fakes_id, request, lid, generatrice_layer):
+    def __export_polygons_for_one_section_line(self, section, graph_section_layer, scratch_projection, fakes_id, request, generatrice_layer):
         # project graph features in scratch_projection layer using current section line
         graph_section_layer.apply(section, True)
 
         # export for real
         if scratch_projection.featureCount() == 0:
             return []
+
+        gen_ids = generatrice_layer.allFeatureIds()
+        lid = generatrice_layer.id()
+
+        potential_starts = []
+        potential_starts += fakes_id
+        print 'BEFORE', potential_starts
+
+        def compute_feature_length(feat_id):
+            feat = generatrice_layer.getFeatures(QgsFeatureRequest(feat_id)).next()
+            return section.project(feat.geometry()).length()
+
+
+        pants = {}
+        powers = {}
+        # todo fix getFeatures
+        for source_feature in generatrice_layer.getFeatures():
+            centroid = source_feature.geometry().centroid().asPoint()
+            p = edges_from_feature_projected_graph_feature(source_feature, section.project_point(centroid[0], centroid[1], 0)[0], generatrice_layer, scratch_projection)
+
+            if len(p['L']) > 1 or len(p['R']) > 1:
+                potential_starts += [source_feature.id()]
+
+                for edge in p['L'] + p['R']:
+                    feat_id = feature_on_the_other_side(edge, source_feature.id(), scratch_projection)
+                    if not feat_id in powers:
+                        powers[feat_id] = compute_feature_length(feat_id)
+
+                pants[source_feature.id()] = p
+
 
         connections = [[] for id_ in gen_ids]
 
@@ -227,8 +297,10 @@ class DataToolbar(QToolBar):
             connections[gen_ids.index(e1)] += [e2]
             connections[gen_ids.index(e2)] += [e1]
 
+        print 'AFTER', potential_starts
+
         # export graph
-        paths = extract_paths(gen_ids, fakes_id, connections)
+        paths = extract_paths(gen_ids, potential_starts, connections)
 
         if paths == None or len(paths) == 0:
             logging.warning('No path found ({})'.format(request.filterExpression().expression()))
@@ -242,13 +314,51 @@ class DataToolbar(QToolBar):
             edges = []
             vertices = []
 
-            for v in path:
+            for i in range(0, len(path)):
+                v = path[i]
                 p = generatrice_layer.getFeatures(QgsFeatureRequest(v)).next()
-                v = loads(p.geometry().exportToWkt().replace('Z', ' Z'))
-                logging.debug(p.geometry().exportToWkt())
 
-                vertices += [[ v.coords[0][0], v.coords[0][1], v.coords[0][2] ]]
-                vertices += [[ v.coords[1][0], v.coords[1][1], v.coords[1][2] ]]
+                ratio = 1.0
+                offset = 0.0
+                if v in pants:
+                    # so, 'p' is a starting point of the polygon and
+                    # is shared by several connections.
+                    # 1st step: determine where we going
+                    next_v = path[(i + 1) if (i == 0) else (i - 1)]
+                    connections_to_consider = None
+
+                    for edge in pants[v]['L']:
+                        if feature_on_the_other_side(edge, v, scratch_projection) == next_v:
+                            connections_to_consider = pants[v]['L']
+                            break
+                    for edge in pants[v]['R']:
+                        if feature_on_the_other_side(edge, v, scratch_projection) == next_v:
+                            connections_to_consider = pants[v]['R']
+                            break
+
+                    if len(connections_to_consider) > 1:
+                        center_z = centroid_z(next_v, generatrice_layer)
+
+                        power_sum = 0
+                        for c in connections_to_consider:
+                            feat_id = feature_on_the_other_side(c, v, scratch_projection)
+                            power_sum += powers[feat_id]
+
+                            print feat_id, centroid_z(feat_id, generatrice_layer)
+                            if center_z < centroid_z(feat_id, generatrice_layer):
+                                offset += powers[feat_id]
+
+                        ratio = powers[next_v] / power_sum
+                        offset /= power_sum
+
+                v = loads(p.geometry().exportToWkt().replace('Z', ' Z'))
+
+                z_length = v.coords[1][2] - v.coords[0][2]
+                z_start = v.coords[0][2] + offset * z_length
+                z_end = z_start + ratio * z_length
+
+                vertices += [[ v.coords[0][0], v.coords[0][1], z_start ]]
+                vertices += [[ v.coords[1][0], v.coords[1][1], z_end ]]
 
             if len(vertices) > 0:
                 result += [vertices]
@@ -278,7 +388,6 @@ class DataToolbar(QToolBar):
             for lid in layers:
                 logging.info('Processing layer {}'.format(lid))
                 generatrice_layer = QgsMapLayerRegistry.instance().mapLayer(lid)
-                gen_ids = generatrice_layer.allFeatureIds()
                 fakes = fg_fake_generatrices(generatrice_layer, generatrice_layer)
                 fakes_id = [f.id() for f in fakes]
 
@@ -298,10 +407,10 @@ class DataToolbar(QToolBar):
                         section.update(wkt_line, line_width) # todo
 
                         # export for real
-                        result += self.__export_polygons_for_one_section_line(section, graph_section_layer, scratch_projection, gen_ids, fakes_id, request, lid, generatrice_layer)
+                        result += self.__export_polygons_for_one_section_line(section, graph_section_layer, scratch_projection, fakes_id, request, generatrice_layer)
                 else:
                     # export for real
-                    result += self.__export_polygons_for_one_section_line(section, graph_section_layer, scratch_projection, gen_ids, fakes_id, request, lid, generatrice_layer)
+                    result += self.__export_polygons_for_one_section_line(section, graph_section_layer, scratch_projection, fakes_id, request, generatrice_layer)
 
         except Exception as e:
             logging.error(e)
@@ -925,9 +1034,6 @@ class Plugin():
 
         query = QgsFeatureRequest().setFilterExpression (u'"layer" = "{0}"'.format(source_layer.id()))
 
-        graph_attr = ['start', 'end'] if projected_graph.fields().fieldNameIndex('start') >= 0 else ['start:Integer64(10,0)', 'end:Integer64(10,0)']
-
-
         # First get a list of source features ids
         # so if we modify
         interesting_source_features = []
@@ -950,29 +1056,8 @@ class Plugin():
         for source_feature in interesting_source_features:
             feature_idx = interesting_source_features.index(source_feature)
             source_id = source_feature.id()
-            connected_edges = {'L':[], 'R':[]}
-            logging.debug('bla {}'.format(source_id))
 
-
-            # Lookup all edges connected to this feature
-            for edge in projected_graph.getFeatures():
-                if edge.attribute('layer') != source_layer.id():
-                    continue
-                # logging.debug('attr {}'.format(edge.attributes()))
-
-                if edge.attribute(graph_attr[0]) == source_id or edge.attribute(graph_attr[1]) == source_id:
-                    # edge is connected, check direction
-                    centroid = centroids[feature_idx]
-                    p = edge_center = edge.geometry().centroid().asPoint()
-                    # p = self.__section_main.section.project_point(edge_center.x(), edge_center.y(), 0)
-
-                    # if feature is to the left of the projected edge
-                    if centroid.x() < p[0]:
-                        connected_edges['R'] += [edge]
-                        logging.debug('R edges += {}'.format(edge.id()))
-                    else:
-                        connected_edges['L'] += [edge]
-                        logging.debug('L edges += {}'.format(edge.id()))
+            connected_edges = edges_from_feature_projected_graph_feature(source_feature, centroids[feature_idx].x(), source_layer, projected_graph)
 
             logging.debug('connected {}|{}'.format(len(connected_edges['L']), len(connected_edges['R'])))
             # Now that we know all connected edges, we can create fake generatrices...
@@ -1002,6 +1087,7 @@ class Plugin():
             # If this feature is connected to N (> 1) elements on 1 side -> add 1 fake generatrices
             for side in connected_edges:
 
+                raise 'update me'
                 if len(connected_edges[side]) > 1:
                     missing_side = 1.0 if side == 'R' else -1.0
                     logging.debug('jambe pantalon {}'.format(missing_side))

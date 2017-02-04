@@ -77,7 +77,7 @@ def to_volume(nodes, edges):
 
     return numpy.array(volumes), nodes.reshape(-1, 3)
 
-def _find_path(start_point, vertices, fakes, connections):
+def _find_path(start_point, vertices, open_starts, connections):
     # build path
     path = []
 
@@ -95,7 +95,7 @@ def _find_path(start_point, vertices, fakes, connections):
         #only keep forward edges
         connections[idx] = forward_edges
 
-        if len(forward_edges) == 0 or (current in fakes and current != start_point):
+        if len(forward_edges) == 0 or (current in open_starts and current != start_point):
             break
 
         # use last connection
@@ -105,17 +105,18 @@ def _find_path(start_point, vertices, fakes, connections):
         connections[idx] = forward_edges
 
 
-    return (path if (len(path) > 1 and path[-1] in fakes) else [], connections)
+    return (path if (len(path) > 1 and path[-1] in open_starts) else [], connections)
 
-def extract_paths(vertices, fakes, connections):
+def extract_paths(vertices, open_starts, connections):
     paths = []
 
     conn = connections[:]
 
-    for f in fakes:
+    # loop on possible starts
+    for f in open_starts:
         logging.debug('** Searching path starting with {} **'.format(f))
         while True:
-            p, conn = _find_path(f, vertices, fakes, conn)
+            p, conn = _find_path(f, vertices, open_starts, conn)
 
             if p:
                 logging.debug('Found path {}\n'.format(p))
