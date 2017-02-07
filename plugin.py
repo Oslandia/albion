@@ -6,8 +6,8 @@ from qgis.gui import *
 from PyQt4.QtCore import Qt, pyqtSignal, QObject, QVariant, QTimer
 from PyQt4.QtGui import QDockWidget, QMenu, QColor, QToolBar, QDialog, QIcon, QCursor, QMainWindow, QProgressDialog, QPixmap, QFileDialog, QLineEdit, QLabel, QMessageBox, QComboBox
 
-import os, traceback
-import math
+import os, traceback, time, inspect
+import math, sys
 import numpy as np
 from operator import xor
 
@@ -260,7 +260,6 @@ class DataToolbar(QToolBar):
 
         potential_starts = []
         potential_starts += fakes_id
-        print 'BEFORE', potential_starts
 
         def compute_feature_length(feat_id):
             feat = generatrice_layer.getFeatures(QgsFeatureRequest(feat_id)).next()
@@ -297,7 +296,7 @@ class DataToolbar(QToolBar):
             connections[gen_ids.index(e1)] += [e2]
             connections[gen_ids.index(e2)] += [e1]
 
-        print 'AFTER', potential_starts
+        logging.debug('AFTER {}'.format(potential_starts))
 
         # export graph
         paths = extract_paths(gen_ids, potential_starts, connections)
@@ -344,7 +343,6 @@ class DataToolbar(QToolBar):
                             feat_id = feature_on_the_other_side(c, v, scratch_projection)
                             power_sum += powers[feat_id]
 
-                            print feat_id, centroid_z(feat_id, generatrice_layer)
                             if center_z < centroid_z(feat_id, generatrice_layer):
                                 offset += powers[feat_id]
 
@@ -418,7 +416,7 @@ class DataToolbar(QToolBar):
             if section_param is None:
                 section.unload()
             # QgsMapLayerRegistry.instance().removeMapLayer(scratch_projection.id())
-            print "DONE DONE"
+
             return result
 
 
@@ -637,7 +635,8 @@ class DataToolbar(QToolBar):
 
 class Plugin():
     def __init__(self, iface):
-        logging.basicConfig(level=logging.DEBUG)
+        FORMAT = '\033[30;100m%(created)-13s\033[0m \033[33m%(filename)-12s\033[0m:\033[34m%(lineno)4d\033[0m %(message)s' if sys.platform.find('linux')>= 0 else '%(created)13s %(filename)-12s:%(lineno)4d %(message)s'
+        logging.basicConfig(format=FORMAT, level=logging.DEBUG)
 
         self.__iface = iface
 
@@ -659,7 +658,7 @@ class Plugin():
                 self.graphLayerHelper.layer().dataProvider().changeGeometryValues({edge.id(): QgsGeometry.fromWkt(GraphEditTool.segmentGeometry(featA, featB).wkt)})
 
             except Exception as e:
-                print e
+                logging.error(e)
                 # invalid data -> removing
                 edge_removed += [ edge.id() ]
 
@@ -1007,6 +1006,8 @@ class Plugin():
     def __add_generatrices_impl(self, graph):
         layer = self.__iface.mapCanvas().currentLayer()
 
+        logging.debug('Begin __add_generatrices_impl')
+
         if layer is None or not self.__section_main.section.is_valid:
             return
 
@@ -1121,6 +1122,7 @@ class Plugin():
                     logging.debug('Remove deprecated links {}'.format([projected_feature_to_original(graph, f).id() for f in connected_edges[side]]))
                     graph.dataProvider().deleteFeatures([projected_feature_to_original(graph, f).id() for f in connected_edges[side]])
         graph.endEditCommand()
+        logging.debug('End __add_generatrices_impl')
 
 
 

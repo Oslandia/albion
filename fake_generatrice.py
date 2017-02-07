@@ -34,7 +34,7 @@ def create(section, source_layer, source_feature, id_, translation, sign):
     # max 10 step
     step = 10
     sign = -sign / float(step)
-    print centroid.x(), centroid.y()
+
     while not Point(centroid.x(), centroid.y()).intersects(buf) and step > 0:
         fake.geometry().translate(translation[0]  * sign, translation[1] * sign)
         centroid = fake.geometry().boundingBox().center()

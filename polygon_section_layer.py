@@ -47,7 +47,6 @@ class PolygonLayerProjection(Layer):
                 vertices += [list(project_vertex(section, p[idx]))]
             vertices += [vertices[0]]
 
-            print vertices
             wkt = ' '.join(str(x) for x in vertices[0])
             for v in vertices[1:]:
                 wkt += ', {}'.format(' '.join(str(x) for x in v))

@@ -38,7 +38,7 @@ class Layer(object):
 
         projected = self.projected_layer
 
-        print projected.name()
+        logging.debug('Apply projection to layer {}'.format(projected.name()))
 
         if remove_all:
             projected.dataProvider().deleteFeatures(projected.allFeatureIds())

@@ -139,12 +139,10 @@ class Section(QObject):
     def update_projections(self, sourceId):
         if not self.__enabled:
             return
-        print 'update_projections {} {}!!!'.format(sourceId, len(self.__projections[sourceId]['layers']))
+        logging.debug('update_projections {} {}!!!'.format(sourceId, len(self.__projections[sourceId]['layers'])))
         self.__points = []
         for p in self.__projections[sourceId]['layers']:
-            print '########################',sourceId, p
             p.apply(self, True)
-        print '@@@@@@@@@ done'
 
     def unregister_projected_layer(self, layerId):
         for sourceId in self.__projections:
