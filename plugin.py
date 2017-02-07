@@ -268,8 +268,11 @@ class DataToolbar(QToolBar):
 
         pants = {}
         powers = {}
-        # todo fix getFeatures
-        for source_feature in generatrice_layer.getFeatures():
+
+        buf = section.line.buffer(section.width, cap_style=2)
+        bbox = QgsRectangle(buf.bounds[0], buf.bounds[1], buf.bounds[2], buf.bounds[3])
+
+        for source_feature in generatrice_layer.getFeatures(QgsFeatureRequest(bbox)):
             centroid = source_feature.geometry().centroid().asPoint()
             p = edges_from_feature_projected_graph_feature(source_feature, section.project_point(centroid[0], centroid[1], 0)[0], generatrice_layer, scratch_projection)
 
@@ -282,7 +285,6 @@ class DataToolbar(QToolBar):
                         powers[feat_id] = compute_feature_length(feat_id)
 
                 pants[source_feature.id()] = p
-
 
         connections = [[] for id_ in gen_ids]
 
@@ -1015,12 +1017,13 @@ class Plugin():
         if source_layer is None:
             return
 
+
         projected_graph = filter(lambda l: (not isinstance(l, PolygonLayerProjection)), self.__section_main.section.projections_of(graph.id()))[0].projected_layer
 
         ids = graph.uniqueValues(graph.fieldNameIndex('id'))
         my_id = (max(ids) if len(ids) > 0 else 0) + 1
 
-        ids = source_layer.uniqueValues(source_layer.fieldNameIndex('id'))
+        ids = layer.uniqueValues(source_layer.fieldNameIndex('id'))
         my_fake_id = (max(ids) if len(ids) > 0 else 0) + 1
 
         has_field_HoleID = layer.fields().fieldNameIndex("HoleID") >= 0
@@ -1037,7 +1040,7 @@ class Plugin():
 
         # First get a list of source features ids
         # so if we modify
-        interesting_source_features = []
+        interesting_ids = []
         centroids = []
         for feature in layer.getFeatures():
             if has_field_HoleID and feature.attribute("HoleID") == "Fake":
@@ -1047,9 +1050,12 @@ class Plugin():
             if has_field_mine_str and feature.attribute("mine:Integer64(10,0)") == -1:
                 continue
 
-            interesting_source_features += [projected_feature_to_original(source_layer, feature)]
+            feature.setFields(source_layer.fields(), False)
+            interesting_ids += [feature.attribute('id')]
             centroids += [feature.geometry().centroid().asPoint()]
 
+        interesting_source_features = []
+        for source_feat in source_layer.getFeatures(QgsFeatureRequest().setFilterExpression ( u'"id" IN {}'.format(str(tuple(interesting_ids))))):           interesting_source_features += [source_feat]
 
         graph.beginEditCommand('update edges')
 
@@ -1086,7 +1092,7 @@ class Plugin():
                     my_id = my_id + 1
 
             # If this feature is connected to N (> 1) elements on 1 side -> add 1 fake generatrices
-            for side in connected_edges:
+            if False:  # for side in connected_edges:
 
                 raise 'update me'
                 if len(connected_edges[side]) > 1:
