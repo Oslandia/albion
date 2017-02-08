@@ -294,9 +294,15 @@ class DataToolbar(QToolBar):
         bbox = QgsRectangle(buf.bounds[0], buf.bounds[1], buf.bounds[2], buf.bounds[3])
         source_features = []
 
+        logging.info('{} ={}'.format(section.width, bbox.asWktCoordinates()))
+
         for source_feature in generatrice_layer.getFeatures(QgsFeatureRequest(bbox)):
-            gen_ids += [source_feature.id()]
-            source_features += [source_feature]
+            bb = source_feature.geometry().boundingBox()
+            extents = loads('LINESTRING ({} {}, {} {})'.format(bb.xMinimum(), bb.yMinimum(), bb.xMaximum(), bb.yMaximum()))
+
+            if buf.intersects(extents):
+                gen_ids += [source_feature.id()]
+                source_features += [source_feature]
 
         connections, edges_id = build_graph_connections_list(scratch_projection, generatrice_layer.id(), gen_ids)
 
