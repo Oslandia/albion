@@ -35,30 +35,50 @@ from .fake_generatrice import fake_generatrices as fg_fake_generatrices
 import numpy as np
 import logging
 
-def edges_from_feature_projected_graph_feature(source_feature, projected_feature_centroid_x, source_layer, projected_graph):
-    feature_id = source_feature.id()
+def build_graph_connections_list(graph_layer, generatrice_layer_id, connectable_ids):
+    graph_attr = ['start', 'end'] if graph_layer.fields().fieldNameIndex('start') >= 0 else ['start:Integer64(10,0)', 'end:Integer64(10,0)']
+    id_field = 'id' if graph_layer.fields().fieldNameIndex('id') >= 0 else 'id:Integer64(10,0)'
 
-    connected_edges = {'L':[], 'R':[]}
+    connections = [[] for id_ in connectable_ids]
+    edges = [[] for id_ in connectable_ids]
 
-    graph_attr = ['start', 'end'] if projected_graph.fields().fieldNameIndex('start') >= 0 else ['start:Integer64(10,0)', 'end:Integer64(10,0)']
-
-    # Lookup all edges connected to this feature
-    for edge in projected_graph.getFeatures():
-        # TODO: filter in getFeatures() instead
-        if edge.attribute('layer') != source_layer.id():
+    for edge in graph_layer.getFeatures():
+        if edge.attribute('layer')  != generatrice_layer_id:
+            continue
+        start_id = edge.attribute(graph_attr[0])
+        if not (start_id in connectable_ids):
             continue
 
-        if edge.attribute(graph_attr[0]) == feature_id or edge.attribute(graph_attr[1]) == feature_id:
-            # edge is connected, check direction
-            edge_center = edge.geometry().centroid().asPoint()
+        end_id = edge.attribute(graph_attr[1])
+        if not (end_id in connectable_ids):
+            continue
 
-            # if feature is to the left of the projected edge
-            if projected_feature_centroid_x < edge_center[0]:
-                connected_edges['R'] += [edge]
-                logging.debug('R edges += {}'.format(edge.id()))
-            else:
-                connected_edges['L'] += [edge]
-                logging.debug('L edges += {}'.format(edge.id()))
+        connections[connectable_ids.index(start_id)] += [end_id]
+        edges[connectable_ids.index(start_id)] += [edge.attribute(id_field)]
+
+        connections[connectable_ids.index(end_id)] += [start_id]
+        edges[connectable_ids.index(end_id)] += [edge.attribute(id_field)]
+
+    return connections, edges
+
+
+def edges_from_edges_id(projected_graph, considered_edges_id, projected_feature_centroid_x):
+    connected_edges = {'L':[], 'R':[]}
+    id_field = 'id' if projected_graph.fields().fieldNameIndex('id') >= 0 else 'id:Integer64(10,0)'
+
+    # TODO : fix others
+    expr = ','.join(str(x) for x in considered_edges_id)
+
+    # Lookup all edges connected to this feature
+    for edge in projected_graph.getFeatures(QgsFeatureRequest().setFilterExpression ( u'"{}" IN ({})'.format(id_field, expr))):
+        # edge is connected, check direction
+        edge_center = edge.geometry().centroid().asPoint()
+
+        # if feature is to the left of the projected edge
+        if projected_feature_centroid_x < edge_center[0]:
+            connected_edges['R'] += [edge]
+        else:
+            connected_edges['L'] += [edge]
 
     return connected_edges
 
@@ -255,7 +275,7 @@ class DataToolbar(QToolBar):
         if scratch_projection.featureCount() == 0:
             return []
 
-        gen_ids = generatrice_layer.allFeatureIds()
+        gen_ids = [] # generatrice_layer.allFeatureIds()
         lid = generatrice_layer.id()
 
         potential_starts = []
@@ -266,15 +286,24 @@ class DataToolbar(QToolBar):
             return section.project(feat.geometry()).length()
 
 
+        logging.debug('BEFORE (fakes) {}'.format(potential_starts))
         pants = {}
         powers = {}
 
         buf = section.line.buffer(section.width, cap_style=2)
         bbox = QgsRectangle(buf.bounds[0], buf.bounds[1], buf.bounds[2], buf.bounds[3])
+        source_features = []
 
         for source_feature in generatrice_layer.getFeatures(QgsFeatureRequest(bbox)):
+            gen_ids += [source_feature.id()]
+            source_features += [source_feature]
+
+        connections, edges_id = build_graph_connections_list(scratch_projection, generatrice_layer.id(), gen_ids)
+
+        for i in range(0, len(source_features)):
+            source_feature = source_features[i]
             centroid = source_feature.geometry().centroid().asPoint()
-            p = edges_from_feature_projected_graph_feature(source_feature, section.project_point(centroid[0], centroid[1], 0)[0], generatrice_layer, scratch_projection)
+            p = edges_from_edges_id(scratch_projection, edges_id[i], section.project_point(centroid[0], centroid[1], 0)[0])
 
             if len(p['L']) > 1 or len(p['R']) > 1:
                 potential_starts += [source_feature.id()]
@@ -286,19 +315,10 @@ class DataToolbar(QToolBar):
 
                 pants[source_feature.id()] = p
 
-        connections = [[] for id_ in gen_ids]
-
-        # browse edges
-        for edge in scratch_projection.getFeatures(): #request):
-            if edge.attribute('layer')  != lid:
-                continue
-            e1 = edge.attribute('start')
-            e2 = edge.attribute('end')
-
-            connections[gen_ids.index(e1)] += [e2]
-            connections[gen_ids.index(e2)] += [e1]
-
-        logging.debug('AFTER {}'.format(potential_starts))
+        # remove invalid
+        logging.debug('AFTER {} | {}'.format(potential_starts, gen_ids))
+        potential_starts = filter(lambda i: i in gen_ids, potential_starts)
+        logging.debug('LAST {}'.format(potential_starts))
 
         # export graph
         paths = extract_paths(gen_ids, potential_starts, connections)
@@ -637,7 +657,7 @@ class DataToolbar(QToolBar):
 
 class Plugin():
     def __init__(self, iface):
-        FORMAT = '\033[30;100m%(created)-13s\033[0m \033[33m%(filename)-12s\033[0m:\033[34m%(lineno)4d\033[0m %(message)s' if sys.platform.find('linux')>= 0 else '%(created)13s %(filename)-12s:%(lineno)4d %(message)s'
+        FORMAT = '\033[30;100m%(created)-13s\033[0m \033[33m%(filename)-12s\033[0m:\033[34m%(lineno)4d\033[0m %(levelname)8s %(message)s' if sys.platform.find('linux')>= 0 else '%(created)13s %(filename)-12s:%(lineno)4d %(message)s'
         logging.basicConfig(format=FORMAT, level=logging.DEBUG)
 
         self.__iface = iface
@@ -1023,25 +1043,24 @@ class Plugin():
         ids = graph.uniqueValues(graph.fieldNameIndex('id'))
         my_id = (max(ids) if len(ids) > 0 else 0) + 1
 
-        ids = layer.uniqueValues(source_layer.fieldNameIndex('id'))
+        ids = source_layer.uniqueValues(source_layer.fieldNameIndex('id'))
         my_fake_id = (max(ids) if len(ids) > 0 else 0) + 1
 
         has_field_HoleID = layer.fields().fieldNameIndex("HoleID") >= 0
         has_field_mine = layer.fields().fieldNameIndex("mine") >= 0
         has_field_mine_str = layer.fields().fieldNameIndex("mine:Integer64(10,0)") >= 0
 
-        distance = float(self.generatrice_distance.text())
         # Compute fake generatrice translation
+        distance = float(self.generatrice_distance.text())
         a = self.__section_main.section.unproject_point(distance, 0, 0)
         b = self.__section_main.section.unproject_point(0, 0, 0)
         translation_vec = tuple([a[i]-b[i] for i in range(0, 2)])
 
         query = QgsFeatureRequest().setFilterExpression (u'"layer" = "{0}"'.format(source_layer.id()))
 
-        # First get a list of source features ids
-        # so if we modify
-        interesting_ids = []
-        centroids = []
+        ## First get a list of projected features
+        id_field = 'id' if layer.fields().fieldNameIndex('id') >= 0 else 'id:Integer64(10,0)'
+        projected_generatrice_centroids = {}
         for feature in layer.getFeatures():
             if has_field_HoleID and feature.attribute("HoleID") == "Fake":
                 continue
@@ -1050,24 +1069,27 @@ class Plugin():
             if has_field_mine_str and feature.attribute("mine:Integer64(10,0)") == -1:
                 continue
 
-            feature.setFields(source_layer.fields(), False)
-            interesting_ids += [feature.attribute('id')]
-            centroids += [feature.geometry().centroid().asPoint()]
+            feature.setFields(layer.fields(), False)
+            projected_generatrice_centroids[feature.attribute(id_field)] = feature.geometry().centroid().asPoint()
 
-        interesting_source_features = []
-        for source_feat in source_layer.getFeatures(QgsFeatureRequest().setFilterExpression ( u'"id" IN {}'.format(str(tuple(interesting_ids))))):           interesting_source_features += [source_feat]
+        logging.debug('projected_generatrice_centroids = {}'.format(projected_generatrice_centroids.keys()))
+
+        ## Then browse source features
+        sources_features = []
+        for source_feature in source_layer.getFeatures(QgsFeatureRequest().setFilterExpression ( u'"id" IN {}'.format(str(tuple(projected_generatrice_centroids.keys()))))):
+            sources_features += [source_feature]
+
+        connections, edges_id = build_graph_connections_list(projected_graph, source_layer.id(), [sf.id() for sf in sources_features])
 
         graph.beginEditCommand('update edges')
+        for i in range(0, len(sources_features)):
+            source_feature = sources_features[i]
+            source_feature.setFields(source_layer.fields(), False)
+            feature_id = source_feature.attribute('id')
 
-        # Browse features in projected layer
-        for source_feature in interesting_source_features:
-            feature_idx = interesting_source_features.index(source_feature)
-            source_id = source_feature.id()
-
-            connected_edges = edges_from_feature_projected_graph_feature(source_feature, centroids[feature_idx].x(), source_layer, projected_graph)
-
-            logging.debug('connected {}|{}'.format(len(connected_edges['L']), len(connected_edges['R'])))
-            # Now that we know all connected edges, we can create fake generatrices...
+            # Get all connected edges for this feature
+            connected_edges = edges_from_edges_id(projected_graph, edges_id[i], projected_generatrice_centroids[feature_id].x())
+            # logging.debug('connected {}|{}'.format(len(connected_edges['L']), len(connected_edges['R'])))
 
             # If this feature is connected on one side only -> add the missing generatrice on the other side
             if xor(len(connected_edges['L']) == 0, len(connected_edges['R']) == 0):
@@ -1081,7 +1103,7 @@ class Plugin():
 
                 my_fake_id = my_fake_id + 1
                 my_id = my_id + 1
-            elif len(connected_edges['L']) == 0 and len(connected_edges['R']) == 0 and source_id in source_layer.selectedFeaturesIds():
+            elif len(connected_edges['L']) == 0 and len(connected_edges['R']) == 0 and source_feature.id() in source_layer.selectedFeaturesIds():
                 for d in [-1.0, 1.0]:
                     generatrice = fg_create(self.__section_main.section, source_layer, source_feature, my_fake_id, translation_vec, d)
                     # Read back feature to get proper id()
