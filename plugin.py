@@ -373,12 +373,14 @@ class DataToolbar(QToolBar):
 
                 v = loads(p.geometry().exportToWkt().replace('Z', ' Z'))
 
-                z_length = v.coords[1][2] - v.coords[0][2]
-                z_start = v.coords[0][2] + offset * z_length
-                z_end = z_start + ratio * z_length
+                length = math.sqrt(sum([pow(v.coords[1][i]-v.coords[0][i],2) for i in range(0, 3)]))
+                norm = [(v.coords[1][i]-v.coords[0][i]) / length for i in range(0, 3)]
 
-                vertices += [[ v.coords[0][0], v.coords[0][1], z_start ]]
-                vertices += [[ v.coords[1][0], v.coords[1][1], z_end ]]
+                v0 = [v.coords[0][i] + norm[i] * offset for i in range(0, 3)]
+                v1 = [v0[i] + norm[i] * length * ratio for i in range(0, 3)]
+
+                vertices += [ v0 ]
+                vertices += [ v1 ]
 
             if len(vertices) > 0:
                 result += [vertices]
