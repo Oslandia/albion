@@ -34,6 +34,7 @@ from .fake_generatrice import fake_generatrices as fg_fake_generatrices
 
 import numpy as np
 import logging
+from dxfwrite import DXFEngine as dxf
 
 def build_graph_connections_list(graph_layer, generatrice_layer_id, connectable_ids):
     graph_attr = ['start', 'end'] if graph_layer.fields().fieldNameIndex('start') >= 0 else ['start:Integer64(10,0)', 'end:Integer64(10,0)']
@@ -189,8 +190,6 @@ class DataToolbar(QToolBar):
         ex2.triggered.connect(lambda c: self.__export_polygons(self.subGraphLayerHelper.layer()))
         ActionStateHelper(ex2).add_is_enabled_test(lambda action: self.__export_polygons_precondition_check(self.subGraphLayerHelper.layer())).update_state()
 
-
-        # self.addAction(icon('6_export_volume.svg'), 'Build volume').triggered.connect(self.__build_volume)
         self.__section.toolbar.projected_layer_created.connect(self.__add_polygon_layer)
 
     def cleanup(self):
@@ -462,6 +461,17 @@ class DataToolbar(QToolBar):
             v = loads(geom.geometry().exportToWkt().replace('Z', ' Z'))
             return [[ list(v.coords[0]), list(v.coords[1]) ]]
 
+        graphLayer = self.graphLayerHelper.layer()
+
+        if graphLayer is None:
+            return
+
+        volumes, vertices = self.buildVolume(graphLayer, sections_layers)
+
+        self.viewer3d.updateVolume(vertices, volumes)
+        self.viewer3d.updateGL()
+
+    def buildVolume(self, graph_layer, section_layers):
         def same_vertex(v1, v2):
             return v1[0] == v2[0] and v1[1] == v2[1] and v1[2] == v2[2]
 
@@ -471,18 +481,13 @@ class DataToolbar(QToolBar):
                     return i
             return -1
 
-        graphLayer = self.graphLayerHelper.layer()
-
-        if graphLayer is None:
-            return
-
         nodes = []
         edges = []
 
         total = 0
         for layer in section_layers:
             if not layer is None:
-                for polygon in self.export_polygons_impl(graphLayer, layer):
+                for polygon in self.export_polygons_impl(graph_layer, layer):
                     previous_idx = -1
                     for i in range(0, len(polygon), 2):
                         total += 1
@@ -498,40 +503,8 @@ class DataToolbar(QToolBar):
                             edges += [(idx, previous_idx)]
                         previous_idx = idx
 
-        # logging.debug('{} vs {}'.format(len(nodes), total))
-        # logging.debug(edges)
-        # return
+        return to_volume(np.array(nodes), edges)
 
-
-        # section = Section()
-        # for section_line in layer.getFeatures():
-        #     section.update(section_line.geometry().exportToWkt(), float(self.__section.toolbar.buffer_width.text()))
-        #     buf = section.line.buffer(section.width, cap_style=2)
-
-        #     for edge in graphLayer.getFeatures():
-        #         centroid = edge.geometry().boundingBox().center()
-        #         if not Point(centroid.x(), centroid.y()).intersects(buf):
-        #             continue
-
-
-        #         layer = QgsMapLayerRegistry.instance().mapLayer(edge.attribute("layer"))
-        #         start = layer.getFeatures(QgsFeatureRequest(edge.attribute("start"))).next()
-        #         end = layer.getFeatures(QgsFeatureRequest(edge.attribute("end"))).next()
-
-        #         if not(start.id() in indices):
-        #             indices[start.id()] = len(nodes)
-        #             nodes += addVertice(start)
-
-        #         if not(end.id() in indices):
-        #             indices[end.id()] = len(nodes)
-        #             nodes += addVertice(end)
-
-        #         edges += [ (indices[start.id()], indices[end.id()]) ]
-
-        volumes, vertices = to_volume(np.array(nodes), edges)
-
-        self.viewer3d.updateVolume(vertices, volumes)
-        self.viewer3d.updateGL()
 
 
     def updateGraph(self, section_layers, scale_z = 1.0):
@@ -769,6 +742,34 @@ class Plugin():
 
         self.toolbar.viewer3d.updateGL()
 
+    def export_volume(self):
+        section_layers = []
+        for combo in self.viewer3d_combo:
+            lid = combo.itemData(combo.currentIndex())
+            section_layers += [QgsMapLayerRegistry.instance().mapLayer(lid)]
+
+        if len(section_layers) < 2:
+            return
+
+        volumes, vertices = self.toolbar.buildVolume(self.graphLayerHelper.layer(), section_layers)
+
+        drawing = dxf.drawing('/tmp/test.dxf')
+
+        for vol in volumes:
+            for tri in vol:
+                idx = len(vertices)
+                v = [ vertices[tri[i]] for i in range(0, 3) ]
+                drawing.add(dxf.face3d([tuple(v[0]), tuple(v[1]), tuple(v[2])], flags=1))
+
+        drawing.save()
+
+
+
+
+        print vertices
+
+
+
 
     def on_graph_modified(self):
         logging.info('on_graph_modified')
@@ -828,6 +829,8 @@ class Plugin():
 
         self.viewer3d_toolbar.addWidget(self.viewer3d_scale_z)
         self.viewer3d_toolbar.addAction(QgsApplication.getThemeIcon('/mActionDraw.svg'), 'refresh').triggered.connect(self.on_graph_modified)
+
+        self.viewer3d_toolbar.addAction(icon('6_export_volume.svg'), 'Export volume (graph)').triggered.connect(self.export_volume)
 
         QgsMapLayerRegistry.instance().layersAdded.connect(self.__update_3d_combo)
         self.__update_3d_combo(QgsMapLayerRegistry.instance().mapLayers().values())
