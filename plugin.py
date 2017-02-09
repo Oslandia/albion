@@ -543,44 +543,14 @@ class DataToolbar(QToolBar):
         def centroid(l):
             return [0.5*(l.coords[0][i]+l.coords[1][i]) for i in range(0, 3)]
 
-        section_line_buffer = self.__section.section.line.buffer(self.__section.section.width, cap_style=2) if self.__section.section.is_valid else None
-        graph_vertices = []
-        graph_indices = []
-        highlight_indices = []
 
-        for edge in graphLayer.getFeatures():
-            try:
-                layer = QgsMapLayerRegistry.instance().mapLayer(edge.attribute("layer"))
-                segment = []
-                segment += [ layer.getFeatures(QgsFeatureRequest(edge.attribute("start"))).next() ]
-                segment += [ layer.getFeatures(QgsFeatureRequest(edge.attribute("end"))).next() ]
-
-                highlighted = not (section_line_buffer is None)
-
-                for v in segment:
-                    a = v.geometry().exportToWkt().replace("Z", " Z")
-                    pv = loads(a)
-                    c = centroid(pv)
-
-                    if not (section_line_buffer is None):
-                        if not (Point(c[0], c[1]).intersects(section_line_buffer)):
-                            highlighted = False
-
-                    graph_vertices += [ c ]
-
-                l = len(graph_vertices)
-                if 2 <= l:
-                    graph_indices += [l - 2, l - 1]
-
-                if highlighted:
-                    highlight_indices += [ len(graph_vertices) - 2, len(graph_vertices) - 1 ]
-            except Exception as e:
-                pass
-
-
-        # print graph_vertices, graph_indices
-        self.viewer3d.updateGraph(graph_vertices, graph_indices, highlight_indices)
-
+        if self.__section.section.is_valid:
+            # draw section line
+            section_vertices = []
+            for c in self.__section.section.line.coords:
+                section_vertices += [[c[0], c[1], 250], [c[0], c[1], 500]]
+            logging.error(section_vertices)
+            self.viewer3d.define_section_vertices(section_vertices)
 
 
         if len(self.viewer3d.polygons_vertices) == 0:
@@ -595,21 +565,11 @@ class DataToolbar(QToolBar):
                     for i in range(0, len(v)):
                         self.viewer3d.polygons_colors += [color]
 
+        self.update_3d_view(scale_z)
 
-        # if not section_line_buffer is None:
-        #     polygon = PolygonLayerProjection.buildPolygon(self.__section.section, graphLayer, section_line_buffer, with_projection=False)
-
-        #     vertices = []
-        #     indices = []
-
-        #     for geom in polygon.geoms:
-        #         for c in geom.exterior.coord:
-        #             indices += len(vertices)
-        #             vertices += [c]
-
-        #     print polygon
-
-        self.viewer3d.scale_z = scale_z
+    def update_3d_view(self, z_scale = None):
+        if z_scale:
+            self.viewer3d.scale_z = z_scale
 
         self.viewer3d.updateGL()
 
@@ -784,11 +744,15 @@ class Plugin():
 
             layer_vertices = []
             for feature in layer.getFeatures():
-                v = loads(feature.geometry().exportToWkt().replace('Z', ' Z'))
+                wkt = feature.geometry().exportToWkt()
+                if wkt.find('Z') < 0:
+                    break
+                v = loads(wkt.replace('Z', ' Z'))
 
                 layer_vertices += [ list(v.coords[0]), list(v.coords[1]) ]
 
-            layers_vertices[layer.id()] = { 'v': np.array(layer_vertices), 'c': layer.rendererV2().symbol().color().getRgbF(), 'visible': self.__iface.legendInterface().isLayerVisible(layer)}
+            if len(layer_vertices) > 0:
+                layers_vertices[layer.id()] = { 'v': np.array(layer_vertices), 'c': layer.rendererV2().symbol().color().getRgbF(), 'visible': self.__iface.legendInterface().isLayerVisible(layer)}
 
         self.toolbar.viewer3d.define_generatrices_vertices(layers_vertices)
 
@@ -854,6 +818,7 @@ class Plugin():
         self.viewer3d_dock.setWidget(self.viewer3d_window)
         self.viewer3d_scale_z = QLineEdit("3.0")
         self.viewer3d_scale_z.setMaximumWidth(50)
+        self.viewer3d_scale_z.editingFinished.connect(lambda: self.toolbar.update_3d_view(float(self.viewer3d_scale_z.text())))
 
         self.viewer3d_combo = [QComboBox(), QComboBox()]
         for combo in self.viewer3d_combo:

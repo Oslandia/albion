@@ -23,6 +23,7 @@ class Camera():
         self.position = QVector3D(100, 50, 0)
         self.rotX = 0
         self.rotY = 90
+        self.scale_z = 3.0
 
     def worldMatrix(self, include_translation = True):
         m = QMatrix4x4()
@@ -36,6 +37,10 @@ class Camera():
 
         m = (m2 * (m3 * m))
         if include_translation:
+            s = QMatrix4x4()
+            s.scale(1, 1, 1.0 / self.scale_z)
+            m = s * m
+
             m[(0, 3)] = self.position.x()
             m[(1, 3)] = self.position.y()
             m[(2, 3)] = self.position.z()
@@ -46,17 +51,22 @@ class Camera():
         # user is dragging
         move_speed = min(250, max(10, self.position.length() * 0.5))
 
-        if int(buttons) & Qt.LeftButton:
-            if int(modifiers) & Qt.ShiftModifier:
-                translation = QVector3D(delta_x * move_speed, 0, delta_z * move_speed)
-                translation = self.worldMatrix(False) * translation
-                translation.setZ(translation.z() + delta_y * move_speed)
-                self.position += translation
-            elif int(modifiers) & Qt.ControlModifier:
-                pass
-            else:
-                self.rotX += -delta_x*50
-                self.rotY += delta_y*50
+        pan = False
+        if int(buttons) & Qt.LeftButton and int(modifiers) & Qt.ShiftModifier:
+            pan = True
+        elif int(buttons) & Qt.MiddleButton:
+            pan = True
+
+        if pan:
+            translation = QVector3D(delta_x * move_speed, 0, delta_z * move_speed)
+            translation = self.worldMatrix(False) * translation
+            translation.setZ(translation.z() + delta_y * move_speed)
+            self.position += translation
+        elif int(modifiers) & Qt.ControlModifier:
+            pass
+        else:
+            self.rotX += -delta_x*50
+            self.rotY += delta_y*50
 
 
 class Viewer3D(QtOpenGL.QGLWidget):
@@ -66,10 +76,11 @@ class Viewer3D(QtOpenGL.QGLWidget):
         self.camera = Camera()
         self.polygons_vertices = []
         self.scale_z = 3.0
-        self.camera.matrix.scale(1.0, 1.0, self.scale_z)
         self.colors = []
         self.polygons_colors = []
         self.layers_vertices = None
+        self.center = [0, 0, 0]
+        self.section_vertices = None
 
     def initializeGL(self):
         self.qglClearColor(QtGui.QColor(150, 150,  150))
@@ -105,6 +116,9 @@ class Viewer3D(QtOpenGL.QGLWidget):
 
     def define_generatrices_vertices(self, layers_vertices):
         self.layers_vertices = layers_vertices
+
+    def define_section_vertices(self, section_vertices):
+        self.section_vertices = np.array(section_vertices)
 
     def updateVolume(self, vertices, volumes):
 
@@ -200,6 +214,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         glEnable(GL_DEPTH_TEST)
+        glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 
         glMatrixMode(GL_PROJECTION)
@@ -212,8 +227,9 @@ class Viewer3D(QtOpenGL.QGLWidget):
 
 
         glMatrixMode(GL_MODELVIEW)
-        m = self.camera.worldMatrix()
+        self.camera.scale_z = self.scale_z
 
+        m = self.camera.worldMatrix()
 
         modelview, r = m.inverted()
 
@@ -234,6 +250,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
         glEnableClientState(GL_VERTEX_ARRAY)
 
         if not (self.layers_vertices is None):
+            glLineWidth(1)
             for lid in self.layers_vertices:
                 if not self.layers_vertices[lid]['visible']:
                     continue
@@ -241,7 +258,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
                 glVertexPointerf(layer - self.center)
                 glColor4fv(list(self.layers_vertices[lid]['c']))
                 glDrawArrays(GL_LINES, 0, len(layer))
-
+            glLineWidth(1)
 
         if not (self.vertices is None):
             glVertexPointerf(self.vertices - self.center)
@@ -317,7 +334,18 @@ class Viewer3D(QtOpenGL.QGLWidget):
                 # draw generatrices
                 glDrawElementsui(GL_LINE_STRIP, indice_lines)
 
+        if not (self.section_vertices is None):
+            glDisable ( GL_COLOR_MATERIAL ) ;
+            glDisable(GL_LIGHTING)
+            glEnable (GL_BLEND);
+            glColor4fv([1, 1, 0, 0.2])
+            glVertexPointerf(self.section_vertices - self.center)
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, len(self.section_vertices))
+            glDisable (GL_BLEND);
+            glEnable ( GL_COLOR_MATERIAL ) ;
+
         if not (self.graph_vertices is None):
+            pass
             glDisable(GL_LIGHTING)
             # glDisable(GL_DEPTH_TEST)
             glEnableClientState(GL_COLOR_ARRAY)
