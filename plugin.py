@@ -190,7 +190,7 @@ class DataToolbar(QToolBar):
         ActionStateHelper(ex2).add_is_enabled_test(lambda action: self.__export_polygons_precondition_check(self.subGraphLayerHelper.layer())).update_state()
 
 
-        self.addAction(icon('6_export_volume.svg'), 'Build volume').triggered.connect(self.__build_volume)
+        # self.addAction(icon('6_export_volume.svg'), 'Build volume').triggered.connect(self.__build_volume)
         self.__section.toolbar.projected_layer_created.connect(self.__add_polygon_layer)
 
     def cleanup(self):
@@ -382,7 +382,7 @@ class DataToolbar(QToolBar):
                 length = math.sqrt(sum([pow(v.coords[1][i]-v.coords[0][i],2) for i in range(0, 3)]))
                 norm = [(v.coords[1][i]-v.coords[0][i]) / length for i in range(0, 3)]
 
-                v0 = [v.coords[0][i] + norm[i] * offset for i in range(0, 3)]
+                v0 = [v.coords[0][i] + norm[i] * length * offset for i in range(0, 3)]
                 v1 = [v0[i] + norm[i] * length * ratio for i in range(0, 3)]
 
                 vertices += [ v0 ]
@@ -451,26 +451,57 @@ class DataToolbar(QToolBar):
 
 
 
-    def __build_volume(self):
-        pass
-        # logging.info('build volume')
-        # layer = self.mapCanvas.currentLayer()
-        # if layer is None:
-        #     logging.warning("No active layer")
-        #     return
+    def draw_volume(self, section_layers):
+        logging.info('build volume')
 
-        # nodes = []
-        # indices = {}
-        # edges = []
+        nodes = []
+        indices = {}
+        edges = []
 
-        # def addVertice(geom):
-        #     v = loads(geom.geometry().exportToWkt().replace('Z', ' Z'))
-        #     return [[ list(v.coords[0]), list(v.coords[1]) ]]
+        def addVertice(geom):
+            v = loads(geom.geometry().exportToWkt().replace('Z', ' Z'))
+            return [[ list(v.coords[0]), list(v.coords[1]) ]]
 
-        # graphLayer = self.graphLayerHelper.layer()
+        def same_vertex(v1, v2):
+            return v1[0] == v2[0] and v1[1] == v2[1] and v1[2] == v2[2]
 
-        # if graphLayer is None:
-        #     return
+        def index_of(generatrice):
+            for i in range(0, len(nodes)):
+                if same_vertex(generatrice[0], nodes[i][0]) and same_vertex(generatrice[1], nodes[i][1]):
+                    return i
+            return -1
+
+        graphLayer = self.graphLayerHelper.layer()
+
+        if graphLayer is None:
+            return
+
+        nodes = []
+        edges = []
+
+        total = 0
+        for layer in section_layers:
+            if not layer is None:
+                for polygon in self.export_polygons_impl(graphLayer, layer):
+                    previous_idx = -1
+                    for i in range(0, len(polygon), 2):
+                        total += 1
+                        generatrice = [polygon[i], polygon[i + 1]]
+
+                        idx = index_of(generatrice)
+                        if idx < 0:
+                            nodes += [generatrice]
+                            idx = len(nodes) - 1
+
+                        # connect to previous node
+                        if previous_idx >= 0:
+                            edges += [(idx, previous_idx)]
+                        previous_idx = idx
+
+        # logging.debug('{} vs {}'.format(len(nodes), total))
+        # logging.debug(edges)
+        # return
+
 
         # section = Section()
         # for section_line in layer.getFeatures():
@@ -497,11 +528,11 @@ class DataToolbar(QToolBar):
 
         #         edges += [ (indices[start.id()], indices[end.id()]) ]
 
-        # volumes, vertices = to_volume(np.array(nodes), edges)
+        volumes, vertices = to_volume(np.array(nodes), edges)
 
-        # self.viewer3d.updateVolume(vertices, volumes)
+        self.viewer3d.updateVolume(vertices, volumes)
+        self.viewer3d.updateGL()
 
-        # self.updateGraph(None, None, True)
 
     def updateGraph(self, section_layers, scale_z = 1.0):
         graphLayer = self.graphLayerHelper.layer()
@@ -666,7 +697,8 @@ class DataToolbar(QToolBar):
 class Plugin():
     def __init__(self, iface):
         FORMAT = '\033[30;100m%(created)-13s\033[0m \033[33m%(filename)-12s\033[0m:\033[34m%(lineno)4d\033[0m %(levelname)8s %(message)s' if sys.platform.find('linux')>= 0 else '%(created)13s %(filename)-12s:%(lineno)4d %(message)s'
-        logging.basicConfig(format=FORMAT, level=logging.DEBUG)
+        lvl = logging.DEBUG if sys.platform.find('linux')>= 0 else logging.CRITICAL
+        logging.basicConfig(format=FORMAT, level=lvl)
 
         self.__iface = iface
 
@@ -733,6 +765,8 @@ class Plugin():
             section_layers += [QgsMapLayerRegistry.instance().mapLayer(lid)]
 
         self.toolbar.updateGraph(section_layers, float(self.viewer3d_scale_z.text()))
+
+        self.toolbar.draw_volume(section_layers)
 
     def on_graph_modified(self):
         logging.info('on_graph_modified')
@@ -1069,35 +1103,35 @@ class Plugin():
         ## First get a list of projected features
         id_field = 'id' if layer.fields().fieldNameIndex('id') >= 0 else 'id:Integer64(10,0)'
         projected_generatrice_centroids = {}
+        projected_fakes = []
         for feature in layer.getFeatures():
-            if has_field_HoleID and feature.attribute("HoleID") == "Fake":
-                continue
-            if has_field_mine and feature.attribute("mine") == -1:
-                continue
-            if has_field_mine_str and feature.attribute("mine:Integer64(10,0)") == -1:
-                continue
-
             feature.setFields(layer.fields(), False)
             projected_generatrice_centroids[feature.attribute(id_field)] = feature.geometry().centroid().asPoint()
 
         logging.debug('projected_generatrice_centroids = {}'.format(projected_generatrice_centroids.keys()))
 
         ## Then browse source features
-        sources_features = []
+        source_features = []
         for source_feature in source_layer.getFeatures(QgsFeatureRequest().setFilterExpression ( u'"id" IN {}'.format(str(tuple(projected_generatrice_centroids.keys()))))):
-            sources_features += [source_feature]
+            source_features += [source_feature]
+        logging.debug(source_features)
 
-        connections, edges_id = build_graph_connections_list(projected_graph, source_layer.id(), [sf.id() for sf in sources_features])
+        connections, edges_id = build_graph_connections_list(projected_graph, source_layer.id(), [sf.id() for sf in source_features])
 
         graph.beginEditCommand('update edges')
-        for i in range(0, len(sources_features)):
-            source_feature = sources_features[i]
+        for i in range(0, len(source_features)):
+            source_feature = source_features[i]
             source_feature.setFields(source_layer.fields(), False)
+
+            # filter out fake generatrices
+            if (has_field_HoleID and source_feature.attribute("HoleID") == "Fake") or (has_field_mine and source_feature.attribute("mine") == -1):
+                continue
+
             feature_id = source_feature.attribute('id')
 
             # Get all connected edges for this feature
             connected_edges = edges_from_edges_id(projected_graph, edges_id[i], projected_generatrice_centroids[feature_id].x())
-            # logging.debug('connected {}|{}'.format(len(connected_edges['L']), len(connected_edges['R'])))
+            logging.debug('connected {}|{}'.format(len(connected_edges['L']), len(connected_edges['R'])))
 
             # If this feature is connected on one side only -> add the missing generatrice on the other side
             if xor(len(connected_edges['L']) == 0, len(connected_edges['R']) == 0):

@@ -106,29 +106,31 @@ class Viewer3D(QtOpenGL.QGLWidget):
 
 
     def updateVolume(self, vertices, volumes):
-        pass
-        # if len(volumes) == 0:
-        #     self.vertices = None
-        #     return
+
+        if len(volumes) == 0:
+            self.vertices = None
+            return
 
 
-        # self.vertices = []
-        # self.colors = []
-        # for v in vertices:
-        #     self.colors += [ self._color() ]
+        self.vertices = []
+        self.colors = []
+        for v in vertices:
+            self.colors += [ self._color() ]
 
-        # indices = []
-        # for vol in volumes:
-        #     for tri in vol:
-        #         idx = len(self.vertices)
-        #         self.vertices += [ vertices[tri[i]] for i in range(0, 3) ]
-        #         indices += [[idx, idx+1, idx+2]]
+        indices = []
+        for vol in volumes:
+            for tri in vol:
+                idx = len(self.vertices)
+                self.vertices += [ vertices[tri[i]] for i in range(0, 3) ]
+                indices += [[idx, idx+1, idx+2]]
 
-        # self.vertices = np.array(self.vertices)
+        self.vertices = np.array(self.vertices)
 
-        # self.indices = np.array(indices)
+        self.indices = np.array(indices)
 
-        # self.normals = self.computeNormals(self.vertices, self.indices)
+        self.normals = self.computeNormals(self.vertices, self.indices)
+
+        self._updateCenterExtent(self.vertices)
 
 
     def updateGraph(self, graph_vertices, graph_indices, highlights):
@@ -143,7 +145,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
             # self.graph_colors = [ [1, 0, 0, 1] if (i % 2) == 0 else [0, 0, 1, 1] for i in range(0, len(graph_vertices)) ]
 
             if was_empty:
-                self._updateCenterExtent()
+                self._updateCenterExtent(self.graph_vertices)
 
     def _color(self, t = None):
         a = [0.5, 0.5, 0.5]
@@ -158,17 +160,17 @@ class Viewer3D(QtOpenGL.QGLWidget):
         return [formula(0, t), formula(1, t), formula(2, t), 0.3]
 
 
-    def _updateCenterExtent(self):
+    def _updateCenterExtent(self, vertices):
         self.center = [
-            np.mean(self.graph_vertices[:, 0]),
-            np.mean(self.graph_vertices[:, 1]),
-            np.mean(self.graph_vertices[:, 2])
+            np.mean(vertices[:, 0]),
+            np.mean(vertices[:, 1]),
+            np.mean(vertices[:, 2])
         ]
 
-        extent = (np.min(self.graph_vertices[:,0]),
-                       np.min(self.graph_vertices[:,1]),
-                       np.max(self.graph_vertices[:,0]),
-                       np.max(self.graph_vertices[:,1])
+        extent = (np.min(vertices[:,0]),
+                       np.min(vertices[:,1]),
+                       np.max(vertices[:,0]),
+                       np.max(vertices[:,1])
                        )
 
         ext_y = extent[3] - extent[1]
@@ -218,19 +220,39 @@ class Viewer3D(QtOpenGL.QGLWidget):
         glScalef(1.0, 1.0, self.scale_z)
 
         glEnable(GL_LIGHT0)
-        glEnable(GL_COLOR_MATERIAL)
+        glLightfv(GL_LIGHT0, GL_DIFFUSE, [1.0, 1.0, 1.0, 1.0])
+        glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
+        glLightfv(GL_LIGHT0, GL_AMBIENT, [0.2, 0.2, 0.2, 1.0])
+        glLightfv(GL_LIGHT0, GL_POSITION, [eye.x(), eye.y(), eye.z(), 0])
 
         glEnableClientState(GL_VERTEX_ARRAY)
 
         if not (self.vertices is None):
+            glVertexPointerf(self.vertices - self.center)
+            glNormalPointerf(self.normals)
+
+            glEnable ( GL_COLOR_MATERIAL ) ;
+            # draw wireframe
+            glColor4f(0,0.6,0,1)
+            glLineWidth(3)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+            glDrawElementsui(GL_TRIANGLES, self.indices)
+
+            # draw lighted
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+
             glEnable(GL_LIGHTING)
             glEnableClientState(GL_NORMAL_ARRAY)
 
-            glColor4f(0.8, 0.8, 1, 0.5)
+            glColorMaterial ( GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE ) ;
+            glEnable ( GL_COLOR_MATERIAL ) ;
+
+            glColor4f(0, 1, 0, 1)
             glVertexPointerf(self.vertices - self.center)
             glNormalPointerf(self.normals)
             glDrawElementsui(GL_TRIANGLES, self.indices)
 
+            glDisable(GL_COLOR_MATERIAL)
             glDisableClientState(GL_NORMAL_ARRAY)
 
 
@@ -245,7 +267,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
             glDisable(GL_LIGHTING)
             # glEnableClientState(GL_COLOR_ARRAY)
 
-            glDisable(GL_DEPTH_TEST)
+            # glDisable(GL_DEPTH_TEST)
 
             for polygon in self.polygons_vertices:
                 p = np.array(polygon)
@@ -281,7 +303,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
 
         if not (self.graph_vertices is None):
             glDisable(GL_LIGHTING)
-            glDisable(GL_DEPTH_TEST)
+            # glDisable(GL_DEPTH_TEST)
             glEnableClientState(GL_COLOR_ARRAY)
 
 
