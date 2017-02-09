@@ -19,47 +19,44 @@ import re, logging
 
 class Camera():
     def __init__(self):
-        self.at = QVector3D()
-        self.eye = QVector3D(10, 0, 0)
-        self.up = QVector3D(0, 0, 1)
+        self.matrix = QMatrix4x4()
+        self.position = QVector3D(100, 50, 0)
+        self.rotX = 0
+        self.rotY = 90
 
-    def updateDistance(self, dist):
-        e = self.eye.normalized()
-        self.eye = e * dist
+    def worldMatrix(self, include_translation = True):
+        m = QMatrix4x4()
+        # Z up
+        m.rotate(90, 0, 0, 1)
 
-    def move(self, delta_x, delta_y, buttons, modifiers):
+        m2 = QMatrix4x4()
+        m2.rotate(self.rotX, 0, 0, 1)
+        m3 = QMatrix4x4()
+        m3.rotate(self.rotY, 0, 1, 0)
+
+        m = (m2 * (m3 * m))
+        if include_translation:
+            m[(0, 3)] = self.position.x()
+            m[(1, 3)] = self.position.y()
+            m[(2, 3)] = self.position.z()
+
+        return m
+
+    def move(self, delta_x, delta_y, delta_z, buttons, modifiers):
         # user is dragging
+        move_speed = min(250, max(10, self.position.length() * 0.5))
+
         if int(buttons) & Qt.LeftButton:
-            to = (self.at - self.eye)
-            distance = to.length()
             if int(modifiers) & Qt.ShiftModifier:
-                translation = to*delta_y
-                self.eye -= translation
+                translation = QVector3D(delta_x * move_speed, 0, delta_z * move_speed)
+                translation = self.worldMatrix(False) * translation
+                translation.setZ(translation.z() + delta_y * move_speed)
+                self.position += translation
             elif int(modifiers) & Qt.ControlModifier:
-                right = QVector3D.crossProduct(to, self.up).normalized()
-                up = QVector3D.crossProduct(right, to).normalized()
-                translation = right*(delta_x*distance)\
-                            + up*(delta_y*distance)
-                #self.at -= translation
-                self.eye -= translation
+                pass
             else:
-                right = QVector3D.crossProduct(to, self.up).normalized()
-                up = QVector3D.crossProduct(right, to).normalized()
-                translation = right*(delta_x*distance)\
-                            + up*(delta_y*distance)
-                self.eye -= translation*5
-                # correct eye position to maintain distance
-                to = (self.at - self.eye)
-                self.eye = self.at - to.normalized()*distance
-
-
-        # QVector3D(dist, 0, 0)
-        # m = QMatrix4x4()
-        # m.rotate(self.yRotDeg, 0, 0, 1)
-        # eye = m * eye
-
-    def position(self):
-        return self.eye
+                self.rotX += -delta_x*50
+                self.rotY += delta_y*50
 
 
 class Viewer3D(QtOpenGL.QGLWidget):
@@ -69,6 +66,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
         self.camera = Camera()
         self.polygons_vertices = []
         self.scale_z = 3.0
+        self.camera.matrix.scale(1.0, 1.0, self.scale_z)
         self.colors = []
         self.polygons_colors = []
         self.layers_vertices = None
@@ -92,7 +90,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
     def mouseMoveEvent(self, event):
         delta_x = float(event.x() - self.oldx)/self.width()
         delta_y = float(self.oldy - event.y())/self.height()
-        self.camera.move(delta_x, delta_y, event.buttons(), event.modifiers())
+        self.camera.move(delta_x, delta_y, 0, event.buttons(), event.modifiers())
         self.oldx = event.x()
         self.oldy = event.y()
         self.update()
@@ -102,7 +100,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
         self.oldy = event.y()
 
     def wheelEvent(self, event):
-        self.camera.move(0, 0.1 if event.delta() < 0 else -0.1 , Qt.LeftButton, Qt.ShiftModifier)
+        self.camera.move(0, 0, 0.1 if event.delta() < 0 else -0.1 , Qt.LeftButton, Qt.ShiftModifier)
         self.update()
 
     def define_generatrices_vertices(self, layers_vertices):
@@ -177,7 +175,6 @@ class Viewer3D(QtOpenGL.QGLWidget):
                        )
 
         ext_y = extent[3] - extent[1]
-        self.camera.updateDistance(ext_y * 5)
 
 
     def computeNormals(self, vtx, idx):
@@ -208,19 +205,25 @@ class Viewer3D(QtOpenGL.QGLWidget):
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
 
-        eye = self.camera.position()
+        eye = self.camera.position
 
         dist = eye.length()
-        GLU.gluPerspective(45.0, self.aspect, 0.01, 1000*dist)
+        GLU.gluPerspective(45.0, self.aspect, 0.01, 10000) #*dist)
 
 
         glMatrixMode(GL_MODELVIEW)
-        glLoadIdentity()
+        m = self.camera.worldMatrix()
 
-        GLU.gluLookAt(eye.x(), eye.y(), eye.z(),
-                      0, 0, 0,
-                      0, 0, 1)
-        glScalef(1.0, 1.0, self.scale_z)
+
+        modelview, r = m.inverted()
+
+        glLoadMatrixf(modelview.data())
+        # glLoadIdentity()
+
+        #GLU.gluLookAt(eye.x(), eye.y(), eye.z(),
+        #               0, 0, 0,
+        #               0, 0, 1)
+        #glScalef(1.0, 1.0, self.scale_z)
 
         glEnable(GL_LIGHT0)
         glLightfv(GL_LIGHT0, GL_DIFFUSE, [1.0, 1.0, 1.0, 1.0])
