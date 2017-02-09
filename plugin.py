@@ -757,16 +757,54 @@ class Plugin():
 
                 combo.addItem(red if self.viewer3d_combo.index(combo) == 0 else blue, layer.name(), layer.id())
 
-
     def display_graph_polygons(self):
         section_layers = []
         for combo in self.viewer3d_combo:
             lid = combo.itemData(combo.currentIndex())
             section_layers += [QgsMapLayerRegistry.instance().mapLayer(lid)]
 
+        # hmmmm
+        layers_vertices = {}
+        for layer in QgsMapLayerRegistry.instance().mapLayers().values():
+            # only draw projected layers
+            if not layer.customProperty('section_id') is None:
+                continue
+            if layer == self.graphLayerHelper.layer():
+                continue
+            if layer == self.subGraphLayerHelper.layer():
+                continue
+            if not layer.isSpatial():
+                continue
+            if QgsWKBTypes.geometryType(int(layer.wkbType())) != QgsWKBTypes.LineGeometry:
+                continue
+            if not isinstance(layer.rendererV2(), QgsSingleSymbolRendererV2):
+                continue
+            if layer in section_layers:
+                continue
+
+            layer_vertices = []
+            for feature in layer.getFeatures():
+                v = loads(feature.geometry().exportToWkt().replace('Z', ' Z'))
+
+                layer_vertices += [ list(v.coords[0]), list(v.coords[1]) ]
+
+            layers_vertices[layer.id()] = { 'v': np.array(layer_vertices), 'c': layer.rendererV2().symbol().color().getRgbF(), 'visible': self.__iface.legendInterface().isLayerVisible(layer)}
+
+        self.toolbar.viewer3d.define_generatrices_vertices(layers_vertices)
+
         self.toolbar.updateGraph(section_layers, float(self.viewer3d_scale_z.text()))
 
         self.toolbar.draw_volume(section_layers)
+
+    def layer_visibility_changed(self, node):
+        if self.toolbar.viewer3d.layers_vertices is None:
+            return
+
+        for lid in self.toolbar.viewer3d.layers_vertices:
+            self.toolbar.viewer3d.layers_vertices[lid]['visible'] = self.__iface.legendInterface().isLayerVisible(QgsMapLayerRegistry.instance().mapLayers()[lid])
+
+        self.toolbar.viewer3d.updateGL()
+
 
     def on_graph_modified(self):
         logging.info('on_graph_modified')
@@ -796,6 +834,8 @@ class Plugin():
         self.__section_main.toolbar.line_clicked.connect(self.display_graph_polygons)
         self.edit_graph_tool.graph_modified.connect(self.on_graph_modified)
         self.graphLayerHelper.graph_layer_tagged.connect(self.graph_layer_tagged)
+
+        self.__iface.layerTreeView().layerTreeModel().rootGroup().visibilityChanged.connect(self.layer_visibility_changed)
 
 
         self.toolbar.addAction('Clean graph').triggered.connect(self.cleanup_data)
@@ -854,6 +894,7 @@ class Plugin():
 
     def unload(self):
         # self.__section_main.section.section_layer_modified.disconnect(self.__update_graphs_geometry)
+        self.__iface.layerTreeView().layerTreeModel().rootGroup().visibilityChanged.disconnect(self.layer_visibility_changed)
         self.__section_main.toolbar.line_clicked.disconnect(self.edit_graph_tool._reset)
         self.__section_main.toolbar.line_clicked.disconnect(self.display_graph_polygons)
         QgsMapLayerRegistry.instance().layersAdded.disconnect(self.__update_3d_combo)

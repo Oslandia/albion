@@ -14,7 +14,7 @@ import numpy as np
 import math
 import random
 
-import re
+import re, logging
 
 
 class Camera():
@@ -71,6 +71,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
         self.scale_z = 3.0
         self.colors = []
         self.polygons_colors = []
+        self.layers_vertices = None
 
     def initializeGL(self):
         self.qglClearColor(QtGui.QColor(150, 150,  150))
@@ -104,6 +105,8 @@ class Viewer3D(QtOpenGL.QGLWidget):
         self.camera.move(0, 0.1 if event.delta() < 0 else -0.1 , Qt.LeftButton, Qt.ShiftModifier)
         self.update()
 
+    def define_generatrices_vertices(self, layers_vertices):
+        self.layers_vertices = layers_vertices
 
     def updateVolume(self, vertices, volumes):
 
@@ -226,6 +229,16 @@ class Viewer3D(QtOpenGL.QGLWidget):
         glLightfv(GL_LIGHT0, GL_POSITION, [eye.x(), eye.y(), eye.z(), 0])
 
         glEnableClientState(GL_VERTEX_ARRAY)
+
+        if not (self.layers_vertices is None):
+            for lid in self.layers_vertices:
+                if not self.layers_vertices[lid]['visible']:
+                    continue
+                layer = self.layers_vertices[lid]['v']
+                glVertexPointerf(layer - self.center)
+                glColor4fv(list(self.layers_vertices[lid]['c']))
+                glDrawArrays(GL_LINES, 0, len(layer))
+
 
         if not (self.vertices is None):
             glVertexPointerf(self.vertices - self.center)
