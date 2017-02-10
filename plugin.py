@@ -34,7 +34,7 @@ from .fake_generatrice import fake_generatrices as fg_fake_generatrices
 
 import numpy as np
 import logging
-from dxfwrite import DXFEngine as dxf
+# from dxfwrite import DXFEngine as dxf
 
 def build_graph_connections_list(graph_layer, generatrice_layer_id, connectable_ids):
     graph_attr = ['start', 'end'] if graph_layer.fields().fieldNameIndex('start') >= 0 else ['start:Integer64(10,0)', 'end:Integer64(10,0)']
@@ -699,6 +699,7 @@ class Plugin():
         self.toolbar.viewer3d.updateGL()
 
     def export_volume(self):
+        pass
         section_layers = []
         for combo in self.viewer3d_combo:
             lid = combo.itemData(combo.currentIndex())
@@ -709,7 +710,7 @@ class Plugin():
 
         volumes, vertices = self.toolbar.buildVolume(self.graphLayerHelper.layer(), section_layers)
 
-        drawing = dxf.drawing('/tmp/test.dxf')
+        # drawing = dxf.drawing('/tmp/test.dxf')
 
         for vol in volumes:
             for tri in vol:
