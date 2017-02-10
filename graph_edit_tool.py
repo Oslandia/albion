@@ -32,6 +32,8 @@ class GraphEditTool(QgsMapToolEmitPoint):
         self.activated.connect(self._reset)
         self.segments = []
         self.rubberband = QgsRubberBand(sectionCanvas)
+        self.rubberband.setWidth(2)
+        self.rubberband.setColor(QColor(255, 0, 0, 200))
         self.rubberband.addPoint(QgsPoint())
         self.rubberband.addPoint(QgsPoint())
 
@@ -60,13 +62,21 @@ class GraphEditTool(QgsMapToolEmitPoint):
         if source_layer is None or source_layer == self.graphLayer:
             return
 
+        pt = QgsGeometry.fromPoint(QgsPoint(point.x(), point.y()))
+        dist = float('inf')
+        best = None
         for feat in layer.getFeatures(QgsFeatureRequest(rect)):
+            # select nearest feature
             p =  feat.geometry().centroid().asPoint()
+            d = feat.geometry().distance(pt)
 
-            if rect_geom.contains(p):
-                source = projected_feature_to_original(source_layer, feat)
+            if d < dist:
+                dist = d
+                best = feat
 
-                return {'proj': feat, 'source':source, 'layer': layer}
+        if best != None:
+            source = projected_feature_to_original(source_layer, best)
+            return {'proj': feat, 'source':source, 'layer': layer}
 
         return None
 
