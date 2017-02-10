@@ -20,9 +20,9 @@ import re, logging
 class Camera():
     def __init__(self):
         self.matrix = QMatrix4x4()
-        self.position = QVector3D(100, 50, 0)
-        self.rotX = 0
-        self.rotY = 90
+        self.position = QVector3D(0, -1500, 500)
+        self.rotX = -90
+        self.rotY = 40
         self.scale_z = 3.0
 
     def worldMatrix(self, include_translation = True):
@@ -34,13 +34,11 @@ class Camera():
         m2.rotate(self.rotX, 0, 0, 1)
         m3 = QMatrix4x4()
         m3.rotate(self.rotY, 0, 1, 0)
+        s = QMatrix4x4()
+        s.scale(1, 1, 1.0 / self.scale_z)
 
-        m = (m2 * (m3 * m))
+        m = s * (m2 * (m3 * m))
         if include_translation:
-            s = QMatrix4x4()
-            s.scale(1, 1, 1.0 / self.scale_z)
-            m = s * m
-
             m[(0, 3)] = self.position.x()
             m[(1, 3)] = self.position.y()
             m[(2, 3)] = self.position.z()
@@ -58,9 +56,11 @@ class Camera():
             pan = True
 
         if pan:
-            translation = QVector3D(delta_x * move_speed, 0, delta_z * move_speed)
+            translation = QVector3D(delta_x * move_speed, delta_y * move_speed, delta_z * move_speed)
+            logging.debug(translation)
             translation = self.worldMatrix(False) * translation
-            translation.setZ(translation.z() + delta_y * move_speed)
+            logging.debug(translation)
+            # translation.setZ(translation.z() + delta_y * move_speed)
             self.position += translation
         elif int(modifiers) & Qt.ControlModifier:
             pass
