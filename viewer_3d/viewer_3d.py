@@ -83,7 +83,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
         self.section_vertices = None
 
     def initializeGL(self):
-        self.qglClearColor(QtGui.QColor(150, 150,  150))
+        self.qglClearColor(QtGui.QColor(250, 250,  250))
         self.vertices = None
         self.graph_vertices = None
 
@@ -117,11 +117,23 @@ class Viewer3D(QtOpenGL.QGLWidget):
     def define_generatrices_vertices(self, layers_vertices):
         self.layers_vertices = layers_vertices
 
+        centers = []
+        for l in layers_vertices:
+            centers += [ self._computeCenter(self.layers_vertices[l]['v']) ]
+
+        logging.error('bef {}'.format(centers))
+        centers = np.array(centers)
+        self.center = [
+            np.mean(centers[:, 0]),
+            np.mean(centers[:, 1]),
+            np.mean(centers[:, 2])
+        ]
+        logging.error(self.center)
+
     def define_section_vertices(self, section_vertices):
         self.section_vertices = np.array(section_vertices)
 
     def updateVolume(self, vertices, volumes):
-
         if len(volumes) == 0:
             self.vertices = None
             return
@@ -145,8 +157,6 @@ class Viewer3D(QtOpenGL.QGLWidget):
 
         self.normals = self.computeNormals(self.vertices, self.indices)
 
-        self._updateCenterExtent(self.vertices)
-
 
     def updateGraph(self, graph_vertices, graph_indices, highlights):
         if graph_vertices is None or len(graph_vertices) == 0:
@@ -159,8 +169,6 @@ class Viewer3D(QtOpenGL.QGLWidget):
             self.graph_colors = [ [1, 0, 0, 1] if i in highlights else [0, 0, 1, 1] for i in range(0, len(graph_vertices)) ]
             # self.graph_colors = [ [1, 0, 0, 1] if (i % 2) == 0 else [0, 0, 1, 1] for i in range(0, len(graph_vertices)) ]
 
-            if was_empty:
-                self._updateCenterExtent(self.graph_vertices)
 
     def _color(self, t = None):
         a = [0.5, 0.5, 0.5]
@@ -175,8 +183,8 @@ class Viewer3D(QtOpenGL.QGLWidget):
         return [formula(0, t), formula(1, t), formula(2, t), 0.3]
 
 
-    def _updateCenterExtent(self, vertices):
-        self.center = [
+    def _computeCenter(self, vertices):
+        return [
             np.mean(vertices[:, 0]),
             np.mean(vertices[:, 1]),
             np.mean(vertices[:, 2])
@@ -188,7 +196,6 @@ class Viewer3D(QtOpenGL.QGLWidget):
                        np.max(vertices[:,1])
                        )
 
-        ext_y = extent[3] - extent[1]
 
 
     def computeNormals(self, vtx, idx):
@@ -234,12 +241,6 @@ class Viewer3D(QtOpenGL.QGLWidget):
         modelview, r = m.inverted()
 
         glLoadMatrixf(modelview.data())
-        # glLoadIdentity()
-
-        #GLU.gluLookAt(eye.x(), eye.y(), eye.z(),
-        #               0, 0, 0,
-        #               0, 0, 1)
-        #glScalef(1.0, 1.0, self.scale_z)
 
         glEnable(GL_LIGHT0)
         glLightfv(GL_LIGHT0, GL_DIFFUSE, [1.0, 1.0, 1.0, 1.0])
@@ -250,7 +251,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
         glEnableClientState(GL_VERTEX_ARRAY)
 
         if not (self.layers_vertices is None):
-            glLineWidth(1)
+            glLineWidth(2)
             for lid in self.layers_vertices:
                 if not self.layers_vertices[lid]['visible']:
                     continue
@@ -284,8 +285,6 @@ class Viewer3D(QtOpenGL.QGLWidget):
             glEnable ( GL_COLOR_MATERIAL ) ;
 
             glColor4f(0, 1, 0, 1)
-            glVertexPointerf(self.vertices - self.center)
-            glNormalPointerf(self.normals)
             glDrawElementsui(GL_TRIANGLES, self.indices)
 
             glDisable(GL_COLOR_MATERIAL)
