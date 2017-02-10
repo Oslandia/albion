@@ -507,16 +507,7 @@ class DataToolbar(QToolBar):
 
 
 
-    def updateGraph(self, section_layers, scale_z = 1.0):
-        graphLayer = self.graphLayerHelper.layer()
-
-        if graphLayer is None:
-            return
-
-        def centroid(l):
-            return [0.5*(l.coords[0][i]+l.coords[1][i]) for i in range(0, 3)]
-
-
+    def draw_active_section_3d(self, section_layers):
         if self.__section.section.is_valid:
             # draw section line
             section_vertices = []
@@ -524,6 +515,14 @@ class DataToolbar(QToolBar):
                 section_vertices += [[c[0], c[1], 250], [c[0], c[1], 500]]
             self.viewer3d.define_section_vertices(section_vertices)
 
+    def draw_polygons_3d(self, section_layers, scale_z = 1.0):
+        graphLayer = self.graphLayerHelper.layer()
+
+        if graphLayer is None:
+            return
+
+        def centroid(l):
+            return [0.5*(l.coords[0][i]+l.coords[1][i]) for i in range(0, 3)]
 
         if len(self.viewer3d.polygons_vertices) == 0:
             logging.info('Rebuild polygons!')
@@ -537,9 +536,8 @@ class DataToolbar(QToolBar):
                     for i in range(0, len(v)):
                         self.viewer3d.polygons_colors += [color]
 
-        self.update_3d_view(scale_z)
 
-    def update_3d_view(self, z_scale = None):
+    def redraw_3d_view(self, z_scale = None):
         if z_scale:
             self.viewer3d.scale_z = z_scale
 
@@ -633,6 +631,7 @@ class Plugin():
         logging.basicConfig(format=FORMAT, level=lvl)
 
         self.__iface = iface
+        self.rendering_3d_intialized = False
 
     def cleanup_data(self):
         if self.graphLayerHelper.layer() is None:
@@ -689,48 +688,6 @@ class Plugin():
 
                 combo.addItem(red if self.viewer3d_combo.index(combo) == 0 else blue, layer.name(), layer.id())
 
-    def display_graph_polygons(self):
-        section_layers = []
-        for combo in self.viewer3d_combo:
-            lid = combo.itemData(combo.currentIndex())
-            section_layers += [QgsMapLayerRegistry.instance().mapLayer(lid)]
-
-        # hmmmm
-        layers_vertices = {}
-        for layer in QgsMapLayerRegistry.instance().mapLayers().values():
-            # only draw projected layers
-            if not layer.customProperty('section_id') is None:
-                continue
-            if layer == self.graphLayerHelper.layer():
-                continue
-            if layer == self.subGraphLayerHelper.layer():
-                continue
-            if not layer.isSpatial():
-                continue
-            if QgsWKBTypes.geometryType(int(layer.wkbType())) != QgsWKBTypes.LineGeometry:
-                continue
-            if not isinstance(layer.rendererV2(), QgsSingleSymbolRendererV2):
-                continue
-            if layer in section_layers:
-                continue
-
-            layer_vertices = []
-            for feature in layer.getFeatures():
-                wkt = feature.geometry().exportToWkt()
-                if wkt.find('Z') < 0:
-                    break
-                v = loads(wkt.replace('Z', ' Z'))
-
-                layer_vertices += [ list(v.coords[0]), list(v.coords[1]) ]
-
-            if len(layer_vertices) > 0:
-                layers_vertices[layer.id()] = { 'v': np.array(layer_vertices), 'c': layer.rendererV2().symbol().color().getRgbF(), 'visible': self.__iface.legendInterface().isLayerVisible(layer)}
-
-        self.toolbar.viewer3d.define_generatrices_vertices(layers_vertices)
-
-        self.toolbar.updateGraph(section_layers, float(self.viewer3d_scale_z.text()))
-
-        self.toolbar.draw_volume(section_layers)
 
     def layer_visibility_changed(self, node):
         if self.toolbar.viewer3d.layers_vertices is None:
@@ -761,19 +718,81 @@ class Plugin():
                 drawing.add(dxf.face3d([tuple(v[0]), tuple(v[1]), tuple(v[2])], flags=1))
 
         drawing.save()
-
-
-
-
         print vertices
 
+    def display_polygons_volumes_3d(self, update_active_section_only = True):
+        if self.initialize_3d_rendering():
+            update_active_section_only = False
+
+        section_layers = []
+        for combo in self.viewer3d_combo:
+            lid = combo.itemData(combo.currentIndex())
+            section_layers += [QgsMapLayerRegistry.instance().mapLayer(lid)]
+
+        self.toolbar.draw_active_section_3d(section_layers)
+        if not update_active_section_only:
+            self.toolbar.draw_polygons_3d(section_layers)
+            self.toolbar.draw_volume(section_layers)
+
+        self.toolbar.redraw_3d_view(float(self.viewer3d_scale_z.text()))
 
 
+    def initialize_3d_rendering(self):
+        section_layers = []
+        for combo in self.viewer3d_combo:
+            lid = combo.itemData(combo.currentIndex())
+            if not lid is None:
+                section_layers += [QgsMapLayerRegistry.instance().mapLayer(lid)]
+
+        if len(section_layers) != 2:
+            return False
+
+        if not self.rendering_3d_intialized:
+            self.rendering_3d_intialized = True
+
+            # hmmmm
+            layers_vertices = {}
+            for layer in QgsMapLayerRegistry.instance().mapLayers().values():
+                # only draw projected layers
+                if not layer.customProperty('section_id') is None:
+                    continue
+                if layer == self.graphLayerHelper.layer():
+                    continue
+                if layer == self.subGraphLayerHelper.layer():
+                    continue
+                if not layer.isSpatial():
+                    continue
+                if QgsWKBTypes.geometryType(int(layer.wkbType())) != QgsWKBTypes.LineGeometry:
+                    continue
+                if not isinstance(layer.rendererV2(), QgsSingleSymbolRendererV2):
+                    continue
+                if layer in section_layers:
+                    continue
+
+                layer_vertices = []
+                for feature in layer.getFeatures():
+                    wkt = feature.geometry().exportToWkt()
+                    if wkt.find('Z') < 0:
+                        break
+                    v = loads(wkt.replace('Z', ' Z'))
+
+                    layer_vertices += [ list(v.coords[0]), list(v.coords[1]) ]
+
+                if len(layer_vertices) > 0:
+                    layers_vertices[layer.id()] = { 'v': np.array(layer_vertices), 'c': layer.rendererV2().symbol().color().getRgbF(), 'visible': self.__iface.legendInterface().isLayerVisible(layer)}
+
+            self.toolbar.viewer3d.define_generatrices_vertices(layers_vertices)
+
+            self.display_polygons_volumes_3d(False)
+            return True
+
+        return False
 
     def on_graph_modified(self):
         logging.info('on_graph_modified')
         self.viewer3d.polygons_vertices = []
-        self.display_graph_polygons()
+        # update 3d view
+        self.display_polygons_volumes_3d(False)
         self.__section_main.canvas.refresh()
         self.__iface.mapCanvas().refresh()
 
@@ -795,7 +814,7 @@ class Plugin():
         self.select_graph_tool = SelectionTool(self.__section_main.canvas)
 
         self.__section_main.toolbar.line_clicked.connect(self.edit_graph_tool._reset)
-        self.__section_main.toolbar.line_clicked.connect(self.display_graph_polygons)
+        self.__section_main.toolbar.line_clicked.connect(self.display_polygons_volumes_3d)
         self.edit_graph_tool.graph_modified.connect(self.on_graph_modified)
         self.graphLayerHelper.graph_layer_tagged.connect(self.graph_layer_tagged)
 
@@ -818,7 +837,7 @@ class Plugin():
         self.viewer3d_dock.setWidget(self.viewer3d_window)
         self.viewer3d_scale_z = QLineEdit("3.0")
         self.viewer3d_scale_z.setMaximumWidth(50)
-        self.viewer3d_scale_z.editingFinished.connect(lambda: self.toolbar.update_3d_view(float(self.viewer3d_scale_z.text())))
+        self.viewer3d_scale_z.editingFinished.connect(lambda: self.toolbar.redraw_3d_view(float(self.viewer3d_scale_z.text())))
 
         self.viewer3d_combo = [QComboBox(), QComboBox()]
         for combo in self.viewer3d_combo:
@@ -827,7 +846,7 @@ class Plugin():
             self.viewer3d_toolbar.addWidget(combo)
 
         self.viewer3d_toolbar.addWidget(self.viewer3d_scale_z)
-        self.viewer3d_toolbar.addAction(QgsApplication.getThemeIcon('/mActionDraw.svg'), 'refresh').triggered.connect(self.on_graph_modified)
+        # self.viewer3d_toolbar.addAction(QgsApplication.getThemeIcon('/mActionDraw.svg'), 'refresh').triggered.connect(self.initialize_3d_rendering)
 
         self.viewer3d_toolbar.addAction(icon('6_export_volume.svg'), 'Export volume (graph)').triggered.connect(self.export_volume)
 
@@ -863,7 +882,7 @@ class Plugin():
         # self.__section_main.section.section_layer_modified.disconnect(self.__update_graphs_geometry)
         self.__iface.layerTreeView().layerTreeModel().rootGroup().visibilityChanged.disconnect(self.layer_visibility_changed)
         self.__section_main.toolbar.line_clicked.disconnect(self.edit_graph_tool._reset)
-        self.__section_main.toolbar.line_clicked.disconnect(self.display_graph_polygons)
+        self.__section_main.toolbar.line_clicked.disconnect(self.display_polygons_volumes_3d)
         QgsMapLayerRegistry.instance().layersAdded.disconnect(self.__update_3d_combo)
 
         self.__dock.setWidget(None)
