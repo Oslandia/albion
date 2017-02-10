@@ -25,7 +25,6 @@ class Section(QObject):
         self.__id = id_
         self.__width = 0
         self.__z_scale = 1
-        self.__points = []
         self.__projections = {}
         self.__enabled = True
 
@@ -52,6 +51,8 @@ class Section(QObject):
         try:
             self.__line = loads(wkt_line.replace("Z", " Z"))
             self.__width = width
+            # always reset z-scale when setting a new line
+            self.__z_scale = 1.0
         except Exception, e:
             self.__line = None
 
@@ -76,12 +77,18 @@ class Section(QObject):
                     geom).wkt)
 
     def z_range(self, smin, smax):
-        if not len(self.__points):
-            return 0, 0
-        v = numpy.array(self.__points)
-        v_in_range = v[numpy.logical_and(v[:,0]>=smin, v[:,0]<=smax)]
+        z_min = -float('inf')
+        z_max = float('inf')
+        for sourceId in self.__projections:
+            for p in self.__projections[sourceId]['layers']:
+                # min|max y of projected feature
+                for feature in p.projected_layer.getFeatures():
+                    bbox = feature.geometry().boundingBox()
+                    if bbox.xMinimum() >= smin and bbox.xMaximum() <= smax:
+                        z_min = max(z_min, bbox.yMinimum())
+                        z_max = min(z_max, bbox.yMaximum())
 
-        return (numpy.min(v_in_range[:,1]),  numpy.max(v_in_range[:,1])) if len(v_in_range) else (0, 0)
+        return (z_min / self.__z_scale, z_max / self.__z_scale)
 
     def project_point(self, x, y, z):
         # project a 3d point
@@ -93,12 +100,10 @@ class Section(QObject):
             for i in range(0, len(x)):
                 _x += (self.__line.project(Point(x[i], y[i])),)
                 _y += (z[i]*self.__z_scale,)
-            self.__points += zip(_x, z)
             return (_x, _y, _z)
         else:
             _x = self.__line.project(Point(x, y))
             _y = z*self.__z_scale
-            self.__points += [(_x, z)]
             return (_x, _y, 0)
 
     def unproject_point(self, x, y, z):
@@ -140,7 +145,6 @@ class Section(QObject):
         if not self.__enabled:
             return
         logging.debug('update_projections {} {}!!!'.format(sourceId, len(self.__projections[sourceId]['layers'])))
-        self.__points = []
         for p in self.__projections[sourceId]['layers']:
             p.apply(self, True)
 

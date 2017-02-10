@@ -25,6 +25,7 @@ class Canvas(QgsMapCanvas):
         self.__iface = iface
         self.__highlighter = None
         self.__section = section
+        self.__z_auto_scale_enabled = False
 
         section.changed.connect(self.__define_section_line)
 
@@ -104,10 +105,14 @@ class Canvas(QgsMapCanvas):
         max_z = max((layer.extent().yMaximum() for layer in self.layers()))
         z_range = max_z - min_z
         self.setExtent(QgsRectangle(0, min_z - z_range * 0.1, self.__section.line.length, max_z + z_range * 0.1))
-        self.refresh()
+
+        if self.__z_auto_scale_enabled:
+            self.z_autoscale(True)
+        else:
+            self.refresh()
 
     def z_autoscale(self, enabled):
-
+        self.__z_auto_scale_enabled = enabled
         ext = self.extent()
         smin, smax = ext.xMinimum(), ext.xMaximum()
         ztmin, ztmax = self.__section.z_range(smin, smax)
@@ -119,7 +124,7 @@ class Canvas(QgsMapCanvas):
         zmin, zmax = ext.yMinimum(), ext.yMaximum()
         logging.debug('ext {} {} {} {}'.format(smin, zmin, smax, zmax))
         dz = zmax - zmin
-        fct = 1.0 if not enabled else dz/dzt
+        fct = 1.0 if not enabled else abs(dz/dzt)
         self.__section.set_z_scale(fct)
         logging.debug('new ext  {} {} {} {}'.format(smin, ztmin, smax, ztmax))
         logging.debug('scaling by {}'.format(fct))
