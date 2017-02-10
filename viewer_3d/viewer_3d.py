@@ -261,6 +261,9 @@ class Viewer3D(QtOpenGL.QGLWidget):
             glLineWidth(1)
 
         if not (self.vertices is None):
+            glEnable(GL_POLYGON_OFFSET_FILL)
+            glPolygonOffset(-2, -2)
+
             glVertexPointerf(self.vertices - self.center)
             glNormalPointerf(self.normals)
 
@@ -287,6 +290,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
 
             glDisable(GL_COLOR_MATERIAL)
             glDisableClientState(GL_NORMAL_ARRAY)
+            glDisable(GL_POLYGON_OFFSET_FILL)
 
 
         # gen 1 color per polygon
@@ -335,14 +339,18 @@ class Viewer3D(QtOpenGL.QGLWidget):
                 glDrawElementsui(GL_LINE_STRIP, indice_lines)
 
         if not (self.section_vertices is None):
+            glEnable(GL_POLYGON_OFFSET_FILL)
+            glPolygonOffset(5, 5)
             glDisable ( GL_COLOR_MATERIAL ) ;
             glDisable(GL_LIGHTING)
             glEnable (GL_BLEND);
-            glColor4fv([1, 1, 0, 0.2])
+            glColor4fv([0.6, 0.2, 0.2, 0.7])
             glVertexPointerf(self.section_vertices - self.center)
             glDrawArrays(GL_TRIANGLE_STRIP, 0, len(self.section_vertices))
             glDisable (GL_BLEND);
             glEnable ( GL_COLOR_MATERIAL ) ;
+            glPolygonOffset(0, 0)
+            glDisable(GL_POLYGON_OFFSET_FILL)
 
         if not (self.graph_vertices is None):
             pass

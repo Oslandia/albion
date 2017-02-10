@@ -466,7 +466,7 @@ class DataToolbar(QToolBar):
         if graphLayer is None:
             return
 
-        volumes, vertices = self.buildVolume(graphLayer, sections_layers)
+        volumes, vertices = self.buildVolume(graphLayer, section_layers)
 
         self.viewer3d.updateVolume(vertices, volumes)
         self.viewer3d.updateGL()
@@ -522,7 +522,6 @@ class DataToolbar(QToolBar):
             section_vertices = []
             for c in self.__section.section.line.coords:
                 section_vertices += [[c[0], c[1], 250], [c[0], c[1], 500]]
-            logging.error(section_vertices)
             self.viewer3d.define_section_vertices(section_vertices)
 
 
