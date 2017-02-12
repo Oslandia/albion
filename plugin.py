@@ -293,8 +293,6 @@ class DataToolbar(QToolBar):
         bbox = QgsRectangle(buf.bounds[0], buf.bounds[1], buf.bounds[2], buf.bounds[3])
         source_features = []
 
-        logging.info('{} ={}'.format(section.width, bbox.asWktCoordinates()))
-
         for source_feature in generatrice_layer.getFeatures(QgsFeatureRequest(bbox)):
             bb = source_feature.geometry().boundingBox()
             extents = loads('LINESTRING ({} {}, {} {})'.format(bb.xMinimum(), bb.yMinimum(), bb.xMaximum(), bb.yMaximum()))
@@ -321,15 +319,15 @@ class DataToolbar(QToolBar):
                 pants[source_feature.id()] = p
 
         # remove invalid
-        logging.debug('AFTER {} | {}'.format(potential_starts, gen_ids))
+        # logging.debug('AFTER {} | {}'.format(potential_starts, gen_ids))
         potential_starts = filter(lambda i: i in gen_ids, potential_starts)
-        logging.debug('LAST {}'.format(potential_starts))
+        # logging.debug('LAST {}'.format(potential_starts))
 
         # export graph
         paths = extract_paths(gen_ids, potential_starts, connections)
 
         if paths == None or len(paths) == 0:
-            logging.warning('No path found ({})'.format(request.filterExpression().expression()))
+            # logging.warning('No path found ({})'.format(request.filterExpression().expression()))
             return []
 
         logging.info('Found {} paths: {}'.format(len(paths), paths))
@@ -407,13 +405,13 @@ class DataToolbar(QToolBar):
 
             line_width = float(self.__section.toolbar.buffer_width.text())
 
-            logging.info('Start polygon export')
-
             # read unique layers (of generating lines) that are connected in the graph
             layers = graph_layer.uniqueValues(graph_layer.fields().fieldNameIndex('layer'))
 
+            logging.info('Start polygon export [source layers: {}]'.format(layers))
+
             for lid in layers:
-                logging.info('Processing layer {}'.format(lid))
+                logging.info('  - processing layer {}'.format(lid))
                 generatrice_layer = QgsMapLayerRegistry.instance().mapLayer(lid)
                 fakes = fg_fake_generatrices(generatrice_layer, generatrice_layer)
                 fakes_id = [f.id() for f in fakes]
@@ -421,7 +419,7 @@ class DataToolbar(QToolBar):
                 # a valid path starts and ends on a fake generatrice, so skip this layer
                 # if there aren't any fakes
                 if len(fakes_id) == 0:
-                    logging.warning('No fake generatrices in {}'.format(generatrice_layer.id()))
+                    logging.warning('  - no fake generatrices in {}'.format(generatrice_layer.id()))
                     continue
 
                 request = QgsFeatureRequest().setFilterExpression(u"'layer' = '{0}'".format(lid))
@@ -429,12 +427,17 @@ class DataToolbar(QToolBar):
                 if section_param is None:
                     # for each section line
                     for feature in sections_layer.getFeatures():
-                        logging.info('Processing section {}'.format(feature.id()))
-                        wkt_line = QgsGeometry.exportToWkt(feature.geometry())
-                        section.update(wkt_line, line_width) # todo
+                        try:
+                            wkt_line = QgsGeometry.exportToWkt(feature.geometry())
+                            section.update(wkt_line, line_width) # todo
 
-                        # export for real
-                        result += self.__export_polygons_for_one_section_line(section, graph_section_layer, scratch_projection, fakes_id, request, generatrice_layer)
+                            export = self.__export_polygons_for_one_section_line(section, graph_section_layer, scratch_projection, fakes_id, request, generatrice_layer)
+                            logging.info('    - processed section {} => {}'.format(feature.id(), export))
+
+                            # export for real
+                            result += export
+                        except Exception as e:
+                            logging.error('err {}. Feature: {}'.format(e, feature.geometry()))
                 else:
                     # export for real
                     result += self.__export_polygons_for_one_section_line(section, graph_section_layer, scratch_projection, fakes_id, request, generatrice_layer)
@@ -627,7 +630,7 @@ class DataToolbar(QToolBar):
 class Plugin():
     def __init__(self, iface):
         FORMAT = '\033[30;100m%(created)-13s\033[0m \033[33m%(filename)-12s\033[0m:\033[34m%(lineno)4d\033[0m %(levelname)8s %(message)s' if sys.platform.find('linux')>= 0 else '%(created)13s %(filename)-12s:%(lineno)4d %(message)s'
-        lvl = logging.DEBUG if sys.platform.find('linux')>= 0 else logging.CRITICAL
+        lvl = logging.INFO if sys.platform.find('linux')>= 0 else logging.CRITICAL
         logging.basicConfig(format=FORMAT, level=lvl)
 
         self.__iface = iface
