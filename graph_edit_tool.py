@@ -3,23 +3,15 @@
 from qgis.core import *
 from qgis.gui import *
 
-from PyQt4.QtCore import Qt, pyqtSignal
-from PyQt4.QtGui import QDockWidget, QMenu, QColor, QToolBar, QDialog, QIcon, QCursor, QApplication
+from PyQt4.QtCore import pyqtSignal
+from PyQt4.QtGui import QColor
 
-import os
+from .qgis_hal import (insert_features_in_layer,
+                       create_new_feature, get_id,
+                       projected_layer_to_original,
+                       projected_feature_to_original)
+from .graph_operations import compute_segment_geometry
 
-from shapely.wkt import loads
-
-from .polygon_section_layer import PolygonLayerProjection
-from shapely.geometry import LineString
-from shapely.wkt import loads
-
-from .graph import to_surface
-
-from .qgis_section.helpers import projected_layer_to_original, projected_feature_to_original
-
-
-import numpy as np
 
 class GraphEditTool(QgsMapToolEmitPoint):
     graph_modified = pyqtSignal()
@@ -49,7 +41,6 @@ class GraphEditTool(QgsMapToolEmitPoint):
         self.graphLayer = graph_layer
 
     def canvasMoveEvent(self, event):
-        #QgsMapToolEmitPoint.canvasMoveEvent(self, event)
         point = QgsPoint(self.toMapCoordinates(event.pos()))
         self.rubberband.movePoint(1, point, 0)
 
@@ -74,41 +65,14 @@ class GraphEditTool(QgsMapToolEmitPoint):
                 dist = d
                 best = feat
 
-        if best != None:
+        print best
+
+        if best is not None:
             source = projected_feature_to_original(source_layer, best)
-            return {'proj': feat, 'source':source, 'layer': layer}
+            assert source is not None
+            return {'proj': feat, 'source': source, 'layer': layer}
 
         return None
-
-    @staticmethod
-    def segmentGeometry(featureA, featureB):
-        def mysum(x, a, b):
-            return [(a[i] + b[i]) * x for i in range(0, 3)]
-
-        def bary(coords):
-            return reduce(lambda x,y: mysum(1.0 / len(coords), x, y), coords)
-
-        geomA = loads(featureA.geometry().exportToWkt().replace("Z", " Z"))
-        centroidAWithZ = bary(geomA.coords)
-
-        geomB = loads(featureB.geometry().exportToWkt().replace("Z", " Z"))
-        centroidBWithZ = bary(geomB.coords)
-
-        return LineString([centroidAWithZ, centroidBWithZ])
-
-    @staticmethod
-    def createSegmentEdge(featureA, featureB, my_id, fields, layer):
-        segment = GraphEditTool.segmentGeometry(featureA, featureB)
-
-        new_feature = QgsFeature()
-        new_feature.setGeometry(QgsGeometry.fromWkt(segment.wkt))
-
-        new_feature.setFields(fields)
-        new_feature.setAttribute("layer", layer)
-        new_feature.setAttribute("start", featureA.id())
-        new_feature.setAttribute("end", featureB.id())
-        new_feature.setAttribute("id", my_id)
-        return new_feature
 
     def _new_point(self, point, button):
         if self.graphLayer is None:
@@ -134,19 +98,26 @@ class GraphEditTool(QgsMapToolEmitPoint):
                 self._reset()
             else:
 
-                ids = self.graphLayer.uniqueValues(self.graphLayer.fieldNameIndex('id'))
+                ids = self.graphLayer.uniqueValues(self.graphLayer.fieldNameIndex('link'))
                 my_id = (max(ids) if len(ids) > 0 else 0) + 1
 
-                features = [ GraphEditTool.createSegmentEdge (
-                    self.previousFeature['source'],
-                    clickedFeature['source'],
-                    my_id,
-                    self.graphLayer.fields(),
-                    clickedFeature['layer'].customProperty("projected_layer")) ]
+                featureA = self.previousFeature['source']
+                featureB = clickedFeature['source']
 
-                self.graphLayer.beginEditCommand('test')
-                self.graphLayer.dataProvider().addFeatures(features)
-                self.graphLayer.endEditCommand()
+                segment = compute_segment_geometry(featureA, featureB)
+
+                features = [create_new_feature(
+                    self.graphLayer,
+                    segment.wkt,
+                    {
+                        'layer': clickedFeature['layer'].customProperty(
+                            'projected_layer'),
+                        'start': get_id(featureA),
+                        'end': get_id(featureB),
+                        'link': my_id,
+                    })]
+
+                insert_features_in_layer(features, self.graphLayer)
 
                 self.previousFeature = clickedFeature
 

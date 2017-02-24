@@ -5,14 +5,13 @@ This modules provides a ready to use section windows containing a section
 a canvas and a layer tree
 """
 
-from qgis.core import *
-from qgis.gui import *
+from qgis.core import QgsPluginLayerRegistry
 
 from PyQt4.QtGui import QMainWindow
 from PyQt4.QtCore import Qt
 
 from .section import Section
-from .toolbar import Toolbar
+from ..section_toolbar import Toolbar
 from .canvas import Canvas
 from .axis_layer import AxisLayer, AxisLayerType
 from .action_state_helper import ActionStateHelper
@@ -22,9 +21,12 @@ import atexit
 AXIS_LAYER_TYPE = AxisLayerType()
 QgsPluginLayerRegistry.instance().addPluginLayerType(AXIS_LAYER_TYPE)
 
+
 @atexit.register
 def unload_axi_layer_type():
-    QgsPluginLayerRegistry.instance().removePluginLayerType(AxisLayer.LAYER_TYPE)
+    QgsPluginLayerRegistry.instance().removePluginLayerType(
+        AxisLayer.LAYER_TYPE)
+
 
 class MainWindow(QMainWindow):
     def __init__(self, iface, section_id, parent=None):
@@ -34,7 +36,10 @@ class MainWindow(QMainWindow):
         self.__iface = iface
         self.__section = Section(section_id)
         self.__canvas = Canvas(self.__section, iface, self)
-        self.__toolbar = Toolbar(iface, self.__section.id, iface.mapCanvas(), self.__canvas)
+        self.__toolbar = Toolbar(iface,
+                                 self.__section.id,
+                                 iface.mapCanvas(),
+                                 self.__canvas)
         self.__toolbar.buffer_width.setText(str(10))
 
         self.__toolbar.line_clicked.connect(self.__section.update)
@@ -44,7 +49,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.__canvas)
 
         ActionStateHelper.update_all()
-        self.__iface.layerTreeView().currentLayerChanged.connect(ActionStateHelper.update_all)
+        self.__iface.layerTreeView().currentLayerChanged.connect(
+            ActionStateHelper.update_all)
         self.__section.needs_redraw.connect(self.__refresh_canvas)
 
     def add_default_section_buttons(self):
@@ -53,7 +59,8 @@ class MainWindow(QMainWindow):
 
     def unload(self):
         self.__section.needs_redraw.disconnect(self.__refresh_canvas)
-        self.__iface.layerTreeView().currentLayerChanged.disconnect(ActionStateHelper.update_all)
+        self.__iface.layerTreeView().currentLayerChanged.disconnect(
+            ActionStateHelper.update_all)
         ActionStateHelper.remove_all()
 
         for a in self.__canvas.section_actions:
@@ -71,7 +78,7 @@ class MainWindow(QMainWindow):
     def __refresh_canvas(self):
         self.__canvas.refresh()
         # For some reason refresh() is not enough
-        self.__iface.mapCanvas().refreshAllLayers ()
+        self.__iface.mapCanvas().refreshAllLayers()
 
     def __getattr__(self, name):
         if name == "canvas":
@@ -81,5 +88,3 @@ class MainWindow(QMainWindow):
         elif name == "section":
             return self.__section
         raise AttributeError(name)
-
-

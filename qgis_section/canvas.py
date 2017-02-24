@@ -3,20 +3,13 @@
 from qgis.core import * # unable to import QgsWKBTypes otherwize (quid?)
 from qgis.gui import *
 
-from PyQt4.QtCore import Qt, pyqtSignal
-from PyQt4.QtGui import QMenu, QColor, QWidget, QMessageBox
-
-from .layer import Layer
-from .toolbar import Toolbar, LineSelectTool
-
-from .section_tools import SelectionTool, MoveFeatureTool
+from PyQt4.QtGui import QColor, QMessageBox
 from .action_state_helper import ActionStateHelper
-
 from math import sqrt
 import logging
 
-class Canvas(QgsMapCanvas):
 
+class Canvas(QgsMapCanvas):
     def __init__(self, section, iface, parent=None):
         QgsMapCanvas.__init__(self, parent)
         self.setWheelAction(QgsMapCanvas.WheelZoomToMouseCursor)

@@ -99,8 +99,8 @@ if __name__ == "__main__":
 
     try:
         optlist, args = getopt.getopt(sys.argv[1:],
-                "hiud",
-                ["help", "install", "uninstall", "deploy"])
+                "hiudt",
+                ["help", "install", "uninstall", "deploy", "test"])
     except Exception as e:
         sys.stderr.write(str(e)+"\n")
         exit(1)
@@ -110,6 +110,9 @@ if __name__ == "__main__":
     if "-h" in optlist or "--help" in optlist:
         help(sys.modules[__name__])
         exit(0)
+
+    if "-t" in optlist:
+        run_tests()
 
     if "-d" in optlist or "--deploy" in optlist:
         run_tests()

@@ -1,23 +1,34 @@
 # coding=utf-8
 
-from qgis.core import * # unable to import QgsWKBTypes otherwize (quid?)
-from qgis.gui import *
+from qgis.core import (QgsVectorLayer,
+                       QgsMapLayerRegistry)
+
+from qgis.gui import QgsLayerTreeMapCanvasBridge
 
 from PyQt4.QtCore import pyqtSignal
-from PyQt4.QtGui import QToolBar, QLineEdit, QLabel, QIcon
+from PyQt4.QtGui import QToolBar, QLineEdit, QLabel
 
-from shapely.geometry import LineString
-import os
 import logging
 
-from .axis_layer import AxisLayer
-from .section_tools import LineSelectTool
-from .helpers import is_layer_projected_in_section
-from .layer import hasZ
-from .action_state_helper import ActionStateHelper
+from .qgis_section.axis_layer import AxisLayer
+from .qgis_section.section_tools import LineSelectTool
+from .qgis_hal import (is_layer_projected_in_section,
+                       get_layers_with_properties,
+                       get_name)
+from .qgis_section.layer import hasZ
+from .qgis_section.action_state_helper import ActionStateHelper
+
+from .utils import (create_projected_layer,
+                    create_projected_polygon_layer,
+                    icon)
+
+
+def root_group_from_iface(iface):
+    return iface.layerTreeView().layerTreeModel().rootGroup()
 
 
 class Toolbar(QToolBar):
+    """ Section specific toolbar (contains all actions for 1 section) """
     line_clicked = pyqtSignal(str, float)
     z_autoscale_toggled = pyqtSignal(bool)
     projected_layer_created = pyqtSignal(QgsVectorLayer, QgsVectorLayer)
@@ -29,22 +40,33 @@ class Toolbar(QToolBar):
         self.__section_canvas = section_canvas
         self.__section_id = section_id
 
-        icon = lambda name: QIcon(os.path.join(os.path.dirname(__file__), 'icons', name))
+        self.addAction(
+            icon('axis_layer.svg'), 'axis').triggered.connect(
+                self.__add_axis)
 
-        self.addAction(icon('axis_layer.svg'), 'axis').triggered.connect(self.__add_axis)
-
-
-        add_projected_layer_action = self.addAction(icon('add_layer.svg'), 'add projected layer')
+        add_projected_layer_action = self.addAction(
+            icon('add_layer.svg'), 'add projected layer')
         add_projected_layer_action.triggered.connect(self.__add_layer)
         h = ActionStateHelper(add_projected_layer_action)
-        h.add_is_enabled_test(lambda action: (not iface.mapCanvas().currentLayer() is None, "Select layer to project"))
-        h.add_is_enabled_test(lambda action: (iface.mapCanvas().currentLayer().customProperty("section_id") is None, "Select layer is a projection"))
-        h.add_is_enabled_test(lambda action: (not is_layer_projected_in_section(iface.mapCanvas().currentLayer().id(), self.__section_id), "Layer is already projected"))
-        h.add_is_enabled_test(lambda action: (hasZ(iface.mapCanvas().currentLayer()), "Selected layer doens't have XYZ geom"))
+        h.add_is_enabled_test(
+            lambda action: (not iface.mapCanvas().currentLayer() is None,
+                            'Select layer to project'))
+        h.add_is_enabled_test(
+            lambda action: (
+                iface.mapCanvas().currentLayer().customProperty(
+                    'section_id') is None,
+                'Select layer is a projection'))
+        h.add_is_enabled_test(
+            lambda action: (not is_layer_projected_in_section(
+                iface.mapCanvas().currentLayer().id(), self.__section_id),
+                'Layer is already projected'))
+        h.add_is_enabled_test(
+            lambda action: (hasZ(iface.mapCanvas().currentLayer()),
+                            'Selected layer doesnt have XYZ geom'))
         self.__action_helper = h
 
-
-        self.selectLineAction = self.addAction(icon('select_line.svg'), 'select line')
+        self.selectLineAction = self.addAction(
+            icon('select_line.svg'), 'select line')
         self.selectLineAction.setCheckable(True)
         self.selectLineAction.triggered.connect(self.__pick_section_line)
 
@@ -79,7 +101,10 @@ class Toolbar(QToolBar):
             self.__iface_canvas.setMapTool(self.__tool)
 
     def __line_clicked(self, wkt_):
-        group = self.__iface.layerTreeView().layerTreeModel().rootGroup().findGroup(self.__section_id)
+        group = self.__iface.layerTreeView().\
+            layerTreeModel().\
+            rootGroup().\
+            findGroup(self.__section_id)
         self.__update_bridge(group)
 
         self.selectLineAction.setChecked(False)
@@ -93,34 +118,26 @@ class Toolbar(QToolBar):
 
         if layer is None:
             return
-        section = QgsVectorLayer(
-            "{geomType}?crs={crs}&index=yes".format(
-                geomType={
-                    QGis.Point:"Point",
-                    QGis.Line:"LineString",
-                    QGis.Polygon:"Polygon"
-                    }[layer.geometryType()],
-                crs=self.__iface_canvas.mapSettings().destinationCrs().authid()
-                ), layer.name(), "memory")
-        section.setCustomProperty("section_id", self.__section_id)
-        section.setCustomProperty("projected_layer", layer.id())
 
-        # cpy attributes structure
-        section.dataProvider().addAttributes([layer.fields().field(f) for f in range(layer.fields().count())])
-        section.updateFields()
-
-        # cpy style
-        section.setRendererV2(layer.rendererV2().clone())
-
+        section = create_projected_layer(layer, self.__section_id)
         self._add_layer_to_section_group(section)
-        self.projected_layer_created.emit(layer, section)
+
+        assert get_name(layer) in [
+            get_name(l) for l in get_layers_with_properties(
+                {'section_id': self.__section_id})]
+
+        if layer.customProperty('graph'):
+            polygon = create_projected_polygon_layer(layer, self.__section_id)
+            self._add_layer_to_section_group(polygon)
 
     def _add_layer_to_section_group(self, layer):
         # Add to section group
-        group = self.__iface.layerTreeView().layerTreeModel().rootGroup().findGroup(self.__section_id)
+        group = root_group_from_iface(self.__iface).findGroup(
+            self.__section_id)
         if group is None:
             # Add missing group
-            group = self.__iface.layerTreeView().layerTreeModel().rootGroup().addGroup(self.__section_id)
+            group = root_group_from_iface(self.__iface).addGroup(
+                self.__section_id)
             group.setCustomProperty('section_id', self.__section_id)
 
         self.__update_bridge(group)
@@ -129,14 +146,13 @@ class Toolbar(QToolBar):
         QgsMapLayerRegistry.instance().addMapLayer(layer, False)
         group.addLayer(layer)
 
-
     def __update_bridge(self, group):
         if self.__bridge is None and group is not None:
             # Create bridge
-            self.__bridge = QgsLayerTreeMapCanvasBridge(group, self.__section_canvas)
-
+            self.__bridge = QgsLayerTreeMapCanvasBridge(group,
+                                                        self.__section_canvas)
 
     def __add_axis(self):
-        self.axislayer = AxisLayer(self.__iface_canvas.mapSettings().destinationCrs())
+        self.axislayer = AxisLayer(
+            self.__iface_canvas.mapSettings().destinationCrs())
         self._add_layer_to_section_group(self.axislayer)
-

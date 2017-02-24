@@ -4,16 +4,17 @@
 This module deals with the creation of surfaces and volumes from a graph
 linking line segments.
 
-Since we deal with non-planar surfaces, the representation is TIN, the same holds for the exterior shell of volumes.
+Since we deal with non-planar surfaces, the representation is TIN,
+the same holds for the exterior shell of volumes.
 """
 
 import numpy
 from shapely.geometry import Polygon, MultiPolygon
 from shapely.ops import cascaded_union
 from collections import defaultdict
-from math import atan2, pi
 import itertools
 import logging
+
 
 def to_surface(nodes, edges):
     """nodes is a numpy array of 2D line segments [n,2,2]
@@ -27,6 +28,7 @@ def to_surface(nodes, edges):
             MultiPolygon([Polygon([nodes[edge[0], 0], nodes[edge[0], 1],
                          nodes[edge[1], 1], nodes[edge[1], 0]])
                          for edge in edges]))
+
 
 def find_4_cycles(edges):
     """return all unique four-cycles in graph"""
@@ -45,15 +47,16 @@ def find_4_cycles(edges):
 
     return loops.values()
 
+
 def to_volume(nodes, edges):
     """nodes is a numpy array of 3D line segments [n,2,3]
     edge is a iterable of pairs of int [m,2] indexing the nodes.
     """
 
     def orient(ring, nodes):
-        up = nodes[ring[0],0] - nodes[ring[0],1]
-        n = numpy.cross(nodes[ring[1],0] - nodes[ring[0],0],
-                nodes[ring[2],0] - nodes[ring[1],0])
+        up = nodes[ring[0], 0] - nodes[ring[0], 1]
+        n = numpy.cross(nodes[ring[1], 0] - nodes[ring[0], 0],
+                        nodes[ring[2], 0] - nodes[ring[1], 0])
         return ring if numpy.dot(up, n) > 0 else list(reversed(ring))
 
     rings = [orient(r, nodes) for r in find_4_cycles(edges)]
@@ -81,21 +84,22 @@ def _find_path(start_point, vertices, open_starts, connections):
     # build path
     path = []
 
-    # logging.debug('find_path:\n\tFrom:{}\n\tVertices:{}\n\tConnections: {}\n'.format(start_point, vertices, connections))
     current = start_point
-    previous = -1
+    previous = None
 
     while True:
         idx = vertices.index(current)
-        forward_edges = filter(lambda x: x!=previous, connections[idx])
+        forward_edges = filter(lambda x: x != previous, connections[idx])
 
-        logging.debug('\tCurrent {} (previous:{}) -> choices {}'.format(current, previous, forward_edges))
+        logging.debug('\tCurrent {} (previous:{}) -> choices {}'.format(
+            current, previous, forward_edges))
         previous = current
         path += [current]
-        #only keep forward edges
+        # only keep forward edges
         connections[idx] = forward_edges
 
-        if len(forward_edges) == 0 or (current in open_starts and current != start_point):
+        if len(forward_edges) == 0 or (
+                current in open_starts and current != start_point):
             break
 
         # use last connection
@@ -104,8 +108,9 @@ def _find_path(start_point, vertices, open_starts, connections):
         # update remaining connection
         connections[idx] = forward_edges
 
+    return (path if (
+        len(path) > 1 and path[-1] in open_starts) else [], connections)
 
-    return (path if (len(path) > 1 and path[-1] in open_starts) else [], connections)
 
 def extract_paths(vertices, open_starts, connections):
     paths = []
@@ -124,6 +129,4 @@ def extract_paths(vertices, open_starts, connections):
             else:
                 break
 
-
-    #TODO: merge paths
     return paths

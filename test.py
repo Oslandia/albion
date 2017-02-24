@@ -23,10 +23,24 @@ from time import time
 from multiprocessing.pool import ThreadPool
 import getopt
 import sys
+import unittest
+
+
+def load_tests(loader, tests, pattern):
+    this_dir = os.path.dirname(__file__)
+    return unittest.TestLoader().discover(
+        start_dir=this_dir + '/tests', pattern="*test.py", top_level_dir=this_dir)
+
+# use standard unittest module
+if __name__ == '__main__':
+    unittest.main(verbosity=2)
+    exit(0)
+
+
 
 try:
     optlist, args = getopt.getopt(sys.argv[1:],
-            "hj:e:",
+            "dhj:e:",
             ["help"])
 except Exception as e:
     sys.stderr.write(str(e)+"\n")
@@ -55,7 +69,8 @@ def list_tests():
     tests = []
     base_dir = os.path.abspath(os.path.dirname(__file__))
     top_dir = os.path.dirname(base_dir)
-    for root, dirs, files in os.walk(base_dir):
+
+    for root, dirs, files in os.walk(os.path.join(base_dir, 'tests')):
         for file_ in files:
             if re.match(r".*_test.py$", file_):
                 # remove the trailing '.py' (3 characters)
@@ -73,19 +88,20 @@ def list_tests():
 
 def run(test):
     start = time()
-    out, err = subprocess.Popen(["python", "-m", test],
+    p = subprocess.Popen(["python", "-m", test],
             stderr=PIPE,
-            stdout=PIPE).communicate()
-    if len(err):
-        print 'DEBUG:\n#########\n{}#########\n'.format(out)
+            stdout=PIPE)
+    out, err = p.communicate()
+    print out, err
+    if p.returncode:
         return 1, '%s: %s'%(test, str(err))
-    return  0, "%s ran in %.2f sec"%(test, time() - start)
+    return  0, ''
 
 tests = list_tests()
+
 nb_proc = int(optlist['-j']) if '-j' in optlist else len(tests)
 
 if nb_proc > 1:
-    print "start %d processes"%(nb_proc)
     i = 0
     for rc, msg in ThreadPool(processes=nb_proc).map(run, tests):
         print "% 3d/%d %s"%(i+1, len(tests), msg)

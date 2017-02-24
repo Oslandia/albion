@@ -5,6 +5,7 @@ from .axis_layer import AxisLayer, AxisLayerType
 from PyQt4.QtCore import Qt
 from PyQt4.QtGui import QDockWidget, QAction
 
+
 class Plugin():
     def __init__(self, iface):
         self.__iface = iface

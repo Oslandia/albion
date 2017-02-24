@@ -6,7 +6,7 @@ from qgis.gui import *
 from PyQt4.QtCore import Qt, pyqtSignal
 from PyQt4.QtGui import QApplication, QColor
 
-from .helpers import projected_layer_to_original, projected_feature_to_original
+from ..qgis_hal import projected_layer_to_original, projected_feature_to_original
 from shapely.geometry import LineString
 import logging
 

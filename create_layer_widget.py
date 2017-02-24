@@ -12,6 +12,10 @@ from shapely.geometry import LineString
 from math import sqrt
 import os
 import logging
+from .qgis_hal import (intersect_linestring_layer_with_wkt,
+                       clone_feature_with_geometry_transform,
+                       remove_all_features_from_layer,
+                       insert_features_in_layer)
 
 def substring_3d(linestring, from_, to_):
     "the linestring a shapely geometry, from_ and to_ are in length units"
@@ -137,12 +141,9 @@ class CreateLayerWidget(QDialog):
         for f in fields:
             if f.name() == geom_id:
                 f.setName(geom_layer.name())
-        fields += [QgsField("id", QVariant.Int)]
+        fields += [QgsField("link", QVariant.Int)]
         new_layer.dataProvider().addAttributes(fields)
         new_layer.updateFields()
-        new_layer.beginEditCommand('layer creation')
-        new_layer.dataProvider().addFeatures(features)
-        new_layer.endEditCommand()
-        new_layer.updateExtents()
+        insert_features_in_layer(features, new_layer)
         QgsMapLayerRegistry.instance().addMapLayer(new_layer)
 

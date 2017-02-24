@@ -3,7 +3,7 @@
 from qgis.gui import *
 from qgis.core import *
 
-from qgis_section.main_window import MainWindow
+# from .qgis_section.main_window import MainWindow
 
 #from PyQt4.QtCore import QObject
 #from PyQt4.QtGui import QApplication

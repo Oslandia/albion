@@ -1,29 +1,33 @@
 # coding=utf-8
 
-from qgis.core import *
-from qgis.gui import *
-
-from .graph_edit_tool import GraphEditTool
+from qgis.core import QgsFeatureRequest
 from shapely.geometry import Point
+from .qgis_hal import (insert_features_in_layer,
+                       get_id,
+                       create_new_feature,
+                       clone_feature_with_geometry_transform,
+                       get_feature_attribute_values)
+from .graph_operations import compute_segment_geometry
 
-import math
+
 # Helper methods to manage fake generatrices
+def create(section, source_layer, source_feature, link, translation, sign):
+    source_has_field_HoleID = source_layer.fields().fieldNameIndex(
+        'HoleID') >= 0
+    source_has_field_mine = source_layer.fields().fieldNameIndex(
+        'mine') >= 0
 
+    fake = clone_feature_with_geometry_transform(
+        source_feature,
+        lambda geom: geom.translate(
+            translation[0] * sign, translation[1] * sign))
 
-def create(section, source_layer, source_feature, id_, translation, sign):
-    source_has_field_HoleID = source_layer.fields().fieldNameIndex("HoleID") >= 0
-    source_has_field_mine = source_layer.fields().fieldNameIndex("mine") >= 0
-
-    fake = QgsFeature()
-    fake.setAttributes(source_feature.attributes())
-    fake.setFields(source_layer.fields(), False)
     if source_has_field_HoleID:
-        fake.setAttribute("HoleID", "Fake")
+        fake.setAttribute('HoleID', 'Fake')
     if source_has_field_mine:
-        fake.setAttribute("mine", -1)
-    fake.setAttribute("id", id_)
+        fake.setAttribute('mine', -1)
+    fake.setAttribute('link', link)
     fake.setGeometry(source_feature.geometry())
-
 
     fake.geometry().translate(translation[0] * sign, translation[1] * sign)
 
@@ -36,35 +40,45 @@ def create(section, source_layer, source_feature, id_, translation, sign):
     sign = -sign / float(step)
 
     while not Point(centroid.x(), centroid.y()).intersects(buf) and step > 0:
-        fake.geometry().translate(translation[0]  * sign, translation[1] * sign)
+        fake.geometry().translate(
+            translation[0]  * sign, translation[1] * sign)
         centroid = fake.geometry().boundingBox().center()
         step = step - 1
 
-
     return fake
 
+
 def insert(layer, feature):
-    id_ = feature.attribute("id")
+    link = get_feature_attribute_values(layer, feature, 'link')
+    insert_features_in_layer([feature], layer)
+    return layer.getFeatures(
+        QgsFeatureRequest().setFilterExpression(
+            u'"link" = {0}'.format(link))).next()
 
-    layer.beginEditCommand('fake features')
-    layer.dataProvider().addFeatures([ feature ])
-    layer.endEditCommand()
-    layer.updateExtents()
 
-    return layer.getFeatures(QgsFeatureRequest().setFilterExpression(u'"id" = {0}'.format(id_))).next()
+def connect(subgraph, feature1, feature2, link, source_layer):
+    segment = compute_segment_geometry(feature1, feature2)
+    new_feature = create_new_feature(
+        subgraph,
+        segment.wkt,
+        {
+            'layer': get_id(source_layer),
+            'start': get_id(feature1),
+            'end': get_id(feature2),
+            'link': link,
+        })
 
-def connect(subgraph, feature1, feature2, id_, source_layer):
     subgraph.beginEditCommand('subgraph update')
-    subgraph.dataProvider().addFeatures([ GraphEditTool.createSegmentEdge(feature1, feature2, id_, subgraph.fields(), source_layer.id()) ])
+    subgraph.dataProvider().addFeatures([new_feature])
     subgraph.endEditCommand()
     subgraph.updateExtents()
 
 
 def fake_generatrices(source_layer, layer):
-    query = ""
-    if source_layer.fields().fieldNameIndex("HoleID") >= 0:
+    query = ''
+    if source_layer.fields().fieldNameIndex('HoleID') >= 0:
         query = u"attribute($currentfeature, 'HoleID') = 'Fake' OR attribute($currentfeature, 'HoleID:Integer64(10,0)') = 'Fake'"
-    elif source_layer.fields().fieldNameIndex("mine") >= 0:
+    elif source_layer.fields().fieldNameIndex('mine') >= 0:
         query = u"attribute($currentfeature, 'mine') = -1 OR attribute($currentfeature, 'mine:Integer64(10,0)') = -1"
     else:
         return None
