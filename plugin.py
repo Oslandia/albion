@@ -37,6 +37,7 @@ from .qgis_hal import (get_feature_by_id,
                        get_layer_unique_attribute,
                        get_layer_by_id,
                        get_id,
+                       get_name,
                        get_all_layers,
                        get_all_layer_features,
                        feature_to_shapely_wkt,
@@ -68,6 +69,8 @@ def compute_sections_polygons_from_graph(graph_layer,
 
     for feature in get_all_layer_features(sections_layer):
         try:
+            logging.info('   - {}: {}'.format(
+                get_name(sections_layer), get_id(feature)))
             line = loads(feature_to_shapely_wkt(feature))
 
             # build a temporary layer to hold graph_layer features projections
@@ -214,19 +217,53 @@ class Plugin():
                 section_vertices += [[c[0], c[1], 250], [c[0], c[1], 500]]
             self.viewer3d.define_section_vertices(section_vertices)
 
-    def draw_polygons_3d(self, section_layers, scale_z=1.0):
-        return
+    def build_volume(self, polygons):
+        def same_vertex(v1, v2):
+            return v1[0] == v2[0] and v1[1] == v2[1] and v1[2] == v2[2]
 
+        def index_of(generatrice):
+            for i in range(0, len(nodes)):
+                if same_vertex(generatrice[0], nodes[i][0]) and \
+                   same_vertex(generatrice[1], nodes[i][1]):
+                    return i
+            return -1
+
+        nodes = []
+        edges = []
+
+        total = 0
+
+        print 'Marche po ?? {}'.format(len(polygons))
+        for polygon in polygons:
+            previous_idx = -1
+            for i in range(0, len(polygon), 2):
+                total += 1
+                generatrice = [polygon[i], polygon[i + 1]]
+
+                idx = index_of(generatrice)
+                if idx < 0:
+                    nodes += [generatrice]
+                    idx = len(nodes) - 1
+
+                # connect to previous node
+                if previous_idx >= 0:
+                    edges += [(idx, previous_idx)]
+                previous_idx = idx
+
+        return to_volume(np.array(nodes), edges)
+
+    def update_polygons_3d(self, section_layers, scale_z=1.0):
         graph_layer = self.toolbar.graphLayerHelper.active_layer()
 
         if graph_layer is None:
-            return
+            return []
 
         def centroid(l):
             return [0.5*(l.coords[0][i]+l.coords[1][i]) for i in range(0, 3)]
 
         if len(self.viewer3d.polygons_vertices) == 0:
             logging.info('Rebuild polygons!')
+            self.polygons = []
 
             section_width = float(
                 self.__section_main.toolbar.buffer_width.text())
@@ -242,12 +279,17 @@ class Plugin():
                         section_width)
                     self.viewer3d.polygons_vertices += v
 
+                    self.polygons += v
+
                     for i in range(0, len(v)):
                         self.viewer3d.polygons_colors += [color]
 
-    def display_polygons_volumes_3d(self, update_active_section_only=True):
-        return
+            logging.info('{} polygons rebuilt'.format(
+                len(self.viewer3d.polygons_colors)))
 
+        return self.polygons
+
+    def display_polygons_volumes_3d(self, update_active_section_only=True):
         if self.initialize_3d_rendering():
             update_active_section_only = False
 
@@ -260,18 +302,8 @@ class Plugin():
         self.draw_active_section_3d()
 
         if not update_active_section_only:
-            self.draw_polygons_3d(section_layers)
-
-            def addVertice(geom):
-                v = loads(geom.geometry().exportToWkt().replace('Z', ' Z'))
-                return [[list(v.coords[0]), list(v.coords[1])]]
-
-            graph_layer = self.toolbar.graphLayerHelper.active_layer()
-
-            if graph_layer is None:
-                return
-
-            volumes, vertices = self.build_volume(graph_layer, section_layers)
+            polygons = self.update_polygons_3d(section_layers)
+            volumes, vertices = self.build_volume(polygons)
 
             self.viewer3d.updateVolume(vertices, volumes)
             self.viewer3d.updateGL()
@@ -325,47 +357,6 @@ class Plugin():
 
         self.display_polygons_volumes_3d(False)
         return True
-
-    def build_volume(self, graph_layer, section_layers):
-        def same_vertex(v1, v2):
-            return v1[0] == v2[0] and v1[1] == v2[1] and v1[2] == v2[2]
-
-        def index_of(generatrice):
-            for i in range(0, len(nodes)):
-                if same_vertex(generatrice[0], nodes[i][0]) and \
-                   same_vertex(generatrice[1], nodes[i][1]):
-                    return i
-            return -1
-
-        nodes = []
-        edges = []
-
-        total = 0
-        for layer in section_layers:
-            if layer is not None:
-                section_width = float(
-                    self.__section_main.toolbar.buffer_width.text())
-
-                for polygon in compute_sections_polygons_from_graph(
-                                                graph_layer,
-                                                layer,
-                                                section_width):
-                    previous_idx = -1
-                    for i in range(0, len(polygon), 2):
-                        total += 1
-                        generatrice = [polygon[i], polygon[i + 1]]
-
-                        idx = index_of(generatrice)
-                        if idx < 0:
-                            nodes += [generatrice]
-                            idx = len(nodes) - 1
-
-                        # connect to previous node
-                        if previous_idx >= 0:
-                            edges += [(idx, previous_idx)]
-                        previous_idx = idx
-
-        return to_volume(np.array(nodes), edges)
 
     def initGui(self):
         self.__section_main = MainWindow(self.__iface, 'section')

@@ -63,6 +63,10 @@ def intersect_linestring_layer_with_wkt(layer, wkt, buffer_width):
 
     line = loads(wkt.replace('Z', ' Z'))
 
+    if not line.is_valid:
+        logging.warning('Invalid feature geometry wkt={}'.format(wkt))
+        return
+
     # square cap style for the buffer -> less points
     buf = line.buffer(buffer_width, cap_style=2)
     bbox = QgsRectangle(
