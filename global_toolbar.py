@@ -1,6 +1,6 @@
 # coding=utf-8
 
-from .one_liner import icon
+from .utils import icon
 from .qgis_section.action_state_helper import ActionStateHelper
 
 from PyQt4.QtGui import QToolBar, QProgressDialog
@@ -30,7 +30,7 @@ class GlobalToolbar(QToolBar):
         self.graphLayerHelper.add_to_toolbar(self, iface)
 
         # Sections layers selection UI
-        self.sections_layers_combo = SectionsLayersCombo()
+        self.sections_layers_combo = SectionsLayersCombo(self)
         self.sections_layers_combo.add_to_toolbar(self)
 
         self.__add_layer_action = self.addAction(

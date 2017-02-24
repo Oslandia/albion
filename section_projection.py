@@ -64,7 +64,7 @@ def project_layer_as_polygon(line, z_scale, line_width,
     if remove_all:
         remove_all_features_from_layer(projected_layer)
 
-    logging.info('projecting {} -> {}'.format(
+    logging.debug('projecting {} -> {}'.format(
         get_name(layer),
         projected_layer.geometryType()))
 
