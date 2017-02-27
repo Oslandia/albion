@@ -192,7 +192,7 @@ def find_generatrices_needing_a_fake_generatrice_in_section(
     return ids_missing_generatrice_left, ids_missing_generatrice_right
 
 
-def compute_segment_geometry(feature1, feature2):
+def compute_segment_geometry(feature1_wkt, feature2_wkt):
     """ Returns a geometry (LineString) connecting features centers """
     def mysum(x, a, b):
         return [(a[i] + b[i]) * x for i in range(0, 3)]
@@ -200,13 +200,19 @@ def compute_segment_geometry(feature1, feature2):
     def bary(coords):
         return reduce(lambda x, y: mysum(1.0 / len(coords), x, y), coords)
 
-    geom1 = loads(feature1.geometry().exportToWkt().replace('Z', ' Z'))
+    geom1 = loads(feature1_wkt)
     centroid1_with_z = bary(geom1.coords)
 
-    geomB = loads(feature2.geometry().exportToWkt().replace('Z', ' Z'))
+    geomB = loads(feature2_wkt)
     centroid2_with_z = bary(geomB.coords)
 
-    return LineString([centroid1_with_z, centroid2_with_z])
+    result = LineString([centroid1_with_z, centroid2_with_z])
+
+    if not result.is_valid:
+        raise Exception(
+            'Cannot compute segment geometry connecting {} and {}'.format(
+                feature1_wkt, feature2_wkt))
+    return result
 
 
 def refresh_graph_layer_edges(self, graph_layer):
@@ -227,11 +233,16 @@ def refresh_graph_layer_edges(self, graph_layer):
                                           edge.attribute('end'))
 
         if feat1 and feat2:
-            line_string = compute_segment_geometry(feat1, feat2)
+            try:
+                line_string = compute_segment_geometry(
+                    feature_to_shapely_wkt(feat1),
+                    feature_to_shapely_wkt(feat2))
 
-            # update geometry
-            graph_layer.dataProvider().changeGeometryValues(
-                {edge.id(): QgsGeometry.fromWkt(line_string.wkt)})
+                # update geometry
+                graph_layer.dataProvider().changeGeometryValues(
+                    {edge.id(): QgsGeometry.fromWkt(line_string.wkt)})
+            except Exception as e:
+                logging.error(e)
         else:
             # feat1|feat2 has been removed -> remove edge as well
             edge_to_remove += [edge.id()]

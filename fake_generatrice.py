@@ -6,7 +6,8 @@ from .qgis_hal import (insert_features_in_layer,
                        get_id,
                        create_new_feature,
                        clone_feature_with_geometry_transform,
-                       get_feature_attribute_values)
+                       get_feature_attribute_values,
+                       feature_to_shapely_wkt)
 from .graph_operations import compute_segment_geometry
 
 
@@ -57,7 +58,9 @@ def insert(layer, feature):
 
 
 def connect(subgraph, feature1, feature2, link, source_layer):
-    segment = compute_segment_geometry(feature1, feature2)
+    segment = compute_segment_geometry(
+        feature_to_shapely_wkt(feature1),
+        feature_to_shapely_wkt(feature2))
     new_feature = create_new_feature(
         subgraph,
         segment.wkt,

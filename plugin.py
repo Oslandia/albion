@@ -638,12 +638,17 @@ class Plugin():
 
                 # Read back feature to get proper id()
                 fake_feature = fg_insert(source_layer, generatrice)
-                # Add link in subgraph
-                fg_connect(graph,
-                           feature,
-                           fake_feature,
-                           next_edge_link,
-                           source_layer)
+
+                try:
+                    # Add link in graph
+                    fg_connect(graph,
+                               feature,
+                               fake_feature,
+                               next_edge_link,
+                               source_layer)
+                except Exception as e:
+                    logging.error(e)
+                    # TODO: delete generatric
 
                 next_generatrice_link = next_generatrice_link + 1
                 next_edge_link = next_edge_link + 1

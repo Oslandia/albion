@@ -2,9 +2,10 @@
 import unittest
 
 from hypothesis import given, reject
-from hypothesis.strategies import integers, lists, builds
+from hypothesis.strategies import integers, lists, builds, floats
 from mock import patch
 from functools import partial
+from shapely.wkt import loads
 
 # from ..graph_operations import build_subgraph_from_graph_in_section
 from albion.graph_operations import (build_subgraph_from_graph_in_section,
@@ -12,7 +13,8 @@ from albion.graph_operations import (build_subgraph_from_graph_in_section,
                                      _extract_connectivity_information,
                                      _extract_section_polygons_information,
                                      GraphConnection,
-                                     graph_connection_list_to_list)
+                                     graph_connection_list_to_list,
+                                     compute_segment_geometry)
 
 
 class FakeLayer():
@@ -209,6 +211,37 @@ class Test_GraphConnection(unittest.TestCase):
         self.assertEqual(len(result[3]), 1)
         self.assertEqual(len(result[4]), 1)
         self.assertEqual(len(result[5]), 0)
+
+
+class Test_compute_segment_geometry(unittest.TestCase):
+    @given(lists(floats(max_value=1e+100, min_value=-1e+100),
+                 min_size=6, max_size=6),
+           lists(floats(max_value=1e+100, min_value=-1e+100),
+                 min_size=6, max_size=6))
+    def test_3d(self, f1, f2):
+        wkt1 = 'LINESTRING Z({} {} {}, {} {} {})'.format(*f1)
+        wkt2 = 'LINESTRING Z({} {} {}, {} {} {})'.format(*f2)
+
+        a = loads(wkt1)
+        b = loads(wkt2)
+
+        if not a.is_valid or \
+           not b.is_valid or \
+           a.almost_equals(b, decimal=4) or \
+           a.union(b).almost_equals(a, decimal=4):
+            reject()
+
+        try:
+            linestring = compute_segment_geometry(wkt1, wkt2)
+            self.assertTrue(linestring.is_valid)
+        except Exception as e:
+            if e.message.find('Cannot compute segment geometry') == 0:
+                reject()
+            else:
+                raise e
+
+
+
 
 
 

@@ -9,7 +9,8 @@ from PyQt4.QtGui import QColor
 from .qgis_hal import (insert_features_in_layer,
                        create_new_feature, get_id,
                        projected_layer_to_original,
-                       projected_feature_to_original)
+                       projected_feature_to_original,
+                       feature_to_shapely_wkt)
 from .graph_operations import compute_segment_geometry
 
 
@@ -104,7 +105,9 @@ class GraphEditTool(QgsMapToolEmitPoint):
                 featureA = self.previousFeature['source']
                 featureB = clickedFeature['source']
 
-                segment = compute_segment_geometry(featureA, featureB)
+                segment = compute_segment_geometry(
+                    feature_to_shapely_wkt(featureA),
+                    feature_to_shapely_wkt(featureB))
 
                 features = [create_new_feature(
                     self.graphLayer,
