@@ -45,7 +45,7 @@ class Toolbar(QToolBar):
                 self.__add_axis)
 
         add_projected_layer_action = self.addAction(
-            icon('add_layer.svg'), 'add projected layer')
+            icon('add_layer_to_section.svg'), 'add projected layer')
         add_projected_layer_action.triggered.connect(self.__add_layer)
         h = ActionStateHelper(add_projected_layer_action)
         h.add_is_enabled_test(

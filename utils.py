@@ -19,7 +19,7 @@ def max_value(values, default):
 
 
 def icon(name):
-    return QIcon(os.path.join(os.path.dirname(__file__), 'icons', name))
+    return QIcon(os.path.join(os.path.dirname(__file__), 'res', name))
 
 
 def create_projected_layer(layer, section_id):
