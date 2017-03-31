@@ -49,7 +49,7 @@ class CreateLayerWidget(QDialog):
     """
     def __init__(self, logger, parent=None):
         QDialog.__init__(self, parent)
-        uic.loadUi(os.path.join(os.path.dirname(__file__), "create_layer.ui"), self)
+        uic.loadUi(os.path.join(os.path.dirname(__file__), "res/create_layer.ui"), self)
         self.__logger = logger
         for lid, layer in QgsMapLayerRegistry.instance().mapLayers().iteritems():
             logging.info('layer name: {}'.format(layer.name()))

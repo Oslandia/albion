@@ -251,12 +251,12 @@ class Viewer3D(QtOpenGL.QGLWidget):
             GL.glVertexPointerf(self.vertices - self.center)
             GL.glNormalPointerf(self.normals)
 
-            GL.glEnable(GL.GL_COLOR_MATERIAL)
+            # GL.glEnable(GL.GL_COLOR_MATERIAL)
             # draw wireframe
-            GL.glColor4f(0, 0.6, 0, 1)
-            GL.glLineWidth(3)
-            GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE)
-            GL.glDrawElementsui(GL.GL_TRIANGLES, self.indices)
+            # GL.glColor4f(0, 0.6, 0, 1)
+            # GL.glLineWidth(3)
+            # GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE)
+            # GL.glDrawElementsui(GL.GL_TRIANGLES, self.indices)
 
             # draw lighted
             GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
