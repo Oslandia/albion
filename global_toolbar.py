@@ -30,7 +30,7 @@ class GlobalToolbar(QToolBar):
         self.graphLayerHelper.add_to_toolbar(self, iface)
 
         # Sections layers selection UI
-        self.sections_layers_combo = SectionsLayersCombo(self)
+        self.sections_layers_combo = SectionsLayersCombo(iface, self)
         self.sections_layers_combo.add_to_toolbar(self)
 
         self.__add_layer_action = self.addAction(

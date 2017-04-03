@@ -128,7 +128,7 @@ class Plugin():
     def __layers_added(self, layers):
         all_layers = get_all_layers()
         self.toolbar.graphLayerHelper.update_layers(all_layers)
-        self.toolbar.sections_layers_combo.update_layers(all_layers)
+        self.toolbar.sections_layers_combo.update_layers()
 
     def __redraw_3d_view(self):
         self.viewer3d.scale_z = float(self.viewer3d_scale_z.text())
