@@ -505,7 +505,7 @@ def _compute_ratio_offset_from_pants(layer,
         pants)
 
     if connections_to_consider is None or len(
-            connections_to_consider) > 1:
+            connections_to_consider) <= 1:
         return 1.0, 0.0
 
     next_feature = get_feature_by_id(layer, next_)
@@ -541,6 +541,8 @@ def __path_to_polygon(path, layer, connections, features_length, pants):
             next_v = path[(i + 1) if (i == 0) else (i - 1)]
             ratio, offset = _compute_ratio_offset_from_pants(
                 layer, v, next_v, pants[v], features_length)
+
+            logging.info('ration={} offset={}'.format(ratio, offset))
 
         geom = loads(feature_to_shapely_wkt(get_feature_by_id(layer, v)))
 
