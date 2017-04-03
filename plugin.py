@@ -109,9 +109,9 @@ class Plugin():
             return
 
         for lid in self.viewer3d.layers_vertices:
-            self.viewer3d.layers_vertices[lid]['visible'] =\
-                self.__iface.legendInterface().isLayerVisible(
-                    get_layer_by_id(lid))
+            self.viewer3d.set_generatrices_visibility(
+                lid, self.__iface.legendInterface().isLayerVisible(
+                    get_layer_by_id(lid)))
 
         self.viewer3d.updateGL()
 
@@ -261,35 +261,35 @@ class Plugin():
         def centroid(l):
             return [0.5*(l.coords[0][i]+l.coords[1][i]) for i in range(0, 3)]
 
-        if len(self.viewer3d.polygons_vertices) == 0:
+        if True: # len(self.viewer3d.polygons_vertices) == 0:
             logging.info('Rebuild polygons!')
             self.polygons = []
 
             section_width = float(
                 self.__section_main.toolbar.buffer_width.text())
 
-            self.viewer3d.polygons_colors = []
             for layer in section_layers:
-                color = [1, 0, 0, 1] if section_layers.index(layer) == 0 \
-                    else [0, 0, 1, 1]
                 if layer is not None:
                     v = compute_sections_polygons_from_graph(
                         graph_layer,
                         layer,
                         section_width)
-                    self.viewer3d.polygons_vertices += v
+
+                    self.viewer3d.set_section_polygons(
+                        section_layers.index(layer), v)
 
                     self.polygons += v
-
-                    for i in range(0, len(v)):
-                        self.viewer3d.polygons_colors += [color]
-
-            logging.info('{} polygons rebuilt'.format(
-                len(self.viewer3d.polygons_colors)))
+                else:
+                    self.viewer3d.set_section_polygons(
+                        section_layers.index(layer), None)
 
         return self.polygons
 
+    def display_polygons_volumes_3d_full(self, update_active_section_only=True):
+        self.display_polygons_volumes_3d(False)
+
     def display_polygons_volumes_3d(self, update_active_section_only=True):
+        logging.info('display_polygons_volumes_3d!!!')
         if self.initialize_3d_rendering():
             update_active_section_only = False
 
@@ -313,6 +313,10 @@ class Plugin():
     def initialize_3d_rendering(self):
         if self.rendering_3d_intialized:
             return False
+
+        ext = self.__iface.mapCanvas().extent()
+        center = [ext.center().x(), ext.center().y(), ext.height()]
+        self.viewer3d.enable(center)
 
         section_layers_id = \
             self.toolbar.sections_layers_combo.active_layers_id()
@@ -345,15 +349,10 @@ class Plugin():
                 layer_vertices += [list(v.coords[0]), list(v.coords[1])]
 
             if len(layer_vertices) > 0:
-                layers_vertices[layer.id()] = {
-                    'v': np.array(layer_vertices),
-                    'c': layer.rendererV2().symbol().color().getRgbF(),
-                    'visible':
-                        self.__iface.legendInterface().isLayerVisible(
-                            layer)}
-
-        if len(layers_vertices) > 0:
-            self.viewer3d.define_generatrices_vertices(layers_vertices)
+                self.viewer3d.define_generatrices_vertices(get_id(layer), layer_vertices)
+                self.viewer3d.set_generatrices_visibility(get_id(layer), self.__iface.legendInterface().isLayerVisible(
+                            layer))
+                self.viewer3d.set_generatrices_color(get_id(layer), list(layer.rendererV2().symbol().color().getRgbF()))
 
         self.display_polygons_volumes_3d(False)
         return True
@@ -413,6 +412,8 @@ class Plugin():
         self.__clean_graph_action.triggered.connect(self.cleanup_data)
         self.__export_volume_action.triggered.connect(self.export_volume)
         self.viewer3d_scale_z.editingFinished.connect(self.__redraw_3d_view)
+        self.toolbar.sections_layers_combo.combo.currentIndexChanged.connect(self.display_polygons_volumes_3d_full)
+
         QgsMapLayerRegistry.instance().layersAdded.connect(self.__layers_added)
 
         # In case we're reloading

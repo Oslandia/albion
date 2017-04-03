@@ -67,23 +67,115 @@ class Camera():
             self.rotY += delta_y*50
 
 
+class SectionPolygons():
+    def __init__(self):
+        # list of polygons (polygon = list of vertices)
+        self.define_raw_polygons(None)
+
+    def define_raw_polygons(self, p):
+        self.raw_polygons = p
+        self.np_vertices = []
+        self.indices = []
+
+    def update(self, center):
+        self.indices = []
+        vertices = []
+
+        if self.raw_polygons is None or len(self.raw_polygons) == 0:
+            return
+
+        for polygon in self.raw_polygons:
+            count = len(vertices)
+            if count > 0:
+                # degenerate next triangle
+                # [0, 1, 2] => [0, 1, 2, 2, 3]
+                self.indices += [count - 1, count]
+
+            for i in range(0, len(polygon)):
+                self.indices += [count + i]
+
+            vertices += polygon
+
+        self.np_vertices = np.array(vertices) - center
+
+
+class Generatrices():
+    def __init__(self):
+        self.layers_visibility = {}
+        self.layers_color = {}
+        self.layers_vertices = {}
+        self.np_vertices = {}
+
+    def define_layer_vertices(self, layer_id, vertices):
+        self.layers_vertices[layer_id] = vertices
+        if layer_id not in self.layers_visibility:
+            self.layers_visibility[layer_id] = True
+        if layer_id not in self.layers_color:
+            self.layers_color[layer_id] = [0, 0, 0, 0]
+
+    def set_layer_visibility(self, layer_id, visible):
+        self.layers_visibility[layer_id] = visible
+
+    def set_layer_color(self, layer_id, color):
+        self.layers_color[layer_id] = color
+
+    def is_layer_visible(self, layer_id):
+        return self.layers_visibility[layer_id]
+
+    def update(self, center):
+        self.np_vertices = {}
+        for layer_id in self.layers_vertices:
+            self.np_vertices[layer_id] = np.array(
+                self.layers_vertices[layer_id]) - center
+
+
+class Data():
+    def __init__(self):
+        self.sections_polygons = [SectionPolygons(), SectionPolygons()]
+        self.generatrices = Generatrices()
+
+    # define 1 section polygons
+    def set_section_polygons(self, idx, polygons):
+        self.sections_polygons[idx].define_raw_polygons(polygons)
+
+    def has_section_polygons(self, idx):
+        return len(self.sections_polygons[idx].indices) > 0
+
+    def section_indices(self, idx):
+        return self.sections_polygons[idx].indices
+
+    def section_vertices(self, idx):
+        return self.sections_polygons[idx].np_vertices
+
+    def update(self, center):
+        self.sections_polygons[0].update(center)
+        self.sections_polygons[1].update(center)
+
+        self.generatrices.update(center)
+
+
 class Viewer3D(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
         self.parent = parent
         QtOpenGL.QGLWidget.__init__(self, parent)
         self.camera = Camera()
-        self.polygons_vertices = []
         self.scale_z = 3.0
-        self.colors = []
-        self.polygons_colors = []
-        self.layers_vertices = None
         self.center = [0, 0, 0]
         self.section_vertices = None
 
+        self.enabled = False
+        self.data = Data()
+
+    def enable(self, center=None):
+        if center:
+            self.center = center
+            logging.info('Enabled {}'.format(center))
+        self.enabled = True
+
+    # GL boiler-plate
     def initializeGL(self):
         self.qglClearColor(QColor(250, 250,  250))
         self.vertices = None
-        self.graph_vertices = None
 
     def resizeGL(self, width, height):
         height = max(height, 1)
@@ -94,6 +186,7 @@ class Viewer3D(QtOpenGL.QGLWidget):
 
         GLU.gluPerspective(45.0, self.aspect, 0.1, 1000.0)
 
+    # input-handling
     def mouseMoveEvent(self, event):
         delta_x = float(event.x() - self.oldx)/self.width()
         delta_y = float(self.oldy - event.y())/self.height()
@@ -113,21 +206,20 @@ class Viewer3D(QtOpenGL.QGLWidget):
                          Qt.ShiftModifier)
         self.update()
 
-    def define_generatrices_vertices(self, layers_vertices):
-        self.layers_vertices = layers_vertices
+    # Data:
+    #   - polygons
+    def set_section_polygons(self, idx, polygons):
+        self.data.set_section_polygons(idx, polygons)
 
-        centers = []
-        for l in layers_vertices:
-            centers += [self._computeCenter(self.layers_vertices[l]['v'])]
+    #   - generatrices
+    def define_generatrices_vertices(self, layer_id, layers_vertices):
+        self.data.generatrices.define_layer_vertices(layer_id, layers_vertices)
 
-        print centers
-        centers = np.array(centers)
-        self.center = [
-            np.mean(centers[:, 0]),
-            np.mean(centers[:, 1]),
-            np.mean(centers[:, 2])
-        ]
-        logging.error(self.center)
+    def set_generatrices_visibility(self, layer_id, visible):
+        self.data.generatrices.set_layer_visibility(layer_id, visible)
+
+    def set_generatrices_color(self, layer_id, color):
+        self.data.generatrices.set_layer_color(layer_id, color)
 
     def define_section_vertices(self, section_vertices):
         self.section_vertices = np.array(section_vertices)
@@ -138,9 +230,6 @@ class Viewer3D(QtOpenGL.QGLWidget):
             return
 
         self.vertices = []
-        self.colors = []
-        for v in vertices:
-            self.colors += [self._color()]
 
         indices = []
         for vol in volumes:
@@ -152,37 +241,6 @@ class Viewer3D(QtOpenGL.QGLWidget):
         self.vertices = np.array(self.vertices)
         self.indices = np.array(indices)
         self.normals = self.computeNormals(self.vertices, self.indices)
-
-    def updateGraph(self, graph_vertices, graph_indices, highlights):
-        if graph_vertices is None or len(graph_vertices) == 0:
-            self.graph_vertices = None
-        else:
-            self.graph_vertices = np.array(graph_vertices)
-            self.graph_indices = graph_indices
-
-            self.graph_colors = [
-                [1, 0, 0, 1] if i in highlights else
-                [0, 0, 1, 1] for i in range(0, len(graph_vertices))]
-
-    def _color(self, t=None):
-        a = [0.5, 0.5, 0.5]
-        b = [0.5, 0.5, 0.5]
-        c = [1.0, 1.0, 1.0]
-        d = [0.00, 0.10, 0.20]
-
-        def formula(i, t):
-            return a[i] + b[i] * math.cos(2 * 3.14 * (c[i] * t + d[i]))
-
-        if t is None:
-            t = random.random()
-        return [formula(0, t), formula(1, t), formula(2, t), 0.3]
-
-    def _computeCenter(self, vertices):
-        return [
-            np.mean(vertices[:, 0]),
-            np.mean(vertices[:, 1]),
-            np.mean(vertices[:, 2])
-        ]
 
     def computeNormals(self, vtx, idx):
         nrml = np.zeros(vtx.shape, np.float32)
@@ -202,7 +260,11 @@ class Viewer3D(QtOpenGL.QGLWidget):
             nrml[:, 2] * nrml[:, 2])
         return nrml/nrmlNorm.reshape(-1, 1)
 
+    # Draw code
     def paintGL(self):
+        if not self.enabled:
+            return
+
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
         GL.glEnable(GL.GL_DEPTH_TEST)
@@ -233,15 +295,19 @@ class Viewer3D(QtOpenGL.QGLWidget):
 
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
 
-        if not (self.layers_vertices is None):
+        self.data.update(self.center)
+
+        for layer_id in self.data.generatrices.np_vertices:
+            # GL state
             GL.glLineWidth(2)
-            for lid in self.layers_vertices:
-                if not self.layers_vertices[lid]['visible']:
-                    continue
-                layer = self.layers_vertices[lid]['v']
-                GL.glVertexPointerf(layer - self.center)
-                GL.glColor4fv(list(self.layers_vertices[lid]['c']))
-                GL.glDrawArrays(GL.GL_LINES, 0, len(layer))
+
+            if self.data.generatrices.is_layer_visible(layer_id):
+                vertices = self.data.generatrices.np_vertices[layer_id]
+                GL.glVertexPointerf(vertices)
+                GL.glColor4fv(self.data.generatrices.layers_color[layer_id])
+                GL.glDrawArrays(GL.GL_LINES, 0, len(vertices))
+
+            # Restore GL state
             GL.glLineWidth(1)
 
         if not (self.vertices is None):
@@ -250,13 +316,6 @@ class Viewer3D(QtOpenGL.QGLWidget):
 
             GL.glVertexPointerf(self.vertices - self.center)
             GL.glNormalPointerf(self.normals)
-
-            # GL.glEnable(GL.GL_COLOR_MATERIAL)
-            # draw wireframe
-            # GL.glColor4f(0, 0.6, 0, 1)
-            # GL.glLineWidth(3)
-            # GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE)
-            # GL.glDrawElementsui(GL.GL_TRIANGLES, self.indices)
 
             # draw lighted
             GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_FILL)
@@ -274,47 +333,19 @@ class Viewer3D(QtOpenGL.QGLWidget):
             GL.glDisableClientState(GL.GL_NORMAL_ARRAY)
             GL.glDisable(GL.GL_POLYGON_OFFSET_FILL)
 
-        # gen 1 color per polygon
-        if len(self.colors) < len(self.polygons_vertices):
-            self.colors = []
-            spacing = 1.0 / len(self.polygons_vertices)
-            for i in range(0, len(self.polygons_vertices)):
-                self.colors += [self._color(i * spacing)]
+        for idx in [0, 1]:
+            # constants
+            colors = [[1, 0, 0, 1], [0, 0, 1, 1]]
 
-        if len(self.polygons_vertices) > 0:
+            # GL state
             GL.glDisable(GL.GL_LIGHTING)
+            # GL.glPolygonMode(GL.GL_FRONT_AND_BACK, GL.GL_LINE)
 
-            for polygon in self.polygons_vertices:
-                p = np.array(polygon)
-                GL.glVertexPointerf(p - self.center)
-                indices = [i for i in range(0, len(p))]
-
-                # draw poly
-                GL.glColor4fv(
-                    self.polygons_colors[self.polygons_vertices.index(
-                        polygon)])
-                GL.glDrawElementsui(GL.GL_TRIANGLE_STRIP, indices)
-
-                GL.glColor4f(0.9, 0.8, 0.1, 1)
-                # draw generatrices
-                GL.glDrawElementsui(GL.GL_LINES, indices)
-
-            for polygon in self.polygons_vertices:
-                p = np.array(polygon)
-                GL.glVertexPointerf(p - self.center)
-                indice_lines = []
-                for i in range(0, len(p), 2):
-                    indice_lines += [i]
-                for i in range(len(p)-1, 0, -2):
-                    indice_lines += [i]
-
-                indice_lines += [0]
-
-                GL.glLineWidth(2)
-
-                GL.glColor4f(1.0, 1.0, 1.1, 1)
-                # draw generatrices
-                GL.glDrawElementsui(GL.GL_LINE_STRIP, indice_lines)
+            if self.data.has_section_polygons(idx):
+                GL.glColor4fv(colors[idx])
+                GL.glVertexPointerf(self.data.section_vertices(idx))
+                GL.glDrawElementsui(GL.GL_TRIANGLE_STRIP,
+                                    self.data.section_indices(idx))
 
         if not (self.section_vertices is None):
             GL.glEnable(GL.GL_POLYGON_OFFSET_FILL)
@@ -330,15 +361,3 @@ class Viewer3D(QtOpenGL.QGLWidget):
             GL.glEnable(GL.GL_COLOR_MATERIAL)
             GL.glPolygonOffset(0, 0)
             GL.glDisable(GL.GL_POLYGON_OFFSET_FILL)
-
-        if not (self.graph_vertices is None):
-            pass
-            GL.glDisable(GL.GL_LIGHTING)
-            # glDisable(GL_DEPTH_TEST)
-            GL.glEnableClientState(GL.GL_COLOR_ARRAY)
-            GL.glVertexPointerf(self.graph_vertices - self.center)
-            GL.glColorPointerf(self.graph_colors)
-            GL.glLineWidth(1)
-            GL.glDrawElementsui(GL.GL_LINES, self.graph_indices)
-            GL.glPointSize(4)
-            GL.glDisableClientState(GL.GL_COLOR_ARRAY)
