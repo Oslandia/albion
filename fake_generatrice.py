@@ -9,7 +9,12 @@ from .qgis_hal import (insert_features_in_layer,
                        get_feature_attribute_values,
                        feature_to_shapely_wkt)
 from .graph_operations import compute_segment_geometry
+from functools import partial
+import logging
 
+def __transform_geom(translation, sign, geom):
+    geom.translate(translation[0] * sign, translation[1] * sign)
+    return geom
 
 # Helper methods to manage fake generatrices
 def create(section, source_layer, source_feature, link, translation, sign):
@@ -20,17 +25,14 @@ def create(section, source_layer, source_feature, link, translation, sign):
 
     fake = clone_feature_with_geometry_transform(
         source_feature,
-        lambda geom: geom.translate(
-            translation[0] * sign, translation[1] * sign))
+        partial(__transform_geom, translation, sign))
 
     if source_has_field_HoleID:
         fake.setAttribute('HoleID', 'Fake')
     if source_has_field_mine:
         fake.setAttribute('mine', -1)
     fake.setAttribute('link', link)
-    fake.setGeometry(source_feature.geometry())
 
-    fake.geometry().translate(translation[0] * sign, translation[1] * sign)
 
     # we need to make sure that the newly created geometry is inside the section
     buf = section.line.buffer(section.width, cap_style=2)

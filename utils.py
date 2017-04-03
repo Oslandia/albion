@@ -5,6 +5,7 @@ from qgis.core import QGis
 from shapely.geometry import Point
 
 import os
+import logging
 
 from .qgis_hal import (
     clone_layer_as_memory_layer,

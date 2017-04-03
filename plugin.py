@@ -2,7 +2,7 @@
 from qgis.core import *
 from qgis.gui import *
 
-from PyQt4.QtCore import Qt
+from PyQt4.QtCore import Qt, QObject
 from PyQt4.QtGui import (QDockWidget,
                          QColor,
                          QToolBar,
@@ -43,7 +43,8 @@ from .qgis_hal import (get_feature_by_id,
                        feature_to_shapely_wkt,
                        get_feature_attribute_values,
                        projected_layer_to_original,
-                       projected_feature_to_original)
+                       projected_feature_to_original,
+                       get_layers_with_properties)
 
 from .graph import to_volume
 
@@ -51,11 +52,12 @@ from .graph_operations import (
     refresh_graph_layer_edges,
     find_generatrices_needing_a_fake_generatrice_in_section,
     compute_section_polygons_from_graph)
-from .section_projection import project_layer_as_linestring
+from .section_projection import (project_layer_as_linestring,
+                                 project_layer_as_polygon)
 
 from .global_toolbar import GlobalToolbar
 
-from .utils import max_value, icon, create_projected_layer
+from .utils import max_value, icon, create_projected_layer, unproject_point
 
 import logging
 import traceback
@@ -88,8 +90,9 @@ def compute_sections_polygons_from_graph(graph_layer,
     return result
 
 
-class Plugin():
+class Plugin(QObject):
     def __init__(self, iface):
+        QObject.__init__(self, None)
         FORMAT = '\033[30;100m%(created)-13s\033[0m \033[33m%(filename)-12s\033[0m:\033[34m%(lineno)4d\033[0m %(levelname)8s %(message)s' if sys.platform.find('linux')>= 0 else '%(created)13s %(filename)-12s:%(lineno)4d %(message)s'
         lvl = logging.INFO if sys.platform.find('linux')>= 0 else logging.CRITICAL
         logging.basicConfig(format=FORMAT, level=lvl)
@@ -105,10 +108,8 @@ class Plugin():
 
     #   - layer visibility was changed (in treeview)
     def __layer_visibility_changed(self, node):
-        if self.viewer3d.layers_vertices is None:
-            return
-
-        for lid in self.viewer3d.layers_vertices:
+        if isinstance(node, QgsLayerTreeLayer):
+            lid = get_id(node.layer())
             self.viewer3d.set_generatrices_visibility(
                 lid, self.__iface.legendInterface().isLayerVisible(
                     get_layer_by_id(lid)))
@@ -129,6 +130,43 @@ class Plugin():
         all_layers = get_all_layers()
         self.toolbar.graphLayerHelper.update_layers(all_layers)
         self.toolbar.sections_layers_combo.update_layers()
+        for layer in layers:
+            layer.editCommandEnded.connect(self.__update_projection_if_needed)
+
+    def __layers_removed(self, layers):
+        for layer in layers:
+            layer.editCommandEnded.disconnect(self.__update_projection_if_needed)
+
+    def __update_projection_if_needed(self):
+        layer = self.sender()
+        logging.info('__update_projection_if_needed {}'.format(get_id(layer)))
+
+        matching = get_layers_with_properties(
+            {'section_id': self.__section_main.section.id,
+             'projected_layer': get_id(layer)})
+
+        for l in matching:
+            project_layer_as_linestring(
+                self.__section_main.section.line,
+                self.__section_main.section.z_scale,
+                self.__section_main.section.width,
+                layer, l)
+
+        matching = get_layers_with_properties(
+            {'section_id': self.__section_main.section.id,
+             'polygon_projected_layer': get_id(layer)})
+
+        for l in matching:
+            project_layer_as_polygon(
+                self.__section_main.section.line,
+                self.__section_main.section.z_scale,
+                self.__section_main.section.width,
+                layer, l)
+
+
+
+
+
 
     def __redraw_3d_view(self):
         self.viewer3d.scale_z = float(self.viewer3d_scale_z.text())
@@ -311,6 +349,11 @@ class Plugin():
         self.__redraw_3d_view()
 
     def initialize_3d_rendering(self):
+        section_layers_id = \
+            self.toolbar.sections_layers_combo.active_layers_id()
+        if section_layers_id[0] == None:
+            return
+
         if self.rendering_3d_intialized:
             return False
 
@@ -415,6 +458,7 @@ class Plugin():
         self.toolbar.sections_layers_combo.combo.currentIndexChanged.connect(self.display_polygons_volumes_3d_full)
 
         QgsMapLayerRegistry.instance().layersAdded.connect(self.__layers_added)
+        QgsMapLayerRegistry.instance().layersRemoved.connect(self.__layers_removed)
 
         # In case we're reloading
         self.__layers_added(get_all_layers())
@@ -429,6 +473,7 @@ class Plugin():
         self.__export_volume_action.triggered.disconnect(self.export_volume)
         self.viewer3d_scale_z.editingFinished.disconnect(self.__redraw_3d_view)
         QgsMapLayerRegistry.instance().layersAdded.disconnect(self.__layers_added)
+        QgsMapLayerRegistry.instance().layersRemoved.disconnect(self.__layers_removed)
 
         self.__dock.setWidget(None)
         self.__iface.removeDockWidget(self.__dock)
@@ -570,12 +615,12 @@ class Plugin():
             self.__add_generatrices_impl(self.toolbar.graphLayerHelper.active_layer())
         finally:
             self.__section_main.section.enable()
-            self.__section_main.section.update_projections(
-                get_id(self.toolbar.graphLayerHelper.active_layer()))
+            #self.__section_main.section.update_projections(
+            #    get_id(self.toolbar.graphLayerHelper.active_layer()))
 
-            layer = self.__iface.mapCanvas().currentLayer()
-            source_layer = projected_layer_to_original(layer)
-            self.__section_main.section.update_projections(source_layer.id())
+            # layer = self.__iface.mapCanvas().currentLayer()
+            # source_layer = projected_layer_to_original(layer)
+            # self.__section_main.section.update_projections(source_layer.id())
 
             self.__on_graph_modified()
 
@@ -596,19 +641,21 @@ class Plugin():
                 source_layer,
                 layer)
 
+        logging.info('MISSING {} {}'.format(missing_left, missing_right))
+
         if len(missing_left) is 0 and len(missing_right) is 0:
             return
 
         next_edge_link = (
-            max_value(get_layer_unique_attribute(graph, 'link')), 0) + 1
+            max_value(get_layer_unique_attribute(graph, 'link'), 0) + 1)
 
         next_generatrice_link = (
-            max_value(get_layer_unique_attribute(source_layer, 'link')), 0) + 1
+            max_value(get_layer_unique_attribute(source_layer, 'link'), 0) + 1)
 
         # Compute fake generatrice translation
         distance = float(self.generatrice_distance.text())
-        a = self.__section_main.section.unproject_point(distance, 0, 0)
-        b = self.__section_main.section.unproject_point(0, 0, 0)
+        a = unproject_point(self.__section_main.section.line, self.__section_main.section.z_scale, distance, 0, 0)
+        b = unproject_point(self.__section_main.section.line, self.__section_main.section.z_scale, 0, 0, 0)
         translation_vec = tuple([a[i]-b[i] for i in range(0, 2)])
 
         graph.beginEditCommand('update edges')
@@ -626,6 +673,7 @@ class Plugin():
                 if feat_id not in get_layer_selected_ids(source_layer):
                     continue
 
+            # logging.info("CONSIDERING {} -> {}".format(feat_id, sides))
             feature = get_feature_by_id(source_layer, feat_id)
 
             for side in sides:
@@ -637,6 +685,7 @@ class Plugin():
                     translation_vec,
                     side)
 
+                # logging.info('INSERT')
                 # Read back feature to get proper id()
                 fake_feature = fg_insert(source_layer, generatrice)
 

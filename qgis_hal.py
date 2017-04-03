@@ -84,7 +84,7 @@ def intersect_linestring_layer_with_wkt(layer, wkt, buffer_width):
 
 def clone_feature_with_geometry_transform(feature, transform_geom):
     clone = QgsFeature(feature)
-    clone.setGeometry(transform_geom(feature.geometry()))
+    clone.setGeometry(transform_geom(QgsGeometry(feature.geometry())))
     return clone
 
 
@@ -177,7 +177,7 @@ def __fixup_layer_attribute_name(layer, name):
     if layer.fieldNameIndex(name) >= 0:
         return name
     else:
-        patched = '{}:Integer64(10, 0)'.format(name)
+        patched = '{}:Integer64(10,0)'.format(name)
         if layer.fieldNameIndex(patched) >= 0:
             return patched
         else:
@@ -223,7 +223,10 @@ def query_layer_features_by_attributes_in(layer, *attributes_in):
     expr = []
     fixed = __fixup_layer_attribute_names(layer, *attributes_in)
     for attr in fixed:
-        expr += ['"{}" IN {}'.format(attr, str(tuple(fixed[attr])))]
+        ex = ''
+        for v in fixed[attr]:
+            ex += "'{}',".format(str(v))
+        expr += ['"{}" IN ({})'.format(attr, ex[0:-1])]
 
     req = QgsFeatureRequest()
     if len(attributes_in) == 1:
@@ -309,7 +312,7 @@ def get_feature_centroid(feature):
     geom = feature.geometry()
     if QgsWKBTypes.hasZ(int(geom.wkbType())):
         v = loads(geom.exportToWkt().replace('Z', ' Z'))
-        return [v.coords[1][i] + v.coords[0][i] * 0.5 for i in range(0, 3)]
+        return [(v.coords[1][i] + v.coords[0][i]) * 0.5 for i in range(0, 3)]
     else:
         p = geom.centroid().asPoint()
         return [p.x(), p.y()]
@@ -327,7 +330,7 @@ def init_layer_polygon_renderer(layer):
     layer.setRendererV2(QgsSingleSymbolRendererV2(QgsFillSymbolV2()))
 
 
-def create_new_feature(layer, wkt, *attributes):
+def create_new_feature(layer, wkt, attributes=None):
     new_feature = QgsFeature()
     if wkt is not None:
         geom = QgsGeometry.fromWkt(wkt)
@@ -336,7 +339,8 @@ def create_new_feature(layer, wkt, *attributes):
         new_feature.setGeometry(geom)
 
     new_feature.setFields(layer.fields())
-    for attr in attributes:
-        new_feature.setAttribute(attr, attributes[attr])
+    if attributes is not None:
+        for attr in attributes:
+            new_feature.setAttribute(attr, attributes[attr])
 
     return new_feature

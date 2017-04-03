@@ -147,8 +147,11 @@ def find_generatrices_needing_a_fake_generatrice_in_section(
             projected_layer):
     projected_generatrice_centroids = {}
     for feature in get_all_layer_features(projected_layer):
-        link = get_feature_attribute_values(feature, 'link')
+        link = get_feature_attribute_values(projected_layer, feature, 'link')
         projected_generatrice_centroids[link] = get_feature_centroid(feature)
+
+    logging.info(source_layer.id())
+    logging.info(projected_generatrice_centroids)
 
     source_features = list(
         query_layer_features_by_attributes_in(
@@ -163,6 +166,9 @@ def find_generatrices_needing_a_fake_generatrice_in_section(
     ids_missing_generatrice_left = []
     ids_missing_generatrice_right = []
 
+    logging.info(source_features)
+    logging.info(connections)
+
     for i in range(0, len(source_features)):
         source_feature = source_features[i]
         if is_fake_feature(source_layer, source_feature):
@@ -175,8 +181,9 @@ def find_generatrices_needing_a_fake_generatrice_in_section(
             ids_missing_generatrice_right += [get_id(source_feature)]
             continue
 
+        logging.info('feat: {} (centroid={} -> {})'.format(source_feature.id(), centroid, project_point(line, 1.0, *centroid)))
         edges = __compute_generatrice_connections(
-            project_point(line, 1.0, *centroid),
+            project_point(line, 1.0, *centroid)[0],
             connections[i],
             line,
             graph_layer)
@@ -184,7 +191,7 @@ def find_generatrices_needing_a_fake_generatrice_in_section(
         # If this feature is connected on one side only ->
         # add the missing generatrice on the other side
         if xor(len(edges['L']) == 0, len(edges['R']) == 0):
-            if len(edges['R'] == 0):
+            if len(edges['R']) == 0:
                 ids_missing_generatrice_right += [get_id(source_feature)]
             else:
                 ids_missing_generatrice_left += [get_id(source_feature)]
@@ -429,10 +436,12 @@ def __compute_generatrice_connections(projected_feature_centroid_x,
         other = connection.other
 
         centroid = project_point(line, 1.0, *get_feature_centroid(e))
+
+        # logging.info('{} {} | {} <? {}'.format(get_feature_centroid(e), centroid, projected_feature_centroid_x, centroid[0]))
         if projected_feature_centroid_x < centroid[0]:
-            result['L'] += [other]
-        else:
             result['R'] += [other]
+        else:
+            result['L'] += [other]
     return result
 
 
@@ -467,7 +476,7 @@ def _extract_section_polygons_information(line, line_width,
             centroid = get_feature_centroid(feature)
 
             pants[feature_id] = __compute_generatrice_connections(
-                project_point(line, 1.0, *centroid),
+                project_point(line, 1.0, *centroid)[0],
                 connections[idx],
                 line,
                 graph)

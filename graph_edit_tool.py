@@ -12,7 +12,7 @@ from .qgis_hal import (insert_features_in_layer,
                        projected_feature_to_original,
                        feature_to_shapely_wkt)
 from .graph_operations import compute_segment_geometry
-
+import logging
 
 class GraphEditTool(QgsMapToolEmitPoint):
     graph_modified = pyqtSignal()
@@ -51,6 +51,7 @@ class GraphEditTool(QgsMapToolEmitPoint):
         rect_geom = QgsGeometry.fromRect(rect)
 
         source_layer = projected_layer_to_original(layer)
+
         if source_layer is None or source_layer == self.graphLayer:
             return
 
@@ -66,7 +67,7 @@ class GraphEditTool(QgsMapToolEmitPoint):
                 dist = d
                 best = feat
 
-        print best
+        logging.info('Nearest clicked feature: {}'.format(best))
 
         if best is not None:
             source = projected_feature_to_original(source_layer, best)
