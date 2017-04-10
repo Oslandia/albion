@@ -140,13 +140,17 @@ class Plugin(QObject):
         self.toolbar.graphLayerHelper.update_layers(all_layers)
         self.toolbar.sections_layers_combo.update_layers()
         for layer in layers:
-            layer.editCommandEnded.connect(self.__update_projection_if_needed)
+            if isinstance(layer, QgsVectorLayer):
+                layer.editCommandEnded.connect(
+                    self.__update_projection_if_needed)
 
     #   - layers were removed
     def __layers_will_be_removed(self, layer_ids):
         for layer_id in layer_ids:
-            get_layer_by_id(layer_id).editCommandEnded.\
-                disconnect(self.__update_projection_if_needed)
+            layer =  get_layer_by_id(layer_id)
+            if isinstance(layer, QgsVectorLayer):
+                layer.editCommandEnded.\
+                    disconnect(self.__update_projection_if_needed)
 
     def __update_projection_if_needed(self):
         layer = self.sender()

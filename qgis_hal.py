@@ -26,6 +26,9 @@ def layer_has_z(layer):
 
     note: we return True for a layer with no geometries
     """
+
+    if not isinstance(layer, QgsVectorLayer):
+        return False
     if not layer.isSpatial():
         return False
     for feat in layer.getFeatures():
