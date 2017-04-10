@@ -1,7 +1,7 @@
 # coding=utf-8
 
 from .utils import icon
-from .qgis_section.action_state_helper import ActionStateHelper
+from .action_state_helper import ActionStateHelper
 
 from PyQt4.QtGui import QToolBar, QProgressDialog
 

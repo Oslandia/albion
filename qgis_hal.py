@@ -20,6 +20,19 @@ from math import sqrt
 import logging
 
 
+def layer_has_z(layer):
+    """test if layer has z, necessary because the wkbType
+    returned by lyers in QGSI 2.16 has lost the information
+
+    note: we return True for a layer with no geometries
+    """
+    if not layer.isSpatial():
+        return False
+    for feat in layer.getFeatures():
+        return QgsWKBTypes.hasZ(int(feat.geometry().wkbType()))
+    return True
+
+
 def is_layer_projected_in_section(layer_id, section_id):
     layers = QgsMapLayerRegistry.instance().mapLayers()
 

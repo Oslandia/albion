@@ -11,7 +11,7 @@ from PyQt4.QtGui import QMainWindow
 from PyQt4.QtCore import Qt
 
 from .section import Section
-from ..section_toolbar import Toolbar
+from .section_toolbar import Toolbar
 from .canvas import Canvas
 from .axis_layer import AxisLayer, AxisLayerType
 from .action_state_helper import ActionStateHelper

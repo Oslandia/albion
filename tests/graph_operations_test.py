@@ -7,7 +7,7 @@ from mock import patch
 from functools import partial
 from shapely.wkt import loads
 
-# from ..graph_operations import build_subgraph_from_graph_in_section
+# from .graph_operations import build_subgraph_from_graph_in_section
 from albion.graph_operations import (build_subgraph_from_graph_in_section,
                                      _is_feature_a_polygon_extremity,
                                      _extract_connectivity_information,

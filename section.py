@@ -6,12 +6,12 @@ from shapely.wkt import loads
 
 from PyQt4.QtCore import QObject, pyqtSignal
 
-from ..qgis_hal import (get_layers_with_properties,
+from .qgis_hal import (get_layers_with_properties,
                         projected_layer_to_original,
                         get_all_layer_features,
                         get_name)
 
-from ..section_projection import (project_layer_as_linestring,
+from .section_projection import (project_layer_as_linestring,
                                   project_layer_as_polygon)
 
 import logging

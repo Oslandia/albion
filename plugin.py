@@ -19,11 +19,10 @@ from PyQt4.QtGui import (QDockWidget,
 import sys
 import numpy as np
 
-from .qgis_section.main_window import MainWindow
+from .main_window import MainWindow
 from shapely.wkt import loads
 
 from .graph_edit_tool import GraphEditTool
-from .polygon_section_layer import PolygonLayerProjection
 
 from .viewer_3d.viewer_3d import Viewer3D
 
@@ -162,11 +161,6 @@ class Plugin(QObject):
                 self.__section_main.section.z_scale,
                 self.__section_main.section.width,
                 layer, l)
-
-
-
-
-
 
     def __redraw_3d_view(self):
         self.viewer3d.scale_z = float(self.viewer3d_scale_z.text())
@@ -582,6 +576,8 @@ class Plugin(QObject):
         return (True, "")
 
     def __create_subgraph_precondition_check(self):
+        return
+
         if not self.__section_main.section.is_valid:
             return (False, "No active section line")
         graph_layer = self.toolbar.graphLayerHelper.active_layer()

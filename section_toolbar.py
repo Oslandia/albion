@@ -10,13 +10,14 @@ from PyQt4.QtGui import QToolBar, QLineEdit, QLabel
 
 import logging
 
-from .qgis_section.axis_layer import AxisLayer
-from .qgis_section.section_tools import LineSelectTool
+from .axis_layer import AxisLayer
+from .section_tools import LineSelectTool
 from .qgis_hal import (is_layer_projected_in_section,
                        get_layers_with_properties,
-                       get_name)
-from .qgis_section.layer import hasZ
-from .qgis_section.action_state_helper import ActionStateHelper
+                       get_name,
+                       layer_has_z)
+
+from .action_state_helper import ActionStateHelper
 
 from .utils import (create_projected_layer,
                     create_projected_polygon_layer,
@@ -61,7 +62,7 @@ class Toolbar(QToolBar):
                 iface.mapCanvas().currentLayer().id(), self.__section_id),
                 'Layer is already projected'))
         h.add_is_enabled_test(
-            lambda action: (hasZ(iface.mapCanvas().currentLayer()),
+            lambda action: (layer_has_z(iface.mapCanvas().currentLayer()),
                             'Selected layer doesnt have XYZ geom'))
         self.__action_helper = h
 
