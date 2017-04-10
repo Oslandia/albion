@@ -3,9 +3,10 @@ from PyQt4.QtGui import QIcon
 
 from qgis.core import QGis
 from shapely.geometry import Point
+from shapely.wkt import loads
 
 import os
-import logging
+import logging, math
 
 from .qgis_hal import (
     clone_layer_as_memory_layer,
@@ -85,3 +86,59 @@ def unproject_point(line, z_scale, x, y, z):
     else:
         q = line.interpolate(x)
         return (q.x, q.y, y / z_scale)
+
+
+def sort_id_along_implicit_centroids_line(centroids):
+    ''' Receive a dict of 'id: centroid' and returns a sorted list of id.
+        Centroids are [] of 2 coords '''
+    # find the 2 furthest elements
+
+    def distance2(coords1, coords2):
+        return sum([pow(coords1[i] - coords2[i], 2) for i in [0, 1]])
+
+    max_distance = 0
+    extrema = None
+    k = centroids.keys()
+
+    for i in range(0, len(k)):
+        c = centroids[k[i]]
+        assert len(c) == 2
+
+        for j in range(i+1, len(k)):
+            d = distance2(c, centroids[k[j]])
+
+            if d > max_distance:
+                extrema = [k[i], k[j]]
+                max_distance = d
+
+    assert extrema is not None
+
+    line_wkt = 'LINESTRING({x0} {y0}, {x1} {y1})'.format(
+        x0=centroids[extrema[0]][0],
+        y0=centroids[extrema[0]][1],
+        x1=centroids[extrema[1]][0],
+        y1=centroids[extrema[1]][1])
+
+    line = loads(line_wkt)
+
+    # project all centroids on this line
+    projections = {}
+    for i in k:
+        c = centroids[i]
+        projections[i] = line.project(Point(c[0], c[1]))
+
+    # line origin is the point nearest to 0
+    reverse = \
+        distance2(centroids[extrema[1]], [0, 0]) < \
+        distance2(centroids[extrema[0]], [0, 0])
+
+    # sort along the line
+    return sorted(projections, key=projections.get, reverse=reverse)
+
+
+def centroids_to_line_wkt(centroids):
+    points = []
+    for coords in centroids:
+        points += [' '.join(str(x) for x in coords)]
+
+    return 'LINESTRING({})'.format(', '.join(points))

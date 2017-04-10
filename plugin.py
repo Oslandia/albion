@@ -44,7 +44,11 @@ from .qgis_hal import (get_feature_by_id,
                        projected_layer_to_original,
                        projected_feature_to_original,
                        get_layers_with_properties,
-                       root_layer_group_from_iface)
+                       root_layer_group_from_iface,
+                       is_a_projected_layer,
+                       get_feature_centroid,
+                       create_new_feature,
+                       insert_features_in_layer)
 
 from .graph import to_volume
 
@@ -57,7 +61,12 @@ from .section_projection import (project_layer_as_linestring,
 
 from .global_toolbar import GlobalToolbar
 
-from .utils import max_value, icon, create_projected_layer, unproject_point
+from .utils import (max_value,
+                    icon,
+                    create_projected_layer,
+                    unproject_point,
+                    sort_id_along_implicit_centroids_line,
+                    centroids_to_line_wkt)
 
 import logging
 import traceback
@@ -174,6 +183,45 @@ class Plugin(QObject):
     #   - refresh graph geometries
     def cleanup_data(self):
         refresh_graph_layer_edges(self.toolbar.graphLayerHelper.active_layer())
+
+    #   - create a section line from active selection
+    def __create_line_from_selection(self):
+        layer = self.__iface.mapCanvas().currentLayer()
+        if layer is None:
+            return
+
+        # browse layers, and stop at the first one with selected features
+        for l in get_all_layers():
+
+            if is_a_projected_layer(l):
+                continue
+
+            selection = get_layer_selected_ids(l)
+            if len(selection) == 0:
+                continue
+
+            if len(selection) < 2:
+                return
+
+            # get centroids of each
+            features = {}
+            for i in selection:
+                feature = get_feature_by_id(l, i)
+                centroid = get_feature_centroid(feature)
+
+                features[i] = centroid
+
+            print features
+            sorted_ids = sort_id_along_implicit_centroids_line(features)
+
+            print sorted_ids
+            wkt = centroids_to_line_wkt([features[i] for i in sorted_ids])
+
+            print wkt
+
+            feat = create_new_feature(layer, wkt, {'r': 1})
+            insert_features_in_layer([feat], layer)
+
 
     #   - export volume to dxf
     def export_volume(self):
@@ -439,20 +487,34 @@ class Plugin(QObject):
         self.generatrice_distance.setMaximumWidth(50)
         self.__section_main.toolbar.addWidget(QLabel("Generatrice dist.:"))
         self.__section_main.toolbar.addWidget(self.generatrice_distance)
-        self.__section_main.canvas.add_section_actions_to_toolbar(section_actions, self.__section_main.toolbar)
+        self.__section_main.canvas.add_section_actions_to_toolbar(
+            section_actions, self.__section_main.toolbar)
         self.__clean_graph_action = self.toolbar.addAction('Clean graph')
+        self.__create_line_from_selection_action = self.toolbar.addAction(
+            'Create line from selection')
         self.__iface.addDockWidget(Qt.BottomDockWidgetArea, self.__dock)
 
         # Signal connections
-        self.__section_main.toolbar.line_clicked.connect(self.edit_graph_tool._reset)
-        self.__section_main.toolbar.line_clicked.connect(self.display_polygons_volumes_3d)
-        self.edit_graph_tool.graph_modified.connect(self.__on_graph_modified)
-        self.toolbar.graphLayerHelper.current_graph_layer_changed.connect(self.__current_graph_layer_changed)
-        root_layer_group_from_iface(self.__iface).visibilityChanged.connect(self.__layer_visibility_changed)
-        self.__clean_graph_action.triggered.connect(self.cleanup_data)
-        self.__export_volume_action.triggered.connect(self.export_volume)
-        self.viewer3d_scale_z.editingFinished.connect(self.__redraw_3d_view)
-        self.toolbar.sections_layers_combo.combo.currentIndexChanged.connect(self.display_polygons_volumes_3d_full)
+        self.__section_main.toolbar.line_clicked.\
+            connect(self.edit_graph_tool._reset)
+        self.__section_main.toolbar.line_clicked.\
+            connect(self.display_polygons_volumes_3d)
+        self.edit_graph_tool.graph_modified.\
+            connect(self.__on_graph_modified)
+        self.toolbar.graphLayerHelper.current_graph_layer_changed.\
+            connect(self.__current_graph_layer_changed)
+        root_layer_group_from_iface(self.__iface).visibilityChanged.\
+            connect(self.__layer_visibility_changed)
+        self.__clean_graph_action.triggered.\
+            connect(self.cleanup_data)
+        self.__export_volume_action.triggered.\
+            connect(self.export_volume)
+        self.viewer3d_scale_z.editingFinished.\
+            connect(self.__redraw_3d_view)
+        self.toolbar.sections_layers_combo.combo.currentIndexChanged.\
+            connect(self.display_polygons_volumes_3d_full)
+        self.__create_line_from_selection_action.triggered.\
+            connect(self.__create_line_from_selection)
 
         QgsMapLayerRegistry.instance().layersAdded.connect(self.__layers_added)
         QgsMapLayerRegistry.instance().layersWillBeRemoved.connect(self.__layers_will_be_removed)

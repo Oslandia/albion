@@ -43,6 +43,10 @@ def is_layer_projected_in_section(layer_id, section_id):
     return False
 
 
+def is_a_projected_layer(layer):
+    return layer.customProperty('section_id') is not None
+
+
 def projected_layer_to_original(layer, custom_property='projected_layer'):
     return (None if layer is None else
             QgsMapLayerRegistry.instance().mapLayer(
