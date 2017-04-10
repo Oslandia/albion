@@ -4,7 +4,7 @@ from PyQt4.QtGui import (QComboBox,
                          QInputDialog,
                          QFileDialog,
                          QMessageBox)
-from .qgis_hal import get_name, create_memory_layer
+from .qgis_hal import get_name, create_memory_layer, root_layer_group_from_iface
 from qgis.core import (QgsMapLayerRegistry,
                        QGis,
                        QgsLayerTree,
@@ -42,7 +42,7 @@ class SectionsLayersCombo(QObject):
             if len(folder) == 0:
                 return
 
-            root = self.iface.layerTreeView().layerTreeModel().rootGroup()
+            root = root_layer_group_from_iface(self.iface)
             grid = root.addGroup(
                 s)
             grid.setCustomProperty('grid', True)
@@ -90,7 +90,7 @@ class SectionsLayersCombo(QObject):
         self.combo.clear()
         self.combo.addItem('-', None)
 
-        root = self.iface.layerTreeView().layerTreeModel().rootGroup()
+        root = root_layer_group_from_iface(self.iface)
         for c in root.children():
             if QgsLayerTree.isGroup(c) and c.customProperty('grid'):
                 self.combo.addItem(get_name(c), get_name(c))
@@ -98,7 +98,7 @@ class SectionsLayersCombo(QObject):
     def active_layers_id(self):
         selected = self.combo.itemText(self.combo.currentIndex())
 
-        root = self.iface.layerTreeView().layerTreeModel().rootGroup()
+        root = root_layer_group_from_iface(self.iface)
         for c in root.children():
             if QgsLayerTree.isGroup(c) and get_name(c) == selected:
                 result = c.findLayerIds()[0:2]

@@ -15,17 +15,14 @@ from .section_tools import LineSelectTool
 from .qgis_hal import (is_layer_projected_in_section,
                        get_layers_with_properties,
                        get_name,
-                       layer_has_z)
+                       layer_has_z,
+                       root_layer_group_from_iface)
 
 from .action_state_helper import ActionStateHelper
 
 from .utils import (create_projected_layer,
                     create_projected_polygon_layer,
                     icon)
-
-
-def root_group_from_iface(iface):
-    return iface.layerTreeView().layerTreeModel().rootGroup()
 
 
 class Toolbar(QToolBar):
@@ -102,9 +99,7 @@ class Toolbar(QToolBar):
             self.__iface_canvas.setMapTool(self.__tool)
 
     def __line_clicked(self, wkt_):
-        group = self.__iface.layerTreeView().\
-            layerTreeModel().\
-            rootGroup().\
+        group = root_layer_group_from_iface(self.__iface).\
             findGroup(self.__section_id)
         self.__update_bridge(group)
 
@@ -133,11 +128,11 @@ class Toolbar(QToolBar):
 
     def _add_layer_to_section_group(self, layer):
         # Add to section group
-        group = root_group_from_iface(self.__iface).findGroup(
+        group = root_layer_group_from_iface(self.__iface).findGroup(
             self.__section_id)
         if group is None:
             # Add missing group
-            group = root_group_from_iface(self.__iface).addGroup(
+            group = root_layer_group_from_iface(self.__iface).addGroup(
                 self.__section_id)
             group.setCustomProperty('section_id', self.__section_id)
 

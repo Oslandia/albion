@@ -43,7 +43,8 @@ from .qgis_hal import (get_feature_by_id,
                        get_feature_attribute_values,
                        projected_layer_to_original,
                        projected_feature_to_original,
-                       get_layers_with_properties)
+                       get_layers_with_properties,
+                       root_layer_group_from_iface)
 
 from .graph import to_volume
 
@@ -445,7 +446,7 @@ class Plugin(QObject):
         self.__section_main.toolbar.line_clicked.connect(self.display_polygons_volumes_3d)
         self.edit_graph_tool.graph_modified.connect(self.__on_graph_modified)
         self.toolbar.graphLayerHelper.current_graph_layer_changed.connect(self.__current_graph_layer_changed)
-        self.__iface.layerTreeView().layerTreeModel().rootGroup().visibilityChanged.connect(self.__layer_visibility_changed)
+        root_layer_group_from_iface(self.__iface).visibilityChanged.connect(self.__layer_visibility_changed)
         self.__clean_graph_action.triggered.connect(self.cleanup_data)
         self.__export_volume_action.triggered.connect(self.export_volume)
         self.viewer3d_scale_z.editingFinished.connect(self.__redraw_3d_view)
@@ -462,7 +463,7 @@ class Plugin(QObject):
         self.__section_main.toolbar.line_clicked.disconnect(self.display_polygons_volumes_3d)
         self.edit_graph_tool.graph_modified.disconnect(self.__on_graph_modified)
         self.toolbar.graphLayerHelper.current_graph_layer_changed.disconnect(self.__current_graph_layer_changed)
-        self.__iface.layerTreeView().layerTreeModel().rootGroup().visibilityChanged.disconnect(self.__layer_visibility_changed)
+        root_layer_group_from_iface(self.__iface).visibilityChanged.disconnect(self.__layer_visibility_changed)
         self.__clean_graph_action.triggered.disconnect(self.cleanup_data)
         self.__export_volume_action.triggered.disconnect(self.export_volume)
         self.viewer3d_scale_z.editingFinished.disconnect(self.__redraw_3d_view)

@@ -357,3 +357,7 @@ def create_new_feature(layer, wkt, attributes=None):
             new_feature.setAttribute(attr, attributes[attr])
 
     return new_feature
+
+
+def root_layer_group_from_iface(iface):
+    return iface.layerTreeView().layerTreeModel().rootGroup()
