@@ -43,7 +43,7 @@ class TestLineFromCentroid(unittest.TestCase):
 
         result = sort_id_along_implicit_centroids_line(c)
 
-        self.assertEqual([25, 30, 31, 70, 19], result)
+        self.assertEqual([19, 70, 31, 30, 25], result)
 
 
 

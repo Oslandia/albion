@@ -127,10 +127,15 @@ def sort_id_along_implicit_centroids_line(centroids):
         c = centroids[i]
         projections[i] = line.project(Point(c[0], c[1]))
 
-    # line origin is the point nearest to 0
-    reverse = \
-        distance2(centroids[extrema[1]], [0, 0]) < \
-        distance2(centroids[extrema[0]], [0, 0])
+    unit = [(centroids[extrema[1]][i] - centroids[extrema[0]][i]) / line.length
+            for i in [0, 1]]
+
+    if abs(unit[1]) > 0.7:
+        # order along growing Y if Y direction is important
+        reverse = unit[0] < 0
+    else:
+        # default: order along growing X
+        reverse = unit[0] < 0
 
     # sort along the line
     return sorted(projections, key=projections.get, reverse=reverse)
