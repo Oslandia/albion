@@ -1,4 +1,4 @@
-# coding=utf-8
+# coding: utf-8
 
 from qgis.core import * # unable to import QgsWKBTypes otherwize (quid?)
 from qgis.gui import *
