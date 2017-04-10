@@ -133,9 +133,11 @@ class Plugin(QObject):
         for layer in layers:
             layer.editCommandEnded.connect(self.__update_projection_if_needed)
 
-    def __layers_removed(self, layers):
-        for layer in layers:
-            layer.editCommandEnded.disconnect(self.__update_projection_if_needed)
+    #   - layers were removed
+    def __layers_will_be_removed(self, layer_ids):
+        for layer_id in layer_ids:
+            get_layer_by_id(layer_id).editCommandEnded.\
+                disconnect(self.__update_projection_if_needed)
 
     def __update_projection_if_needed(self):
         layer = self.sender()
@@ -143,7 +145,7 @@ class Plugin(QObject):
 
         matching = get_layers_with_properties(
             {'section_id': self.__section_main.section.id,
-             'projected_layer': get_id(layer)})
+             'projected_layer':  get_id(layer)})
 
         for l in matching:
             project_layer_as_linestring(
@@ -453,7 +455,7 @@ class Plugin(QObject):
         self.toolbar.sections_layers_combo.combo.currentIndexChanged.connect(self.display_polygons_volumes_3d_full)
 
         QgsMapLayerRegistry.instance().layersAdded.connect(self.__layers_added)
-        QgsMapLayerRegistry.instance().layersRemoved.connect(self.__layers_removed)
+        QgsMapLayerRegistry.instance().layersWillBeRemoved.connect(self.__layers_will_be_removed)
 
         # In case we're reloading
         self.__layers_added(get_all_layers())
@@ -468,7 +470,7 @@ class Plugin(QObject):
         self.__export_volume_action.triggered.disconnect(self.export_volume)
         self.viewer3d_scale_z.editingFinished.disconnect(self.__redraw_3d_view)
         QgsMapLayerRegistry.instance().layersAdded.disconnect(self.__layers_added)
-        QgsMapLayerRegistry.instance().layersRemoved.disconnect(self.__layers_removed)
+        QgsMapLayerRegistry.instance().layersWillBeRemoved.disconnect(self.__layers_will_be_removed)
 
         self.__dock.setWidget(None)
         self.__iface.removeDockWidget(self.__dock)
