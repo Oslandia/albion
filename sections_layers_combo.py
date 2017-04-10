@@ -4,12 +4,17 @@ from PyQt4.QtGui import (QComboBox,
                          QInputDialog,
                          QFileDialog,
                          QMessageBox)
-from .qgis_hal import get_name, create_memory_layer, root_layer_group_from_iface
+from .qgis_hal import (get_name,
+                       create_memory_layer,
+                       root_layer_group_from_iface)
 from qgis.core import (QgsMapLayerRegistry,
                        QGis,
                        QgsLayerTree,
                        QgsVectorFileWriter,
-                       QgsVectorLayer)
+                       QgsVectorLayer,
+                       QgsWKBTypes,
+                       QgsField)
+from PyQt4.QtCore import QVariant
 import os
 import logging
 
@@ -51,12 +56,16 @@ class SectionsLayersCombo(QObject):
 
             # create 2 layers
             for i in [1, 2]:
-                name = 'section_{}'.format(i)
+                name = '{}_{}'.format(s, i)
                 filename = os.path.join(folder, '{}.shp'.format(name))
 
                 # create temp layer
                 section = create_memory_layer(QGis.Line, crs, name)
-                grid.addLayer(section)
+
+                # warning: ogr layers with no attributes are considered
+                # read-only by qgis
+                section.dataProvider().addAttributes([QgsField('r', QVariant.Int)])
+                section.updateFields()
 
                 # write to disk
                 encoding = u'UTF-8'
@@ -65,11 +74,15 @@ class SectionsLayersCombo(QObject):
                     encoding = cLayer.dataProvider().encoding()
 
                 logging.info('WRITE {} with {}'.format(filename, encoding))
-                QgsVectorFileWriter.writeAsVectorFormat(section,
-                                                        filename,
-                                                        encoding,
-                                                        crs)
+                QgsVectorFileWriter.writeAsVectorFormat(
+                    section,
+                    filename,
+                    encoding,
+                    crs,
+                    overrideGeometryType=QgsWKBTypes.LineString,
+                    includeZ=True)
 
+                logging.info('SIGH')
                 # open written layer
                 vlayer = QgsVectorLayer(filename, name, 'ogr')
                 logging.info(vlayer)
