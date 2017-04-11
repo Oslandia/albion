@@ -1,4 +1,4 @@
-# coding=utf-8
+# coding: utf-8
 
 from .qgis_hal import (
     query_layer_feature_by_id,

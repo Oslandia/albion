@@ -1,4 +1,4 @@
-# coding=utf-8
+# coding: utf-8
 
 from .utils import icon
 from .action_state_helper import ActionStateHelper

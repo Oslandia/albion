@@ -1,4 +1,4 @@
-# coding=utf-8
+# coding: utf-8
 
 """
 This modules provides a ready to use section windows containing a section

@@ -1,4 +1,4 @@
-# coding=utf-8
+# coding: utf-8
 
 # This file is the ony allowed to deal with QGIS data structure (Qgs*)
 # They can be used elsewhere, but only as opaque types

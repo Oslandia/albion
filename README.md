@@ -9,6 +9,13 @@ This plugin provides tools to create 3D geological models in QGIS.
 Quick dev install
 =================
 
+You have to install the following dependencies:
+
+  - OpenGL for Python (python-opengl)
+  - QtOpenGL for Python (python-qt4-gl)
+  - shapely
+  - hypothesis and mock (for running tests only)
+
 Clone the repo in a `albion` directory. Add the directory containing `albion` to your PYTHONPATH environment variable.
 
 ```sh

@@ -1,4 +1,4 @@
-# coding=utf-8
+# coding: utf-8
 from PyQt4.QtCore import QObject
 from PyQt4.QtGui import (QComboBox,
                          QInputDialog,

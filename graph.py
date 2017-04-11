@@ -1,4 +1,4 @@
-# coding=utf-8
+# coding: utf-8
 
 """
 This module deals with the creation of surfaces and volumes from a graph

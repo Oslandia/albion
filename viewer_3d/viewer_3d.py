@@ -1,4 +1,4 @@
-# coding=utf-8
+# coding: utf-8
 
 from PyQt4.QtGui import QColor
 from PyQt4 import QtOpenGL

@@ -1,4 +1,4 @@
-# coding=utf-8
+# coding: utf-8
 
 from qgis.core import QgsFeatureRequest
 from shapely.geometry import Point

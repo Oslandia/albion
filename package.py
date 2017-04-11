@@ -1,4 +1,4 @@
-# coding=utf-8
+# coding: utf-8
 """
 packaging script for the albion project
 
@@ -18,6 +18,9 @@ OPTIONS
 
     -d, --deploy
         deploy the package to qgis repository directory
+
+    -t
+        launch the tests before installing/uninstalling
 """
 
 import os
