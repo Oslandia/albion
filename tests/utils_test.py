@@ -1,8 +1,7 @@
 # coding: utf-8
+
 import unittest
 
-
-# from .graph_operations import build_subgraph_from_graph_in_section
 from albion.utils import (sort_id_along_implicit_centroids_line)
 
 
