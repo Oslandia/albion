@@ -206,8 +206,9 @@ class Plugin(QObject):
             if len(selection) == 0:
                 continue
 
+            logging.info('{} {}'.format(get_name(l), selection))
             if len(selection) < 2:
-                return
+                continue
 
             # get centroids of each
             features = {}
@@ -217,17 +218,40 @@ class Plugin(QObject):
 
                 features[i] = centroid
 
-            print features
             sorted_ids = sort_id_along_implicit_centroids_line(features)
 
-            print sorted_ids
-            wkt = centroids_to_line_wkt([features[i] for i in sorted_ids])
+            centroids = [features[i] for i in sorted_ids]
+            # Appends centroids to extend section line: we need some room for
+            # fake generatrices
+            distance = float(self.generatrice_distance.text()) * 2
 
-            print wkt
+            start_shift = Plugin._compute_fake_generatrice_translation_vec(
+                centroids[0],
+                centroids[1],
+                distance)
+
+            end_shift = Plugin._compute_fake_generatrice_translation_vec(
+                centroids[-1],
+                centroids[-2],
+                distance)
+
+            centroids.insert(
+                0,
+                [centroids[0][i] + start_shift[i] for i in range(0, 2)])
+            centroids += [
+                [centroids[-1][i] + end_shift[i] for i in range(0, 2)]]
+
+            wkt = centroids_to_line_wkt(centroids)
 
             feat = create_new_feature(layer, wkt, {'r': 1})
             insert_features_in_layer([feat], layer)
 
+            if self.__iface.mapCanvas().isCachingEnabled():
+                layer.setCacheImage(None)
+            else:
+                self.__iface.mapCanvas().refresh()
+
+            break
 
     #   - export volume to dxf
     def export_volume(self):
@@ -695,10 +719,11 @@ class Plugin(QObject):
     def _compute_fake_generatrice_translation_vec(centroid, centroid2, dist):
         delta = [centroid[i] - centroid2[i]
                  for i in range(0, len(centroid))]
-        l = length(delta)
-        if l == 0:
+        lxy = length(delta[0:2])
+        # l = length(delta)
+        if lxy == 0:
             return [0 for i in range(0, len(centroid))]
-        return [x * dist / l for x in delta]
+        return [x * dist / lxy for x in delta]
 
     def __add_generatrices_impl(self, graph):
         layer = self.__iface.mapCanvas().currentLayer()

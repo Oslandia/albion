@@ -24,20 +24,22 @@ class TestFakeGeneratriceTranslationVector(unittest.TestCase):
                  min_size=3, max_size=3),
            floats(max_value=1000, min_value=1))
     def test_points(self, centroid1, centroid2, distance):
-        if distance2(centroid1, centroid2) < 1 or \
+        if distance2(centroid1[0:2], centroid2[0:2]) < 1 or \
            length(centroid1) < 0.01 or length(centroid2) < 0.01:
             reject()
 
         result = Plugin._compute_fake_generatrice_translation_vec(
             centroid1, centroid2, distance)
 
-        self.assertTrue(abs(length(result) - distance) < 0.00001)
+        # distance only applies to xy
+        self.assertTrue(abs(length(result[0:2]) - distance) < 0.00001)
 
         def sign(f): return 1 if f > 0 else -1
 
         self.assertEqual(sign(result[0]), sign(centroid1[0] - centroid2[0]))
         self.assertEqual(sign(result[1]), sign(centroid1[1] - centroid2[1]))
         self.assertEqual(sign(result[2]), sign(centroid1[2] - centroid2[2]))
+
 
 if __name__ == '__main__':
     unittest.main()
