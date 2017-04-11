@@ -11,7 +11,10 @@ from .qgis_hal import (remove_all_features_from_layer,
                        intersect_linestring_layer_with_wkt,
                        get_name,
                        insert_features_in_layer,
-                       create_new_feature)
+                       create_new_feature,
+                       get_all_layer_features,
+                       get_feature_attribute_values,
+                       intersect_features_with_wkt)
 from .graph_operations import compute_section_polygons_from_graph
 from .utils import create_projected_layer, project_point, unproject_point
 
@@ -42,14 +45,47 @@ def project_layer_as_linestring(line, z_scale, line_width,
     logging.debug('projecting {} (geom={})'.format(
         get_name(layer), projected_layer.geometryType()))
 
+    to_project = []
+    if not layer.customProperty('graph'):
+        to_project = intersect_linestring_layer_with_wkt(
+                        layer,
+                        line.wkt,
+                        line_width)
+    else:
+        def _i(layer_id, feature_id): return layer_id + '_' + str(feature_id)
+        # If it's a graph, we want to to project every feature that
+        # connects 2 projected features
+        edges = [e for e in get_all_layer_features(layer)]
+
+        layers_features = {}
+        for edge in edges:
+            lid, start, end = get_feature_attribute_values(
+                layer, edge,
+                'layer', 'start', 'end')
+
+            if lid in layers_features:
+                layers_features[lid] += [start, end]
+            else:
+                layers_features[lid] = [start, end]
+
+        visible_connected_features = [_i(l, fid)
+               for (l, fid) in intersect_features_with_wkt(
+                        layers_features, line.wkt, line_width)]
+
+        for edge in edges:
+            lid, start, end = get_feature_attribute_values(
+                layer, edge,
+                'layer', 'start', 'end')
+
+            if _i(lid, start) in visible_connected_features and \
+               _i(lid, end) in visible_connected_features:
+                to_project += [edge]
+
     projected_features = [
         clone_feature_with_geometry_transform(
             f,
             partial(project, line, z_scale))
-        for f in intersect_linestring_layer_with_wkt(
-            layer,
-            line.wkt,
-            line_width)]
+        for f in to_project]
 
     insert_features_in_layer(projected_features, projected_layer)
 

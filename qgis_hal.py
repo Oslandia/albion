@@ -75,6 +75,13 @@ def get_intersecting_features(layer, feature):
     return layer.getFeatures(QgsFeatureRequest(bbox))
 
 
+def does_buffer_interesects_feature(buf, feature):
+    bb = feature.geometry().boundingBox()
+    feature_extents = loads('LINESTRING ({} {}, {} {})'.format(
+        bb.xMinimum(), bb.yMinimum(), bb.xMaximum(), bb.yMaximum()))
+    return buf.intersects(feature_extents)
+
+
 def intersect_linestring_layer_with_wkt(layer, wkt, buffer_width):
     """ Return all features from given layer that intersects with wkt """
 
@@ -94,12 +101,27 @@ def intersect_linestring_layer_with_wkt(layer, wkt, buffer_width):
 
     # request features inside bounding-box
     for feature in layer.getFeatures(QgsFeatureRequest(bbox)):
-        bb = feature.geometry().boundingBox()
-        feature_extents = loads('LINESTRING ({} {}, {} {})'.format(
-            bb.xMinimum(), bb.yMinimum(), bb.xMaximum(), bb.yMaximum()))
-
-        if buf.intersects(feature_extents):
+        if does_buffer_interesects_feature(buf, feature):
             yield feature
+
+
+def intersect_features_with_wkt(layers_features, wkt, buffer_width):
+    line = loads(wkt.replace('Z', ' Z'))
+
+    if not line.is_valid:
+        logging.warning('Invalid feature geometry wkt={}'.format(wkt))
+        return
+
+    # square cap style for the buffer -> less points
+    buf = line.buffer(buffer_width, cap_style=2)
+
+    # request features inside bounding-box
+    for layer_id in layers_features:
+        layer = get_layer_by_id(layer_id)
+        for feature_id in layers_features[layer_id]:
+            feature = get_feature_by_id(layer, feature_id)
+            if does_buffer_interesects_feature(buf, feature):
+                yield (layer_id, feature_id)
 
 
 def clone_feature_with_geometry_transform(feature, transform_geom):
