@@ -130,8 +130,5 @@ def distance2(coords1, coords2):
     """
     return sum([pow(x - y, 2) for x,y in zip(coords1, coords2)])
 
-def distance(coords1, coords2):
-    return math.sqrt(distance2(coords1, coords2))
-
 def length(coords):
     return math.sqrt(sum([x*x for x in coords]))
