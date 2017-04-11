@@ -92,10 +92,6 @@ def sort_id_along_implicit_centroids_line(centroids):
     ''' Receive a dict of 'id: centroid' and returns a sorted list of id.
         Centroids are [] of 2 coords '''
     # find the 2 furthest elements
-
-    def distance2(coords1, coords2):
-        return sum([pow(coords1[i] - coords2[i], 2) for i in [0, 1]])
-
     max_distance = 0
     extrema = None
     k = centroids.keys()
@@ -147,3 +143,16 @@ def centroids_to_line_wkt(centroids):
         points += [' '.join(str(x) for x in coords)]
 
     return 'LINESTRING({})'.format(', '.join(points))
+
+
+def distance2(coords1, coords2):
+    return sum([pow(coords1[i] - coords2[i], 2)
+                for i in range(0, len(coords1))])
+
+
+def distance(coords1, coords2):
+    return math.sqrt(distance2(coords1, coords2))
+
+
+def length(coords):
+    return math.sqrt(sum([x*x for x in coords]))

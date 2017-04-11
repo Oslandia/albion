@@ -18,6 +18,7 @@ from PyQt4.QtGui import (QDockWidget,
 
 import sys
 import numpy as np
+import math
 
 from .main_window import MainWindow
 from shapely.wkt import loads
@@ -66,7 +67,8 @@ from .utils import (max_value,
                     create_projected_layer,
                     unproject_point,
                     sort_id_along_implicit_centroids_line,
-                    centroids_to_line_wkt)
+                    centroids_to_line_wkt,
+                    length)
 
 import logging
 import traceback
@@ -689,6 +691,15 @@ class Plugin(QObject):
 
             self.__on_graph_modified()
 
+    @staticmethod
+    def _compute_fake_generatrice_translation_vec(centroid, centroid2, dist):
+        delta = [centroid[i] - centroid2[i]
+                 for i in range(0, len(centroid))]
+        l = length(delta)
+        if l == 0:
+            return [0 for i in range(0, len(centroid))]
+        return [x * dist / l for x in delta]
+
     def __add_generatrices_impl(self, graph):
         layer = self.__iface.mapCanvas().currentLayer()
 
@@ -717,19 +728,18 @@ class Plugin(QObject):
         next_generatrice_link = (
             max_value(get_layer_unique_attribute(source_layer, 'link'), 0) + 1)
 
-        # Compute fake generatrice translation
         distance = float(self.generatrice_distance.text())
-        a = unproject_point(self.__section_main.section.line, self.__section_main.section.z_scale, distance, 0, 0)
-        b = unproject_point(self.__section_main.section.line, self.__section_main.section.z_scale, 0, 0, 0)
-        translation_vec = tuple([a[i]-b[i] for i in range(0, 2)])
+
+        missing_left_stripped = [feat_id for feat_id, edges in missing_left]
+        missing_right_stripped = [feat_id for feat_id, edges in missing_right]
 
         graph.beginEditCommand('update edges')
 
-        for feat_id in missing_left + missing_right:
+        for feat_id, edges in missing_left + missing_right:
             sides = []
-            if feat_id in missing_left:
+            if feat_id in missing_left_stripped:
                 sides += [-1]
-            if feat_id in missing_right:
+            if feat_id in missing_right_stripped:
                 sides += [+1]
 
             if len(sides) == 2:
@@ -738,17 +748,24 @@ class Plugin(QObject):
                 if feat_id not in get_layer_selected_ids(source_layer):
                     continue
 
-            # logging.info("CONSIDERING {} -> {}".format(feat_id, sides))
+            logging.info("CONSIDERING {} -> {}".format(feat_id, sides))
             feature = get_feature_by_id(source_layer, feat_id)
+            centroid = get_feature_centroid(feature)
 
             for side in sides:
+                # Compute fake generatrice translation
+                connected_to = get_feature_centroid(
+                    get_feature_by_id(source_layer, edges[0]))
+
+                translation_vec = Plugin._compute_fake_generatrice_translation_vec(
+                    centroid, connected_to, distance)
+
                 generatrice = fg_create(
                     self.__section_main.section,
                     source_layer,
                     feature,
                     next_generatrice_link,
-                    translation_vec,
-                    side)
+                    translation_vec)
 
                 # logging.info('INSERT')
                 # Read back feature to get proper id()

@@ -177,11 +177,14 @@ def find_generatrices_needing_a_fake_generatrice_in_section(
         centroid = get_feature_centroid(source_feature)
 
         if len(connections[i]) == 0:
-            ids_missing_generatrice_left += [get_id(source_feature)]
-            ids_missing_generatrice_right += [get_id(source_feature)]
+            ids_missing_generatrice_left += [(get_id(source_feature), [])]
+            ids_missing_generatrice_right += [(get_id(source_feature), [])]
             continue
 
-        logging.info('feat: {} (centroid={} -> {})'.format(source_feature.id(), centroid, project_point(line, 1.0, *centroid)))
+        logging.info('feat: {} (centroid={} -> {})'.format(
+            source_feature.id(),
+            centroid,
+            project_point(line, 1.0, *centroid)))
         edges = __compute_generatrice_connections(
             project_point(line, 1.0, *centroid)[0],
             connections[i],
@@ -192,9 +195,11 @@ def find_generatrices_needing_a_fake_generatrice_in_section(
         # add the missing generatrice on the other side
         if xor(len(edges['L']) == 0, len(edges['R']) == 0):
             if len(edges['R']) == 0:
-                ids_missing_generatrice_right += [get_id(source_feature)]
+                ids_missing_generatrice_right += [
+                    (get_id(source_feature), edges['L'])]
             else:
-                ids_missing_generatrice_left += [get_id(source_feature)]
+                ids_missing_generatrice_left += [
+                    (get_id(source_feature), edges['R'])]
 
     return ids_missing_generatrice_left, ids_missing_generatrice_right
 

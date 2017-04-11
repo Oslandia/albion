@@ -1,7 +1,9 @@
 # coding: utf-8
 
-from qgis.core import QgsFeatureRequest
+from qgis.core import QgsFeatureRequest, QgsGeometry
 from shapely.geometry import Point
+from shapely.ops import transform
+from shapely.wkt import loads
 from .qgis_hal import (insert_features_in_layer,
                        get_id,
                        create_new_feature,
@@ -10,14 +12,19 @@ from .qgis_hal import (insert_features_in_layer,
                        feature_to_shapely_wkt)
 from .graph_operations import compute_segment_geometry
 from functools import partial
-import logging
 
-def __transform_geom(translation, sign, geom):
-    geom.translate(translation[0] * sign, translation[1] * sign)
-    return geom
+
+def __transform_geom(translation, geom):
+    g = loads(geom.exportToWkt().replace("Z", " Z"))
+    return QgsGeometry.fromWkt(
+        transform(lambda x, y, z: (x + translation[0],
+                                   y + translation[1],
+                                   z + translation[2]),
+                  g).wkt)
+
 
 # Helper methods to manage fake generatrices
-def create(section, source_layer, source_feature, link, translation, sign):
+def create(section, source_layer, source_feature, link, translation):
     source_has_field_HoleID = source_layer.fields().fieldNameIndex(
         'HoleID') >= 0
     source_has_field_mine = source_layer.fields().fieldNameIndex(
@@ -25,7 +32,7 @@ def create(section, source_layer, source_feature, link, translation, sign):
 
     fake = clone_feature_with_geometry_transform(
         source_feature,
-        partial(__transform_geom, translation, sign))
+        partial(__transform_geom, translation))
 
     if source_has_field_HoleID:
         fake.setAttribute('HoleID', 'Fake')
@@ -33,18 +40,17 @@ def create(section, source_layer, source_feature, link, translation, sign):
         fake.setAttribute('mine', -1)
     fake.setAttribute('link', link)
 
-
-    # we need to make sure that the newly created geometry is inside the section
+    # we need to make sure that the newly created geometry is in the section
     buf = section.line.buffer(section.width, cap_style=2)
     centroid = fake.geometry().boundingBox().center()
 
     # max 10 step
     step = 10
-    sign = -sign / float(step)
+    delta = -1.0 / float(step)
 
     while not Point(centroid.x(), centroid.y()).intersects(buf) and step > 0:
         fake.geometry().translate(
-            translation[0]  * sign, translation[1] * sign)
+            translation[0] * delta, translation[1] * delta)
         centroid = fake.geometry().boundingBox().center()
         step = step - 1
 
