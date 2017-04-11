@@ -45,14 +45,16 @@ from .qgis_hal import (get_feature_by_id,
                        is_a_projected_layer,
                        get_feature_centroid,
                        create_new_feature,
-                       insert_features_in_layer)
+                       insert_features_in_layer,
+                       get_layer_max_feature_attribute)
 
 from .graph import to_volume
 
 from .graph_operations import (
     refresh_graph_layer_edges,
     find_generatrices_needing_a_fake_generatrice_in_section,
-    compute_section_polygons_from_graph)
+    compute_section_polygons_from_graph,
+    compute_segment_geometry)
 from .section_projection import (project_layer_as_linestring,
                                  project_layer_as_polygon)
 
@@ -243,6 +245,94 @@ class Plugin(QObject):
                 self.__iface.mapCanvas().refresh()
 
             break
+
+    def __auto_connect_generatrices(self):
+        layer = self.__iface.mapCanvas().currentLayer()
+        if layer is None:
+            return
+
+        source_layer = projected_layer_to_original(layer)
+        if source_layer is None:
+            return
+
+        max_angle = float(self.alpha.text())
+
+        features = [f for f in get_all_layer_features(layer)]
+        centroids = [get_feature_centroid(f) for f in features]
+        hole_ids = [get_feature_attribute_values(layer, f, 'HoleId')
+                    for f in features]
+
+        # logging.info(hole_ids)
+        # logging.info(centroids)
+        # TODO filter out already connected features
+
+        new_edges = []
+        graph_layer = self.toolbar.graphLayerHelper.active_layer()
+        my_id = get_layer_max_feature_attribute(graph_layer, 'link')
+
+        # for each feature, find nearest feature to the right that has a different HoleID
+        # then loop over each feature with matching HoleID and try to connect is alpha < threshold
+        for i in range(0, len(features)):
+            feature = features[i]
+            centroid = centroids[i]
+            min_dx = float('inf')
+            nearest = None
+
+            # logging.info('PROCESSING {}'.format(get_id(feature)))
+
+            for j in range(0, len(features)):
+                if i == j:
+                    continue
+                # same hole_id => filtered
+                if hole_ids[i] == hole_ids[j]:
+                    continue
+
+                dx = centroids[j][0] - centroid[0]
+
+                if dx > 0 and dx < min_dx:
+                    nearest = hole_ids[j]
+                    min_dx = dx
+
+            # logging.info('NEAREST = {}'.format(nearest))
+
+            if nearest is not None:
+                source_feature = projected_feature_to_original(
+                    source_layer, features[i])
+
+                for j in range(0, len(features)):
+                    if hole_ids[j] == nearest:
+                        c = centroids[j]
+                        delta = [c[i] - centroid[i] for i in [0, 1]]
+                        if delta[0] == 0:
+                            continue
+                        angle = 180.0 * math.atan(delta[1] / delta[0]) / math.pi
+
+                        if abs(angle) <= max_angle:
+                            logging.info('CONNECT {} - {}'.format(get_id(feature), get_id(features[j])))
+
+                            source_feature2 = projected_feature_to_original(
+                                source_layer, features[j])
+
+                            segment = compute_segment_geometry(
+                                feature_to_shapely_wkt(source_feature),
+                                feature_to_shapely_wkt(source_feature2))
+
+                            new_edges += [create_new_feature(
+                                graph_layer,
+                                segment.wkt,
+                                {
+                                    'layer': get_id(source_layer),
+                                    'start': get_id(source_feature),
+                                    'end': get_id(source_feature2),
+                                    'link': my_id,
+                                })]
+                            my_id += 1
+
+        if len(new_edges) > 0:
+            insert_features_in_layer(new_edges, graph_layer)
+
+
+
 
     #   - export volume to dxf
     def export_volume(self):
@@ -508,6 +598,15 @@ class Plugin(QObject):
         self.generatrice_distance.setMaximumWidth(50)
         self.__section_main.toolbar.addWidget(QLabel("Generatrice dist.:"))
         self.__section_main.toolbar.addWidget(self.generatrice_distance)
+
+        self.alpha = QLineEdit("5")
+        self.alpha.setMaximumWidth(50)
+        self.__section_main.toolbar.addWidget(QLabel("Angle max (α):".decode('utf-8')))
+        self.__section_main.toolbar.addWidget(self.alpha)
+        self.__auto_connect_generatrices_action = self.__section_main.toolbar.addAction(
+            'Auto-connect')
+
+
         self.__section_main.canvas.add_section_actions_to_toolbar(
             section_actions, self.__section_main.toolbar)
         self.__clean_graph_action = self.toolbar.addAction('Clean graph')
@@ -536,6 +635,8 @@ class Plugin(QObject):
             connect(self.display_polygons_volumes_3d_full)
         self.__create_line_from_selection_action.triggered.\
             connect(self.__create_line_from_selection)
+        self.__auto_connect_generatrices_action.triggered.\
+            connect(self.__auto_connect_generatrices)
 
         QgsMapLayerRegistry.instance().layersAdded.connect(self.__layers_added)
         QgsMapLayerRegistry.instance().layersWillBeRemoved.connect(self.__layers_will_be_removed)

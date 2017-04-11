@@ -296,7 +296,7 @@ def get_layer_unique_attribute(layer, attr):
 
 
 def get_layer_max_feature_attribute(layer, attr):
-    ids = get_layer_unique_attribute(attr)
+    ids = get_layer_unique_attribute(layer, attr)
     return max(ids) if len(ids) > 0 else 0
 
 
