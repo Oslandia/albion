@@ -38,8 +38,10 @@ zipname = "albion"
 zipext = ".zip"
 
 def run_tests():
-    out, err = subprocess.Popen(["python", "-m", "albion.test"]).communicate()
-    if err :
+    out, err = subprocess.Popen(["python", "-m", "albion.test"],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE).communicate()
+    if err:
         print "Can not deploy if test fails."
         print err
         exit(1)
