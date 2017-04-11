@@ -122,18 +122,16 @@ def centroids_to_line_wkt(centroids):
     points = []
     for coords in centroids:
         points += [' '.join(str(x) for x in coords)]
-
     return 'LINESTRING({})'.format(', '.join(points))
 
 
 def distance2(coords1, coords2):
-    return sum([pow(coords1[i] - coords2[i], 2)
-                for i in range(0, len(coords1))])
-
+    """compute the euclidean distance between two 2D points
+    """
+    return sum([pow(x - y, 2) for x,y in zip(coords1, coords2)])
 
 def distance(coords1, coords2):
     return math.sqrt(distance2(coords1, coords2))
-
 
 def length(coords):
     return math.sqrt(sum([x*x for x in coords]))
