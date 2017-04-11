@@ -1,4 +1,7 @@
 # coding: utf-8
+
+import itertools
+
 from PyQt4.QtGui import QIcon
 
 from qgis.core import QGis
@@ -92,48 +95,26 @@ def sort_id_along_implicit_centroids_line(centroids):
     ''' Receive a dict of 'id: centroid' and returns a sorted list of id.
         Centroids are [] of 2 coords '''
     # find the 2 furthest elements
+    extrema = []
     max_distance = 0
-    extrema = None
-    k = centroids.keys()
 
-    for i in range(0, len(k)):
-        c = centroids[k[i]]
-        assert len(c) == 2
+    for (i, left), (j, right) in itertools.combinations(centroids.iteritems(), 2):
+        d = distance2(left, right)
+        if d > max_distance:
+            extrema = [left, right]
+            max_distance = d
 
-        for j in range(i+1, len(k)):
-            d = distance2(c, centroids[k[j]])
-
-            if d > max_distance:
-                extrema = [k[i], k[j]]
-                max_distance = d
-
-    assert extrema is not None
-
-    line_wkt = 'LINESTRING({x0} {y0}, {x1} {y1})'.format(
-        x0=centroids[extrema[0]][0],
-        y0=centroids[extrema[0]][1],
-        x1=centroids[extrema[1]][0],
-        y1=centroids[extrema[1]][1])
-
+    line_wkt = centroids_to_line_wkt(extrema)
     line = loads(line_wkt)
 
     # project all centroids on this line
     projections = {}
-    for i in k:
-        c = centroids[i]
-        projections[i] = line.project(Point(c[0], c[1]))
-
-    unit = [(centroids[extrema[1]][i] - centroids[extrema[0]][i]) / line.length
-            for i in [0, 1]]
-
-    if abs(unit[1]) > 0.7:
-        # order along growing Y if Y direction is important
-        reverse = unit[0] < 0
-    else:
-        # default: order along growing X
-        reverse = unit[0] < 0
-
-    # sort along the line
+    for k in centroids:
+        x, y = centroids[k]
+        projections[k] = line.project(Point(x, y))
+    unit = [(extrema[1][i] - extrema[0][i]) / line.length for i in [0, 1]]
+    # order along growing X
+    reverse = unit[0] < 0
     return sorted(projections, key=projections.get, reverse=reverse)
 
 
