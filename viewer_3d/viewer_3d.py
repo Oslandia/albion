@@ -10,9 +10,6 @@ from PyQt4.QtCore import Qt
 
 import numpy as np
 
-import math
-import random
-
 import logging
 
 

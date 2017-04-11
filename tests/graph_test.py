@@ -17,7 +17,8 @@ OPTIONS
    -g, --graphic
         run in graphic debug mode (vigual output)
 """
-from hypothesis import given, reject
+
+from hypothesis import given
 from hypothesis.strategies import integers, lists
 
 from albion import graph

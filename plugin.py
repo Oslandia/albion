@@ -1,24 +1,20 @@
 # coding: utf-8
+
+import sys
+import logging
+import traceback
+
 from qgis.core import *
 from qgis.gui import *
 
 from PyQt4.QtCore import Qt, QObject
 from PyQt4.QtGui import (QDockWidget,
-                         QColor,
                          QToolBar,
-                         QIcon,
                          QMainWindow,
-                         QProgressDialog,
-                         QPixmap,
-                         QFileDialog,
                          QLineEdit,
-                         QLabel,
-                         QMessageBox,
-                         QComboBox)
+                         QLabel)
 
-import sys
 import numpy as np
-import math
 
 from .main_window import MainWindow
 from shapely.wkt import loads
@@ -65,13 +61,9 @@ from .global_toolbar import GlobalToolbar
 from .utils import (max_value,
                     icon,
                     create_projected_layer,
-                    unproject_point,
                     sort_id_along_implicit_centroids_line,
                     centroids_to_line_wkt,
                     length)
-
-import logging
-import traceback
 
 
 def compute_sections_polygons_from_graph(graph_layer,

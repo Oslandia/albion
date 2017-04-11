@@ -9,7 +9,7 @@ from shapely.geometry import Point
 from shapely.wkt import loads
 
 import os
-import logging, math
+import math
 
 from .qgis_hal import (
     clone_layer_as_memory_layer,
