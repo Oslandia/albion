@@ -72,7 +72,6 @@ from .utils import (max_value,
 
 import logging
 import traceback
-# from dxfwrite import DXFEngine as dxf
 
 
 def compute_sections_polygons_from_graph(graph_layer,
