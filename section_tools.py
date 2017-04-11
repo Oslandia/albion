@@ -9,6 +9,8 @@ from qgis.gui import QgsMapTool
 
 from PyQt4.QtCore import pyqtSignal
 from shapely.geometry import LineString
+from .qgis_hal import get_all_layers_with_property_set, get_id
+
 import logging
 
 
@@ -20,9 +22,17 @@ class LineSelectTool(QgsMapTool):
         self.canvas = canvas
 
     def canvasReleaseEvent(self, event):
+        projections = get_all_layers_with_property_set('projected_layer')
+        filtered = [p.customProperty('projected_layer')
+                    for p in projections]
+        filtered += [get_id(p) for p in projections]
+
         # Get the click
         radius = QgsMapTool.searchRadiusMU(self.canvas)
         for layer in self.canvas.layers():
+            if get_id(layer) in filtered:
+                continue
+
             layerPoint = self.toLayerCoordinates(layer, event.pos())
             rect = QgsRectangle(layerPoint.x() - radius,
                                 layerPoint.y() - radius,

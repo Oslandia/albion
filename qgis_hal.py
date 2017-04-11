@@ -202,6 +202,11 @@ def get_all_layers():
     return QgsMapLayerRegistry.instance().mapLayers().values()
 
 
+def get_all_layers_with_property_set(property_name):
+    return [l for l in QgsMapLayerRegistry.instance().mapLayers().values() if
+            l.customProperty(property_name) is not None]
+
+
 def get_layers_with_properties(properties):
     return [l for l in QgsMapLayerRegistry.instance().mapLayers().values() if
             layer_matches_all_properties(l, properties)]
