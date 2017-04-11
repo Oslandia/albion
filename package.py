@@ -110,7 +110,7 @@ if __name__ == "__main__":
 
     optlist = dict(optlist)
 
-    if "-h" in optlist or "--help" in optlist:
+    if "-h" in optlist or "--help" in optlist or not optlist:
         help(sys.modules[__name__])
         exit(0)
 
