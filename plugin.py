@@ -36,7 +36,6 @@ from .fake_generatrice import connect as fg_connect
 
 from .qgis_hal import (get_feature_by_id,
                        get_layer_selected_ids,
-                       get_layer_unique_attribute,
                        get_layer_by_id,
                        get_id,
                        get_name,
@@ -925,18 +924,15 @@ class Plugin(QObject):
         if len(missing_left) is 0 and len(missing_right) is 0:
             return
 
-        next_edge_link = (
-            max_value(get_layer_unique_attribute(graph, 'link'), 0) + 1)
-
-        next_generatrice_link = (
-            max_value(get_layer_unique_attribute(source_layer, 'link'), 0) + 1)
+        next_generatrice_link = get_layer_max_feature_attribute(
+            source_layer, 'link') + 1
 
         distance = float(self.generatrice_distance.text())
 
         missing_left_stripped = [feat_id for feat_id, edges in missing_left]
         missing_right_stripped = [feat_id for feat_id, edges in missing_right]
 
-        graph.beginEditCommand('update edges')
+        graph_connections = []
 
         for feat_id, edges in missing_left + missing_right:
             sides = []
@@ -974,19 +970,11 @@ class Plugin(QObject):
                 # Read back feature to get proper id()
                 fake_feature = fg_insert(source_layer, generatrice)
 
-                try:
-                    # Add link in graph
-                    fg_connect(graph,
-                               feature,
-                               fake_feature,
-                               next_edge_link,
-                               source_layer)
-                except Exception as e:
-                    logging.error(e)
-                    # TODO: delete generatric
+                graph_connections += [(feature, fake_feature)]
 
                 next_generatrice_link = next_generatrice_link + 1
-                next_edge_link = next_edge_link + 1
 
-        graph.endEditCommand()
+        first_edge_link = get_layer_max_feature_attribute(graph, 'link') + 1
+        fg_connect(graph, graph_connections, first_edge_link, source_layer)
+
         logging.debug('End __add_generatrices_impl')

@@ -65,24 +65,30 @@ def insert(layer, feature):
             u'"link" = {0}'.format(link))).next()
 
 
-def connect(subgraph, feature1, feature2, link, source_layer):
-    segment = compute_segment_geometry(
-        feature_to_shapely_wkt(feature1),
-        feature_to_shapely_wkt(feature2))
-    new_feature = create_new_feature(
-        subgraph,
-        segment.wkt,
-        {
-            'layer': get_id(source_layer),
-            'start': get_id(feature1),
-            'end': get_id(feature2),
-            'link': link,
-        })
+def connect(graph, features, first_link, source_layer):
+    to_insert = []
+    link = first_link
+    for feature1, feature2 in features:
+        segment = compute_segment_geometry(
+            feature_to_shapely_wkt(feature1),
+            feature_to_shapely_wkt(feature2))
+        new_feature = create_new_feature(
+            graph,
+            segment.wkt,
+            {
+                'layer': get_id(source_layer),
+                'start': get_id(feature1),
+                'end': get_id(feature2),
+                'link': link,
+            })
+        link += link + 1
+        to_insert += [new_feature]
 
-    subgraph.beginEditCommand('subgraph update')
-    subgraph.dataProvider().addFeatures([new_feature])
-    subgraph.endEditCommand()
-    subgraph.updateExtents()
+    if len(to_insert) > 0:
+        graph.beginEditCommand('graph update')
+        graph.dataProvider().addFeatures(to_insert)
+        graph.endEditCommand()
+        graph.updateExtents()
 
 
 def fake_generatrices(source_layer, layer):
