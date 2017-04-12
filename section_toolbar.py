@@ -1,7 +1,8 @@
 # coding: utf-8
 
 from qgis.core import (QgsVectorLayer,
-                       QgsMapLayerRegistry)
+                       QgsMapLayerRegistry,
+                       QgsFeature)
 
 from qgis.gui import QgsLayerTreeMapCanvasBridge
 
@@ -27,7 +28,7 @@ from .utils import (create_projected_layer,
 
 class Toolbar(QToolBar):
     """ Section specific toolbar (contains all actions for 1 section) """
-    line_clicked = pyqtSignal(str, float)
+    line_clicked = pyqtSignal(str, QgsVectorLayer, QgsFeature, float)
     z_autoscale_toggled = pyqtSignal(bool)
     projected_layer_created = pyqtSignal(QgsVectorLayer, QgsVectorLayer)
 
@@ -98,14 +99,14 @@ class Toolbar(QToolBar):
             self.__tool.line_clicked.connect(self.__line_clicked)
             self.__iface_canvas.setMapTool(self.__tool)
 
-    def __line_clicked(self, wkt_):
+    def __line_clicked(self, wkt_, layer, feature):
         group = root_layer_group_from_iface(self.__iface).\
             findGroup(self.__section_id)
         self.__update_bridge(group)
 
         self.selectLineAction.setChecked(False)
         self.__iface_canvas.unsetMapTool(self.__tool)
-        self.line_clicked.emit(wkt_, float(self.buffer_width.text()))
+        self.line_clicked.emit(wkt_, layer, feature, float(self.buffer_width.text()))
         ActionStateHelper.update_all()
 
     def __add_layer(self):

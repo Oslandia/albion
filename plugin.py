@@ -619,7 +619,7 @@ class Plugin(QObject):
             { 'icon': icon('11_add_generatrices.svg'), 'label': 'add generatrices', 'clicked': self.__add_generatrices, 'precondition': lambda action: self.__add_generatrices_precondition_check() },
             { 'icon': icon('13_maj_graph.svg'), 'label': 'update graphs geom', 'clicked': self.__update_graphs_geometry, 'precondition': lambda action: self.__update_graphs_geometry_precondition_check() },
             None,
-            { 'label': 'reset subgraph|gen.', 'clicked': self.__reset_graph, 'precondition': lambda action: self.__reset_subgraph_precondition_check() },
+            { 'label': 'Clear graph/fake gen.', 'clicked': self.__reset_graph, 'precondition': lambda action: self.__reset_subgraph_precondition_check() },
 
         ]
         self.generatrice_distance = QLineEdit("25")
@@ -633,6 +633,11 @@ class Plugin(QObject):
         self.__section_main.toolbar.addWidget(self.alpha)
         self.__auto_connect_generatrices_action = self.__section_main.toolbar.addAction(
             'Auto-connect')
+
+        self.__section_main.toolbar.addAction('<').triggered.\
+            connect(self.__select_previous_section_line)
+        self.__section_main.toolbar.addAction('>').triggered.\
+            connect(self.__select_next_section_line)
 
 
         self.__section_main.canvas.add_section_actions_to_toolbar(
@@ -836,6 +841,57 @@ class Plugin(QObject):
             # self.__section_main.section.update_projections(source_layer.id())
 
             self.__on_graph_modified()
+
+    def __select_previous_section_line(self):
+        if not self.__section_main.section.is_valid:
+            return
+        layer = self.__section_main.section.layer
+        if layer is None:
+            return
+        centroids = {}
+
+        for f in get_all_layer_features(layer):
+            centroids[get_id(f)] = get_feature_centroid(f)[0:2]  # drop z coord
+
+        s = sort_id_along_implicit_centroids_line(centroids)
+
+        current = s.index(get_id(self.__section_main.section.feature))
+
+        previous = get_feature_by_id(layer,
+                                     s[(current - 1 + len(s)) % len(s)])
+
+        section_width = float(self.__section_main.toolbar.buffer_width.text())
+        self.__section_main.section.update(
+            QgsGeometry.exportToWkt(previous.geometry()),
+            layer,
+            previous,
+            section_width)
+
+    def __select_next_section_line(self):
+        if not self.__section_main.section.is_valid:
+            return
+        layer = self.__section_main.section.layer
+        if layer is None:
+            return
+        centroids = {}
+
+        for f in get_all_layer_features(layer):
+            centroids[get_id(f)] = get_feature_centroid(f)[0:2]  # drop z coord
+
+        s = sort_id_along_implicit_centroids_line(centroids)
+
+        current = s.index(get_id(self.__section_main.section.feature))
+
+        n = get_feature_by_id(layer,
+                                 s[(current + 1) % len(s)])
+
+        section_width = float(self.__section_main.toolbar.buffer_width.text())
+        self.__section_main.section.update(
+            QgsGeometry.exportToWkt(n.geometry()),
+            layer,
+            n,
+            section_width)
+
 
     @staticmethod
     def _compute_fake_generatrice_translation_vec(centroid, centroid2, dist):

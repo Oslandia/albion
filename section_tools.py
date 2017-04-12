@@ -4,7 +4,9 @@ from qgis.core import (QgsMapLayer,
                        QgsRectangle,
                        QgsGeometry,
                        QgsFeatureRequest,
-                       QGis)
+                       QGis,
+                       QgsVectorLayer,
+                       QgsFeature)
 from qgis.gui import QgsMapTool
 
 from PyQt4.QtCore import pyqtSignal
@@ -15,7 +17,7 @@ import logging
 
 
 class LineSelectTool(QgsMapTool):
-    line_clicked = pyqtSignal(str)
+    line_clicked = pyqtSignal(str, QgsVectorLayer, QgsFeature)
 
     def __init__(self, canvas):
         QgsMapTool.__init__(self, canvas)
@@ -46,11 +48,15 @@ class LineSelectTool(QgsMapTool):
                        feat.geometry().length() > 0:
                         logging.info('found line in {}'.format(layer.name()))
                         self.line_clicked.emit(
-                            QgsGeometry.exportToWkt(feat.geometry()))
+                            QgsGeometry.exportToWkt(feat.geometry()),
+                            layer,
+                            feat)
                         return
         # emit a small linestring in the x direction
         layerPoint = self.toMapCoordinates(event.pos())
         self.line_clicked.emit(
             LineString([(
                 layerPoint.x()-radius, layerPoint.y()),
-                (layerPoint.x()+radius, layerPoint.y())]).wkt)
+                (layerPoint.x()+radius, layerPoint.y())]).wkt,
+            None,
+            None)

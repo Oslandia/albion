@@ -39,6 +39,8 @@ class Section(QObject):
         self.__width = 0
         self.__z_scale = 1
         self.__enabled = True
+        self.__feature = None
+        self.__layer = None
 
     def unload(self):
         pass
@@ -76,9 +78,11 @@ class Section(QObject):
                            QgsWKBTypes.LineGeometry,
                            QgsWKBTypes.PolygonGeometry))
 
-    def update(self, wkt_line, width=0):
+    def update(self, wkt_line, layer, feature, width=0):
         try:
             self.__line = loads(wkt_line.replace('Z', ' Z'))
+            self.__layer = layer
+            self.__feature = feature
             self.__width = width
             # always reset z-scale when setting a new line
             self.__z_scale = 1.0
@@ -119,7 +123,6 @@ class Section(QObject):
                         layer.synchronize_selection_proj_to_source()
                         return
 
-
     def __synchronize_selection_source_proj(self, l, selected, deselected):
         # sync selected items from layer_from in [layers_to]
         if len(l['layers']) == 0:
@@ -146,6 +149,10 @@ class Section(QObject):
             return self.__line
         elif name == "width":
             return self.__width
+        elif name == "layer":
+            return self.__layer
+        elif name == "feature":
+            return self.__feature
         elif name == "id":
             return self.__id
         elif name == "is_valid":

@@ -104,8 +104,14 @@ def sort_id_along_implicit_centroids_line(centroids):
         x, y = centroids[k]
         projections[k] = line.project(Point(x, y))
     unit = [(extrema[1][i] - extrema[0][i]) / line.length for i in [0, 1]]
-    # order along growing X
-    reverse = unit[0] < 0
+
+    if abs(unit[1]) > 0.7:
+        # order along growing Y if Y direction is important
+        reverse = unit[1] < 0
+    else:
+        # default: order along growing X
+        reverse = unit[0] < 0
+
     return sorted(projections, key=projections.get, reverse=reverse)
 
 def centroids_to_line_wkt(centroids):

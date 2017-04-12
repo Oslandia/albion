@@ -2,7 +2,7 @@
 name=Albion
 qgisMinimumVersion=2.16
 description=Build 3D geological model from wells information
-version=1.04.07
+version=1.04.12
 author=Oslandia
 email=infos@oslandia.com
 experimental=False
