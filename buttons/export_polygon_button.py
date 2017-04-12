@@ -2,18 +2,11 @@
 
 from PyQt4.QtGui import QFileDialog, QMessageBox
 
-
 def precondition_check(graph_layer, section_layer):
     if section_layer is None:
         return (False, "No active layer")
     if graph_layer is None:
         return (False, "No graph layer defined")
-    if not section_layer.customProperty("session_id") is None:
-        return (False, "Select a non-projected layer")
-    if not section_layer.isSpatial():
-        return (False, "Selected layer has no geometry")
-    if section_layer.featureCount() == 0:
-        return (False, "Selected layer has no features")
     return (True, "")
 
 
@@ -42,4 +35,3 @@ def execute(owner, polygons):
         len(polygons)))
 
     out_file.close()
-

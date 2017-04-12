@@ -13,6 +13,9 @@ from .convert_data_layer import ConvertDataLayer
 from .graph_layer_helper import GraphLayerHelper
 from .sections_layers_combo import SectionsLayersCombo
 
+from .qgis_hal import get_layer_by_id
+
+
 import logging
 
 
@@ -20,10 +23,11 @@ class GlobalToolbar(QToolBar):
     """ Albion plugin's toolbar
 
         Holds global settings, action, etc """
-    def __init__(self, iface, section):
+    def __init__(self, iface, section, plugin_compute_fn):
         QToolBar.__init__(self)
         self.__section = section
         self.mapCanvas = iface.mapCanvas()
+        self.__plugin_compute_fn = plugin_compute_fn
 
         # Graph layers selection UI
         self.graphLayerHelper = GraphLayerHelper()
@@ -43,7 +47,7 @@ class GlobalToolbar(QToolBar):
         self.__export_polygon_action.triggered.connect(self.__export_polygon)
         ActionStateHelper(self.__export_polygon_action).add_is_enabled_test(
             lambda action: export_precond(
-                self.graphLayerHelper.active_layer(), None)).update_state()
+                self.graphLayerHelper.active_layer(), self.sections_layers_combo.active_layers_id())).update_state()
 
     def cleanup(self):
         self.__section = None
@@ -52,7 +56,17 @@ class GlobalToolbar(QToolBar):
             self.__export_polygon)
 
     def __export_polygon(self):
-        export_exec(self, self.graphLayerHelper.active_layer())
+        section_width = float(self.__section.toolbar.buffer_width.text())
+        polygons = []
+
+        for layer in [get_layer_by_id(lid) for lid in self.sections_layers_combo.active_layers_id()]:
+            polygons += self.__plugin_compute_fn(
+                self.graphLayerHelper.active_layer(),
+                layer,
+                section_width)
+        if len(polygons) == 0:
+            return
+        export_exec(self, polygons)
 
     def __import_csv(self):
         data_layer = self.mapCanvas.currentLayer()

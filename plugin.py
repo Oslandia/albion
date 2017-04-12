@@ -591,7 +591,7 @@ class Plugin(QObject):
         self.edit_graph_tool = GraphEditTool(self.__iface, self.__section_main.canvas)
 
         # Plugin-wide options
-        self.toolbar = GlobalToolbar(self.__iface, self.__section_main)
+        self.toolbar = GlobalToolbar(self.__iface, self.__section_main, compute_sections_polygons_from_graph)
         self.__export_volume_action = self.toolbar.addAction(icon('6_export_volume.svg'), 'Export volume (graph)')
         self.__iface.addToolBar(self.toolbar)
 
