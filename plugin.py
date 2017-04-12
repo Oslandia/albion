@@ -52,7 +52,8 @@ from .qgis_hal import (get_feature_by_id,
                        get_feature_centroid,
                        create_new_feature,
                        insert_features_in_layer,
-                       get_layer_max_feature_attribute)
+                       get_layer_max_feature_attribute,
+                       remove_features_from_layer)
 
 from .graph import to_volume
 
@@ -142,16 +143,25 @@ class Plugin(QObject):
         self.toolbar.graphLayerHelper.update_layers(all_layers)
         self.toolbar.sections_layers_combo.update_layers()
         for layer in layers:
+            if is_a_projected_layer(layer):
+                continue
             if isinstance(layer, QgsVectorLayer):
+                logging.info('CONNECT TO SIGNALS {}'.format(get_id(layer)))
                 layer.editCommandEnded.connect(
+                    self.__update_projection_if_needed)
+                layer.featuresDeleted.connect(
                     self.__update_projection_if_needed)
 
     #   - layers were removed
     def __layers_will_be_removed(self, layer_ids):
         for layer_id in layer_ids:
-            layer =  get_layer_by_id(layer_id)
+            layer = get_layer_by_id(layer_id)
+            if is_a_projected_layer(layer):
+                continue
             if isinstance(layer, QgsVectorLayer):
                 layer.editCommandEnded.\
+                    disconnect(self.__update_projection_if_needed)
+                layer.featuresDeleted.\
                     disconnect(self.__update_projection_if_needed)
 
     def __update_projection_if_needed(self):
@@ -179,6 +189,8 @@ class Plugin(QObject):
                 self.__section_main.section.z_scale,
                 self.__section_main.section.width,
                 layer, l)
+
+        self.__section_main.section.request_canvas_redraw()
 
     def __redraw_3d_view(self):
         self.viewer3d.scale_z = float(self.viewer3d_scale_z.text())
@@ -387,8 +399,7 @@ class Plugin(QObject):
 
         logging.info('REMOVE: {}'.format(to_remove))
         if len(to_remove) > 0:
-            source_layer.dataProvider().deleteFeatures(to_remove)
-            self.__section_main.section.request_canvas_redraw()
+            remove_features_from_layer(source_layer, to_remove)
 
     def _remove_all_edges_from_projected_graph(self):
         graph_layer = self.toolbar.graphLayerHelper.active_layer()

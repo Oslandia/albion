@@ -18,7 +18,8 @@ from .qgis_hal import (
     get_all_layer_features,
     query_layer_features_by_attributes_in,
     get_layer_features_count_by_attributes,
-    layer_has_field)
+    layer_has_field,
+    remove_features_from_layer)
 from .graph import extract_paths
 from .utils import project_point
 
@@ -262,10 +263,7 @@ def refresh_graph_layer_edges(self, graph_layer):
     self.graphLayerHelper.layer().endEditCommand()
 
     if len(edge_to_remove) > 0:
-        self.graphLayerHelper.layer().beginEditCommand('edges cleanup')
-        self.graphLayerHelper.layer().dataProvider().deleteFeatures(
-            edge_to_remove)
-        self.graphLayerHelper.layer().endEditCommand()
+        remove_features_from_layer(self.graphLayerHelper.layer(), edge_to_remove)
 
 
 def build_subgraph_from_graph(graph_layer, subgraph_layer, generatrice_layer):
@@ -447,6 +445,12 @@ def __compute_generatrice_connections(projected_feature_centroid_x,
             result['R'] += [other]
         else:
             result['L'] += [other]
+
+    # check for data inconsistencies
+    # TODO: expose this problem to the user
+    assert len(result['R']) == len(set(result['R']))
+    assert len(result['L']) == len(set(result['L']))
+
     return result
 
 
@@ -533,6 +537,9 @@ def _compute_ratio_offset_from_pants(layer,
 def __path_to_polygon(path, layer, connections, features_length, pants):
     vertices = []
 
+    logging.info('path = {}'.format(path))
+    logging.info('features_length = {}'.format(features_length))
+    logging.info('pants = {}'.format(pants))
     for i in range(0, len(path)):
         v = path[i]
 

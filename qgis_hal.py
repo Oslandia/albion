@@ -130,8 +130,14 @@ def clone_feature_with_geometry_transform(feature, transform_geom):
     return clone
 
 
-def remove_all_features_from_layer(layer):
-    layer.dataProvider().deleteFeatures(layer.allFeatureIds())
+def remove_features_from_layer(layer, feature_ids=None):
+    ''' Remove features from layer. If feature_ids is None,
+        removes all features '''
+    layer.dataProvider().deleteFeatures(
+        layer.allFeatureIds() if feature_ids is None else feature_ids)
+    # use editCommand API to make force emission of editCommandEnded event
+    layer.beginEditCommand('dummy')
+    layer.endEditCommand()
 
 
 def insert_features_in_layer(features, layer):

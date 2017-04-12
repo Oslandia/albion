@@ -6,7 +6,7 @@ from shapely.ops import transform
 
 from qgis.core import (QgsGeometry)
 
-from .qgis_hal import (remove_all_features_from_layer,
+from .qgis_hal import (remove_features_from_layer,
                        clone_feature_with_geometry_transform,
                        intersect_linestring_layer_with_wkt,
                        get_name,
@@ -40,7 +40,7 @@ def project_layer_as_linestring(line, z_scale, line_width,
         projected_layer.name()))
 
     if remove_all:
-        remove_all_features_from_layer(projected_layer)
+        remove_features_from_layer(projected_layer)
 
     logging.debug('projecting {} (geom={})'.format(
         get_name(layer), projected_layer.geometryType()))
@@ -98,7 +98,7 @@ def project_layer_as_polygon(line, z_scale, line_width,
 
     logging.debug('polygon projection')
     if remove_all:
-        remove_all_features_from_layer(projected_layer)
+        remove_features_from_layer(projected_layer)
 
     logging.debug('projecting {} -> {}'.format(
         get_name(layer),
