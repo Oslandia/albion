@@ -17,6 +17,7 @@ from PyQt4.QtGui import (QDockWidget,
                          QLabel)
 
 import numpy as np
+import math
 
 from .main_window import MainWindow
 from shapely.wkt import loads
@@ -272,6 +273,8 @@ class Plugin(QObject):
         graph_layer = self.toolbar.graphLayerHelper.active_layer()
         my_id = get_layer_max_feature_attribute(graph_layer, 'link')
 
+        z_scale = self.__section_main.section.z_scale
+
         # for each feature, find nearest feature to the right that has a different HoleID
         # then loop over each feature with matching HoleID and try to connect is alpha < threshold
         for i in range(0, len(features)):
@@ -307,7 +310,7 @@ class Plugin(QObject):
                         delta = [c[i] - centroid[i] for i in [0, 1]]
                         if delta[0] == 0:
                             continue
-                        angle = 180.0 * math.atan(delta[1] / delta[0]) / math.pi
+                        angle = 180.0 * math.atan(delta[1] / (z_scale * delta[0])) / math.pi
 
                         if abs(angle) <= max_angle:
                             logging.info('CONNECT {} - {}'.format(get_id(feature), get_id(features[j])))
