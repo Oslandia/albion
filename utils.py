@@ -126,7 +126,7 @@ def centroids_to_line_wkt(centroids):
 
 
 def distance2(coords1, coords2):
-    """compute the euclidean distance between two 2D points
+    """compute squared distance between two points
     """
     return sum([pow(x - y, 2) for x,y in zip(coords1, coords2)])
 
