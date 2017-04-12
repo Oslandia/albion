@@ -77,7 +77,7 @@ if __name__ == "__main__":
     try:
         optlist, args = getopt.getopt(sys.argv[1:],
                 "hiudt",
-                ["help", "install", "uninstall", "deploy", "test"])
+                ["help", "install", "uninstall", "test"])
     except Exception as e:
         sys.stderr.write(str(e)+"\n")
         exit(1)
