@@ -62,7 +62,8 @@ from .graph_operations import (
     find_generatrices_needing_a_fake_generatrice_in_section,
     compute_section_polygons_from_graph,
     compute_segment_geometry,
-    is_fake_feature)
+    is_fake_feature,
+    does_edge_already_exist)
 from .section_projection import (project_layer_as_linestring,
                                  project_layer_as_polygon)
 
@@ -290,7 +291,7 @@ class Plugin(QObject):
         # TODO filter out already connected features
 
         new_edges = []
-        my_id = get_layer_max_feature_attribute(graph_layer, 'link')
+        my_id = get_layer_max_feature_attribute(graph_layer, 'link') + 1
 
         z_scale = self.__section_main.section.z_scale
 
@@ -332,10 +333,17 @@ class Plugin(QObject):
                         angle = 180.0 * math.atan(delta[1] / (z_scale * delta[0])) / math.pi
 
                         if abs(angle) <= max_angle:
-                            logging.info('CONNECT {} - {}'.format(get_id(feature), get_id(features[j])))
-
                             source_feature2 = projected_feature_to_original(
                                 source_layer, features[j])
+
+                            if does_edge_already_exist(
+                                    graph_layer,
+                                    get_id(source_layer),
+                                    get_id(source_feature),
+                                    get_id(source_feature2)):
+                                continue
+
+                            logging.info('CONNECT {} - {}'.format(get_id(feature), get_id(features[j])))
 
                             segment = compute_segment_geometry(
                                 feature_to_shapely_wkt(source_feature),
@@ -580,7 +588,7 @@ class Plugin(QObject):
         self.__section_main = MainWindow(self.__iface, 'section')
         self.__dock = QDockWidget('Section')
         self.__dock.setWidget(self.__section_main)
-        self.edit_graph_tool = GraphEditTool(self.__section_main.canvas)
+        self.edit_graph_tool = GraphEditTool(self.__iface, self.__section_main.canvas)
 
         # Plugin-wide options
         self.toolbar = GlobalToolbar(self.__iface, self.__section_main)

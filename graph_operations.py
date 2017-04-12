@@ -537,9 +537,9 @@ def _compute_ratio_offset_from_pants(layer,
 def __path_to_polygon(path, layer, connections, features_length, pants):
     vertices = []
 
-    logging.info('path = {}'.format(path))
-    logging.info('features_length = {}'.format(features_length))
-    logging.info('pants = {}'.format(pants))
+    logging.debug('path = {}'.format(path))
+    logging.debug('features_length = {}'.format(features_length))
+    logging.debug('pants = {}'.format(pants))
     for i in range(0, len(path)):
         v = path[i]
 
@@ -571,3 +571,14 @@ def __path_to_polygon(path, layer, connections, features_length, pants):
         vertices += [v1]
 
     return vertices
+
+
+def does_edge_already_exist(graph_layer, layer_id, feature1_id, feature2_id):
+    for f in query_layer_features_by_attributes(graph_layer,
+                                                {'layer': layer_id}):
+        start, end = get_feature_attribute_values(graph_layer, f,
+                                                  'start', 'end')
+        if start == feature1_id and end == feature2_id or \
+           start == feature2_id and end == feature1_id:
+            return True
+    return False

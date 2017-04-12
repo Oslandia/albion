@@ -10,15 +10,18 @@ from .qgis_hal import (insert_features_in_layer,
                        create_new_feature, get_id,
                        projected_layer_to_original,
                        projected_feature_to_original,
-                       feature_to_shapely_wkt)
-from .graph_operations import compute_segment_geometry
+                       feature_to_shapely_wkt,
+                       get_layer_max_feature_attribute)
+from .graph_operations import compute_segment_geometry, does_edge_already_exist
 import logging
+
 
 class GraphEditTool(QgsMapToolEmitPoint):
     graph_modified = pyqtSignal()
 
-    def __init__(self, sectionCanvas):
+    def __init__(self, iface, sectionCanvas):
         QgsMapToolEmitPoint.__init__(self, sectionCanvas)
+        self.__iface = iface
         self.__sectionCanvas = sectionCanvas
 
         self.canvasClicked.connect(self._new_point)
@@ -48,7 +51,6 @@ class GraphEditTool(QgsMapToolEmitPoint):
     def featureAtPoint(self, point, layer):
         radius = QgsMapTool.searchRadiusMU(self.__sectionCanvas)
         rect = QgsRectangle(point.x() - radius, point.y() - radius, point.x() + radius, point.y() + radius)
-        rect_geom = QgsGeometry.fromRect(rect)
 
         source_layer = projected_layer_to_original(layer)
 
@@ -60,7 +62,7 @@ class GraphEditTool(QgsMapToolEmitPoint):
         best = None
         for feat in layer.getFeatures(QgsFeatureRequest(rect)):
             # select nearest feature
-            p =  feat.geometry().centroid().asPoint()
+            p = feat.geometry().centroid().asPoint()
             d = feat.geometry().distance(pt)
 
             if d < dist:
@@ -80,7 +82,7 @@ class GraphEditTool(QgsMapToolEmitPoint):
         if self.graphLayer is None:
             return
 
-        layer = self.__sectionCanvas.currentLayer()
+        layer = self.__iface.mapCanvas().currentLayer()
         if layer is None:
             self._reset()
             return
@@ -99,12 +101,19 @@ class GraphEditTool(QgsMapToolEmitPoint):
             elif self.previousFeature['proj'].id() == clickedFeature['proj'].id():
                 self._reset()
             else:
-
-                ids = self.graphLayer.uniqueValues(self.graphLayer.fieldNameIndex('link'))
-                my_id = (max(ids) if len(ids) > 0 else 0) + 1
+                my_id = get_layer_max_feature_attribute(self.graphLayer, 'link') + 1
 
                 featureA = self.previousFeature['source']
                 featureB = clickedFeature['source']
+
+                lid = clickedFeature['layer'].customProperty(
+                            'projected_layer')
+
+                if does_edge_already_exist(self.graphLayer,
+                                           lid,
+                                           get_id(featureA),
+                                           get_id(featureB)):
+                    return
 
                 segment = compute_segment_geometry(
                     feature_to_shapely_wkt(featureA),
@@ -114,8 +123,7 @@ class GraphEditTool(QgsMapToolEmitPoint):
                     self.graphLayer,
                     segment.wkt,
                     {
-                        'layer': clickedFeature['layer'].customProperty(
-                            'projected_layer'),
+                        'layer': lid,
                         'start': get_id(featureA),
                         'end': get_id(featureB),
                         'link': my_id,

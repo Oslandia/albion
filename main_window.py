@@ -40,7 +40,7 @@ class MainWindow(QMainWindow):
                                  self.__section.id,
                                  iface.mapCanvas(),
                                  self.__canvas)
-        self.__toolbar.buffer_width.setText(str(10))
+        self.__toolbar.buffer_width.setText(str(1))
 
         self.__toolbar.line_clicked.connect(self.__section.update)
         self.__toolbar.z_autoscale_toggled.connect(self.__canvas.z_autoscale)
