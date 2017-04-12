@@ -1,7 +1,7 @@
 # coding: utf-8
 
-from qgis.core import *
-from qgis.gui import *
+from qgis.core import QgsPoint, QgsRectangle, QgsGeometry, QgsFeatureRequest
+from qgis.gui import QgsMapTool, QgsMapToolEmitPoint, QgsRubberBand
 
 from PyQt4.QtCore import pyqtSignal
 from PyQt4.QtGui import QColor

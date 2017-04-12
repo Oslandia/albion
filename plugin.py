@@ -4,8 +4,10 @@ import sys
 import logging
 import traceback
 
-from qgis.core import *
-from qgis.gui import *
+from qgis.core import QgsGeometry, QgsWKBTypes, QgsVectorLayer, PolygonLayerProjection, QgsLayerTreeLayer
+from qgis.gui import QgsSingleSymbolRendererV2, QgsMapLayerRegistry
+# from qgis.core import *
+# from qgis.gui import *
 
 from PyQt4.QtCore import Qt, QObject
 from PyQt4.QtGui import (QDockWidget,
@@ -522,7 +524,6 @@ class Plugin(QObject):
         self.rendering_3d_intialized = True
 
         # hmmmm
-        layers_vertices = {}
         for layer in get_all_layers():
             # only draw projected layers
             if layer.customProperty('section_id') is not None:

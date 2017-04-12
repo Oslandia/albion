@@ -1,7 +1,10 @@
 # coding: utf-8
 
-from qgis.core import * # unable to import QgsWKBTypes otherwize (quid?)
-from qgis.gui import *
+import logging
+
+# from qgis.core import * # unable to import QgsWKBTypes otherwize (quid?)
+from qgis.core import QgsWKBTypes
+# from qgis.gui import *
 from shapely.wkt import loads
 
 from PyQt4.QtCore import QObject, pyqtSignal
@@ -14,7 +17,7 @@ from .qgis_hal import (get_layers_with_properties,
 from .section_projection import (project_layer_as_linestring,
                                   project_layer_as_polygon)
 
-import logging
+
 
 # TODO
 # - restaurer ces signaux

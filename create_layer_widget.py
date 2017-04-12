@@ -4,8 +4,11 @@ import os
 import logging
 from math import sqrt
 
-from qgis.core import *
-from qgis.gui import *
+# from qgis.core import *
+# from qgis.gui import *
+from qgis.core import QGis, QgsGeometry, QgsFeature, QgsMapLayer, QgsMapLayerRegistry, QgsVectorLayer, QgsField
+# from qgis.gui import QgsMapLa
+
 
 from PyQt4 import uic
 from PyQt4.QtCore import QVariant
@@ -14,8 +17,7 @@ from PyQt4.QtGui import QDialog
 from shapely.wkt import loads
 from shapely.geometry import LineString
 
-from .qgis_hal import (remove_all_features_from_layer,
-                       insert_features_in_layer)
+from .qgis_hal import insert_features_in_layer
 
 
 def substring_3d(linestring, from_, to_):
@@ -113,7 +115,7 @@ class CreateLayerWidget(QDialog):
         join_field = self.joinField.currentText()
         to_column = self.toColumn.currentText()
         from_column = self.fromColumn.currentText()
-        logger.info('{} {} {} {} {} {}'.format(data_layer.name(), geom_layer.name(), geom_id, join_field, to_column, from_column))
+        logging.info('{} {} {} {} {} {}'.format(data_layer.name(), geom_layer.name(), geom_id, join_field, to_column, from_column))
         geometries = {feature[geom_id]: QgsGeometry(feature.geometry())
                 for feature in geom_layer.getFeatures()}
         features = []

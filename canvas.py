@@ -1,12 +1,16 @@
 # coding: utf-8
 
-from qgis.core import * # unable to import QgsWKBTypes otherwize (quid?)
-from qgis.gui import *
-
-from PyQt4.QtGui import QColor, QMessageBox
-from .action_state_helper import ActionStateHelper
 from math import sqrt
 import logging
+
+# from qgis.core import QgsWKBTypes # unable to import QgsWKBTypes otherwize (quid?)
+from qgis.core import QGis, QgsGeometry, QgsRectangle
+from qgis.gui import (QgsApplication, QgsMapCanvas, QgsMapToolPan,
+                      QgsMapToolZoom, QgsRubberBand)
+
+from PyQt4.QtGui import QColor, QMessageBox
+
+from .action_state_helper import ActionStateHelper
 
 
 class Canvas(QgsMapCanvas):

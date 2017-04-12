@@ -24,8 +24,6 @@ import os
 import zipfile
 import re
 import shutil
-import getpass
-import time
 import subprocess
 
 # @todo make that work on windows
