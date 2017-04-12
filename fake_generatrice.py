@@ -26,7 +26,7 @@ def __transform_geom(translation, geom):
 # Helper methods to manage fake generatrices
 def create(section, source_layer, source_feature, link, translation):
     source_has_field_HoleID = source_layer.fields().fieldNameIndex(
-        'HoleID') >= 0
+        'HoleId') >= 0
     source_has_field_mine = source_layer.fields().fieldNameIndex(
         'mine') >= 0
 
@@ -87,8 +87,8 @@ def connect(subgraph, feature1, feature2, link, source_layer):
 
 def fake_generatrices(source_layer, layer):
     query = ''
-    if source_layer.fields().fieldNameIndex('HoleID') >= 0:
-        query = u"attribute($currentfeature, 'HoleID') = 'Fake' OR attribute($currentfeature, 'HoleID:Integer64(10,0)') = 'Fake'"
+    if source_layer.fields().fieldNameIndex('HoleId') >= 0:
+        query = u"attribute($currentfeature, 'HoleId') = 'Fake' OR attribute($currentfeature, 'HoleId:Integer64(10,0)') = 'Fake'"
     elif source_layer.fields().fieldNameIndex('mine') >= 0:
         query = u"attribute($currentfeature, 'mine') = -1 OR attribute($currentfeature, 'mine:Integer64(10,0)') = -1"
     else:

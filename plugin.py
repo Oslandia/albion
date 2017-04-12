@@ -29,7 +29,6 @@ from .viewer_3d.viewer_3d import Viewer3D
 from .fake_generatrice import create as fg_create
 from .fake_generatrice import insert as fg_insert
 from .fake_generatrice import connect as fg_connect
-from .fake_generatrice import fake_generatrices as fg_fake_generatrices
 
 from .qgis_hal import (get_feature_by_id,
                        get_layer_selected_ids,
@@ -57,7 +56,8 @@ from .graph_operations import (
     refresh_graph_layer_edges,
     find_generatrices_needing_a_fake_generatrice_in_section,
     compute_section_polygons_from_graph,
-    compute_segment_geometry)
+    compute_segment_geometry,
+    is_fake_feature)
 from .section_projection import (project_layer_as_linestring,
                                  project_layer_as_polygon)
 
@@ -258,6 +258,10 @@ class Plugin(QObject):
         if source_layer is None:
             return
 
+        graph_layer = self.toolbar.graphLayerHelper.active_layer()
+        if graph_layer is None:
+            return
+
         max_angle = float(self.alpha.text())
 
         features = [f for f in get_all_layer_features(layer)]
@@ -270,7 +274,6 @@ class Plugin(QObject):
         # TODO filter out already connected features
 
         new_edges = []
-        graph_layer = self.toolbar.graphLayerHelper.active_layer()
         my_id = get_layer_max_feature_attribute(graph_layer, 'link')
 
         z_scale = self.__section_main.section.z_scale
@@ -361,52 +364,51 @@ class Plugin(QObject):
 
     #   - reset subgraph. TODO: modify to clean active graph
     def __reset_subgraph_precondition_check(self):
-        return False, "Nope"
-        if self.subGraphLayerHelper.layer() is None:
-            return (False, 'Missing subgraph')
         if not self.__section_main.section.is_valid:
             return (False, "No active section")
         return (True, "")
 
-    def __reset_subgraph(self):
-        # remove everything in subgraph for this section
-        pass
-        subgraph = self.subGraphLayerHelper.layer()
-        projected_subgraph = filter(lambda l: (not isinstance(l, PolygonLayerProjection)), self.__section_main.section.projections_of(subgraph.id()))[0].projected_layer
+    def _remove_features_from_projected_layer(self, projected_layer, condition=None):
+        ''' Remove all features in a projected layer that matches a given
+            condition (features are actually removed from source layer) '''
+        source_layer = projected_layer_to_original(projected_layer)
 
         to_remove = []
-        for segment in projected_subgraph.getFeatures():
-            logging.debug('FOUND SEGMENT {}'.format(segment.id()))
+        for feature in get_all_layer_features(projected_layer):
+            if condition is not None:
+                if not condition(source_layer, feature):
+                    continue
             to_remove += [
-                projected_feature_to_original(subgraph, segment).id()]
+                get_id(projected_feature_to_original(source_layer, feature))]
 
-        logging.debug('REMOVE: {}'.format(to_remove))
+        logging.info('REMOVE: {}'.format(to_remove))
         if len(to_remove) > 0:
-            subgraph.dataProvider().deleteFeatures(to_remove)
-            self.__section_main.section.update_projections(subgraph.id())
+            source_layer.dataProvider().deleteFeatures(to_remove)
             self.__section_main.section.request_canvas_redraw()
 
+    def _remove_all_edges_from_projected_graph(self):
+        graph_layer = self.toolbar.graphLayerHelper.active_layer()
+        if graph_layer is None:
+            return
+        projected_graph = get_layers_with_properties(
+            {'projected_layer': get_id(graph_layer)})[0]
+
+        # remove inconditionnaly all edges from proejcted graph
+        self._remove_features_from_projected_layer(projected_graph)
+
+    def _remove_all_fake_generatrices_from_projected_layer(self):
         layer = self.__iface.mapCanvas().currentLayer()
         if layer is None:
             return
 
-        if layer.customProperty("section_id") is None:
-            return
+        projected = layer if is_a_projected_layer(layer) else \
+            get_layers_with_properties({'projected_layer': get_id(layer)})[0]
 
-        # if active layer is a projection try to remove fake generatrice
-        source = projected_layer_to_original(layer)
+        self._remove_features_from_projected_layer(projected, is_fake_feature)
 
-        fakes = fg_fake_generatrices(source, layer)
-        to_remove = []
-        for f in fakes:
-            logging.debug('FOUND GENERATRICE {}'.format(f.id()))
-            to_remove += [projected_feature_to_original(source, f).id()]
-
-        logging.debug('REMOVE2: {}'.format(to_remove))
-        if len(to_remove) > 0:
-            source.dataProvider().deleteFeatures(to_remove)
-            self.__section_main.section.update_projections(source.id())
-            self.__section_main.section.request_canvas_redraw()
+    def __reset_graph(self):
+        self._remove_all_edges_from_projected_graph()
+        self._remove_all_fake_generatrices_from_projected_layer()
 
     def draw_active_section_3d(self):
         if self.__section_main.section.is_valid:
@@ -595,7 +597,7 @@ class Plugin(QObject):
             { 'icon': icon('11_add_generatrices.svg'), 'label': 'add generatrices', 'clicked': self.__add_generatrices, 'precondition': lambda action: self.__add_generatrices_precondition_check() },
             { 'icon': icon('13_maj_graph.svg'), 'label': 'update graphs geom', 'clicked': self.__update_graphs_geometry, 'precondition': lambda action: self.__update_graphs_geometry_precondition_check() },
             None,
-            { 'label': 'reset subgraph|gen.', 'clicked': self.__reset_subgraph, 'precondition': lambda action: self.__reset_subgraph_precondition_check() },
+            { 'label': 'reset subgraph|gen.', 'clicked': self.__reset_graph, 'precondition': lambda action: self.__reset_subgraph_precondition_check() },
 
         ]
         self.generatrice_distance = QLineEdit("25")

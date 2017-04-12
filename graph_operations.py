@@ -31,7 +31,7 @@ import traceback
 
 
 def is_fake_feature(layer, feature):
-    for field in ['HoleID']:
+    for field in ['HoleId']:
         if layer_has_field(layer, field):
             h = get_feature_attribute_values(layer, feature, field)
             return h == 'Fake'
