@@ -112,6 +112,7 @@ class Plugin(QObject):
         self.__iface = iface
         self.rendering_3d_intialized = False
 
+
     # Signal Handling
     #################
     #   - user selected a new active graph layer
@@ -146,7 +147,6 @@ class Plugin(QObject):
             if is_a_projected_layer(layer):
                 continue
             if isinstance(layer, QgsVectorLayer):
-                logging.info('CONNECT TO SIGNALS {}'.format(get_id(layer)))
                 layer.editCommandEnded.connect(
                     self.__update_projection_if_needed)
                 layer.featuresDeleted.connect(
@@ -665,6 +665,8 @@ class Plugin(QObject):
         self.__layers_added(get_all_layers())
 
     def unload(self):
+        self.__layers_will_be_removed([get_id(l) for l in get_all_layers()])
+
         self.__section_main.toolbar.line_clicked.disconnect(self.edit_graph_tool._reset)
         self.__section_main.toolbar.line_clicked.disconnect(self.display_polygons_volumes_3d)
         self.edit_graph_tool.graph_modified.disconnect(self.__on_graph_modified)
