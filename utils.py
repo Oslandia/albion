@@ -1,5 +1,7 @@
 # coding: utf-8
 
+import os
+import math
 import itertools
 
 from PyQt4.QtGui import QIcon
@@ -8,8 +10,6 @@ from qgis.core import QGis
 from shapely.geometry import Point
 from shapely.wkt import loads
 
-import os
-import math
 
 from .qgis_hal import (
     clone_layer_as_memory_layer,
@@ -21,7 +21,6 @@ from .qgis_hal import (
 
 def max_value(values, default):
     return default if len(values) == 0 else max(values)
-
 
 def icon(name):
     return QIcon(os.path.join(os.path.dirname(__file__), 'res', name))
@@ -35,7 +34,6 @@ def create_projected_layer(layer, section_id):
             'projected_layer': get_id(layer)
         })
 
-
 def create_projected_polygon_layer(layer, section_id):
     polygon_layer = create_memory_layer(
             QGis.Polygon,
@@ -45,16 +43,11 @@ def create_projected_polygon_layer(layer, section_id):
                 'polygon_projected_layer': layer.id(),
                 'section_id': section_id
             })
-
     polygon_layer.setReadOnly(True)
-
     copy_layer_attributes_to_layer(layer, polygon_layer)
-
     # cpy style
     init_layer_polygon_renderer(polygon_layer)
-
     return polygon_layer
-
 
 def project_point(line, z_scale, x, y, z=0):
     # project a 3d point
@@ -72,7 +65,6 @@ def project_point(line, z_scale, x, y, z=0):
         _y = z * z_scale
         return (_x, _y, 0)
 
-
 def unproject_point(line, z_scale, x, y, z):
     # 2d -> 3d transfomration
     # x/y/z can be scalars or tuples
@@ -89,7 +81,6 @@ def unproject_point(line, z_scale, x, y, z):
     else:
         q = line.interpolate(x)
         return (q.x, q.y, y / z_scale)
-
 
 def sort_id_along_implicit_centroids_line(centroids):
     ''' Receive a dict of 'id: centroid' and returns a sorted list of id.
@@ -117,13 +108,11 @@ def sort_id_along_implicit_centroids_line(centroids):
     reverse = unit[0] < 0
     return sorted(projections, key=projections.get, reverse=reverse)
 
-
 def centroids_to_line_wkt(centroids):
     points = []
     for coords in centroids:
         points += [' '.join(str(x) for x in coords)]
     return 'LINESTRING({})'.format(', '.join(points))
-
 
 def distance2(coords1, coords2):
     """compute squared distance between two points
