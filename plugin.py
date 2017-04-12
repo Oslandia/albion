@@ -434,7 +434,6 @@ class Plugin(QObject):
 
         total = 0
 
-        print 'Marche po ?? {}'.format(len(polygons))
         for polygon in polygons:
             previous_idx = -1
             for i in range(0, len(polygon), 2):

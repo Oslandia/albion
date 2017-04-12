@@ -34,11 +34,9 @@ class TestFakeGeneratriceTranslationVector(unittest.TestCase):
         # distance only applies to xy
         self.assertTrue(abs(length(result[0:2]) - distance) < 0.00001)
 
-        def sign(f): return 1 if f > 0 else -1
-
-        self.assertEqual(sign(result[0]), sign(centroid1[0] - centroid2[0]))
-        self.assertEqual(sign(result[1]), sign(centroid1[1] - centroid2[1]))
-        self.assertEqual(sign(result[2]), sign(centroid1[2] - centroid2[2]))
+        self.assertTrue((result[0] * (centroid1[0] - centroid2[0])) >= 0)
+        self.assertTrue((result[1] * (centroid1[1] - centroid2[1])) >= 0)
+        self.assertTrue((result[2] * (centroid1[2] - centroid2[2])) >= 0)
 
 
 if __name__ == '__main__':

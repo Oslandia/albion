@@ -225,10 +225,13 @@ class Test_compute_segment_geometry(unittest.TestCase):
         a = loads(wkt1)
         b = loads(wkt2)
 
-        if not a.is_valid or \
-           not b.is_valid or \
-           a.almost_equals(b, decimal=4) or \
-           a.union(b).almost_equals(a, decimal=4):
+        try:
+            if not a.is_valid or \
+               not b.is_valid or \
+               a.almost_equals(b, decimal=4) or \
+               a.union(b).almost_equals(a, decimal=4):
+                reject()
+        except:
             reject()
 
         try:
