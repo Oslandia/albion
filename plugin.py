@@ -4,8 +4,12 @@ import sys
 import logging
 import traceback
 
-from qgis.core import QgsGeometry, QgsWKBTypes, QgsVectorLayer, PolygonLayerProjection, QgsLayerTreeLayer
-from qgis.gui import QgsSingleSymbolRendererV2, QgsMapLayerRegistry
+from qgis.core import (QgsGeometry,
+                       QgsWKBTypes,
+                       QgsVectorLayer,
+                       QgsLayerTreeLayer,
+                       QgsSingleSymbolRendererV2,
+                       QgsMapLayerRegistry)
 # from qgis.core import *
 # from qgis.gui import *
 
