@@ -27,9 +27,9 @@ Install plugin:
 python -m albion.package -i
 ```
 
-Run tests and build the doc (in `docs/build/html/index.html`):
+Run tests:
 ```sh
-python -m albion.test
+pytest
 ```
 
 
