@@ -23,6 +23,7 @@ from qgis.core import (QgsMapLayerRegistry,
                        QgsGeometry)
 
 from shapely.wkt import loads
+from shapely.geometry import Point
 
 
 def layer_has_z(layer):
@@ -100,6 +101,30 @@ def intersect_linestring_layer_with_wkt(layer, wkt, buffer_width):
     # request features inside bounding-box
     for feature in layer.getFeatures(QgsFeatureRequest(bbox)):
         if does_buffer_interesects_feature(buf, feature):
+            yield feature
+
+
+def intersect_point_layer_with_wkt(layer, wkt, buffer_width):
+    """ Return all features from given layer that intersects with wkt """
+
+    assert QgsWKBTypes.geometryType(
+            int(layer.wkbType())) == QgsWKBTypes.PointGeometry
+
+    line = loads(wkt.replace('Z', ' Z'))
+
+    if not line.is_valid:
+        logging.warning('Invalid feature geometry wkt={}'.format(wkt))
+        return
+
+    # square cap style for the buffer -> less points
+    buf = line.buffer(buffer_width, cap_style=2)
+    bbox = QgsRectangle(
+        buf.bounds[0], buf.bounds[1], buf.bounds[2], buf.bounds[3])
+
+    # request features inside bounding-box
+    for feature in layer.getFeatures(QgsFeatureRequest(bbox)):
+        p = feature.geometry().asPoint()
+        if buf.contains(Point(p.x(), p.y())):
             yield feature
 
 
@@ -411,4 +436,3 @@ def wkt_from_qgeom(geom):
     """Return a WKT string from a QGis Geometry object
     """
     return QgsGeometry.exportToWkt(geom)
-

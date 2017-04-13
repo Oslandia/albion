@@ -60,9 +60,6 @@ class Toolbar(QToolBar):
             lambda action: (not is_layer_projected_in_section(
                 iface.mapCanvas().currentLayer().id(), self.__section_id),
                 'Layer is already projected'))
-        h.add_is_enabled_test(
-            lambda action: (layer_has_z(iface.mapCanvas().currentLayer()),
-                            'Selected layer doesnt have XYZ geom'))
         self.__action_helper = h
 
         self.selectLineAction = self.addAction(

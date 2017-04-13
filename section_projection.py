@@ -13,6 +13,7 @@ from .qgis_hal import (remove_features_from_layer,
                        get_all_layer_features,
                        get_feature_attribute_values,
                        intersect_features_with_wkt,
+                       intersect_point_layer_with_wkt,
                        qgeom_from_wkt)
 from .graph_operations import compute_section_polygons_from_graph
 from .utils import create_projected_layer, project_point, unproject_point
@@ -79,6 +80,34 @@ def project_layer_as_linestring(line, z_scale, line_width,
             if _i(lid, start) in visible_connected_features and \
                _i(lid, end) in visible_connected_features:
                 to_project += [edge]
+
+    projected_features = [
+        clone_feature_with_geometry_transform(
+            f,
+            partial(project, line, z_scale))
+        for f in to_project]
+
+    insert_features_in_layer(projected_features, projected_layer)
+
+
+def project_layer_as_point(line, z_scale, line_width,
+                           layer,
+                           projected_layer,
+                           remove_all=True):
+    "project source features on section plane defined by line"
+    logging.debug('Apply projection to layer {}'.format(
+        projected_layer.name()))
+
+    if remove_all:
+        remove_features_from_layer(projected_layer)
+
+    logging.debug('projecting {} (geom={})'.format(
+        get_name(layer), projected_layer.geometryType()))
+
+    to_project = intersect_point_layer_with_wkt(
+                    layer,
+                    line.wkt,
+                    line_width)
 
     projected_features = [
         clone_feature_with_geometry_transform(

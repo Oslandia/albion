@@ -10,12 +10,13 @@ from shapely.wkt import loads
 from PyQt4.QtCore import QObject, pyqtSignal
 
 from .qgis_hal import (get_layers_with_properties,
-                        projected_layer_to_original,
-                        get_all_layer_features,
-                        get_name)
+                       projected_layer_to_original,
+                       get_all_layer_features,
+                       get_name)
 
 from .section_projection import (project_layer_as_linestring,
-                                  project_layer_as_polygon)
+                                 project_layer_as_polygon,
+                                 project_layer_as_point)
 
 
 
@@ -66,6 +67,12 @@ class Section(QObject):
                 source_layer = projected_layer_to_original(
                     layer, 'polygon_projected_layer')
                 project_layer_as_polygon(
+                    self.__line, self.__z_scale, self.__width,
+                    source_layer, layer, True)
+            elif geom_type == QgsWKBTypes.PointGeometry:
+                source_layer = projected_layer_to_original(
+                    layer, 'projected_layer')
+                project_layer_as_point(
                     self.__line, self.__z_scale, self.__width,
                     source_layer, layer, True)
             else:
