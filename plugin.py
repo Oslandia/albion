@@ -5,10 +5,8 @@ import logging
 import traceback
 
 from qgis.core import (QgsGeometry,
-                       QgsWKBTypes,
                        QgsVectorLayer,
                        QgsLayerTreeLayer,
-                       QgsSingleSymbolRendererV2,
                        QgsMapLayerRegistry)
 
 from PyQt4.QtCore import Qt, QObject
@@ -51,7 +49,8 @@ from .qgis_hal import (get_feature_by_id,
                        create_new_feature,
                        insert_features_in_layer,
                        get_layer_max_feature_attribute,
-                       remove_features_from_layer)
+                       remove_features_from_layer,
+                       is_projected_layer)
 
 from .graph import to_volume
 
@@ -547,20 +546,9 @@ class Plugin(QObject):
             self.toolbar.sections_layers_combo.active_layers_id()
         self.rendering_3d_intialized = True
 
-        # hmmmm
         for layer in get_all_layers():
             # only draw projected layers
-            if layer.customProperty('section_id') is not None:
-                continue
-            if layer.customProperty('graph'):
-                continue
-            if not layer.isSpatial():
-                continue
-            if QgsWKBTypes.geometryType(int(layer.wkbType())) != QgsWKBTypes.LineGeometry:
-                continue
-            if not isinstance(layer.rendererV2(), QgsSingleSymbolRendererV2):
-                continue
-            if get_id(layer) in section_layers_id:
+            if not is_projected_layer(layer, section_layers_id):
                 continue
 
             layer_vertices = []

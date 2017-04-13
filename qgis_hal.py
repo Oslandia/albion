@@ -378,3 +378,24 @@ def create_new_feature(layer, wkt, attributes=None):
 
 def root_layer_group_from_iface(iface):
     return iface.layerTreeView().layerTreeModel().rootGroup()
+
+
+def is_projected_layer(layer, section_layers_id):
+    """Return True if it's a projected layer
+
+    XXX is it a better to identify a 'projected' layer (by an attribute or some
+    metadata)?
+    """
+    if layer.customProperty('section_id') is not None:
+        return False
+    if layer.customProperty('graph'):
+        return False
+    if not layer.isSpatial():
+        return False
+    if QgsWKBTypes.geometryType(int(layer.wkbType())) != QgsWKBTypes.LineGeometry:
+        return False
+    if not isinstance(layer.rendererV2(), QgsSingleSymbolRendererV2):
+        return False
+    if get_id(layer) in section_layers_id:
+        return False
+    return True
