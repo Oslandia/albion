@@ -13,8 +13,6 @@ from qgis.gui import QgsMapTool
 
 from PyQt4.QtCore import pyqtSignal
 
-from shapely.geometry import LineString
-
 from .qgis_hal import get_all_layers_with_property_set, get_id, wkt_from_qgeom
 
 
@@ -54,11 +52,3 @@ class LineSelectTool(QgsMapTool):
                             layer,
                             feat)
                         return
-        # emit a small linestring in the x direction
-        layerPoint = self.toMapCoordinates(event.pos())
-        self.line_clicked.emit(
-            LineString([(
-                layerPoint.x()-radius, layerPoint.y()),
-                (layerPoint.x()+radius, layerPoint.y())]).wkt,
-            None,
-            None)
