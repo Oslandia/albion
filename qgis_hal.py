@@ -365,7 +365,9 @@ def get_feature_centroid(feature):
     geom = feature.geometry()
     if QgsWKBTypes.hasZ(int(geom.wkbType())):
         v = loads(geom.exportToWkt().replace('Z', ' Z'))
-        return [(v.coords[1][i] + v.coords[0][i]) * 0.5 for i in range(0, 3)]
+        points_count = len(v.coords)
+        z_avg = sum([v.coords[i][2] for i in range(0, points_count)])
+        return [v.centroid.x, v.centroid.y, z_avg]
     else:
         p = geom.centroid().asPoint()
         return [p.x(), p.y()]
