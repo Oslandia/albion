@@ -1,9 +1,15 @@
 # coding: utf-8
 
-# This file is the ony allowed to deal with QGIS data structure (Qgs*)
-# They can be used elsewhere, but only as opaque types
-# So basically `import qgis.*` should only appear here and in plugin.py
-# TODO: test this file using a file project
+"""
+This file is the ony allowed to deal with QGIS data structure (Qgs*)
+They can be used elsewhere, but only as opaque types
+So basically `import qgis.*` should only appear here and in plugin.py
+
+TODO: test this file using a file project
+"""
+
+from math import sqrt
+import logging
 
 from qgis.core import (QgsMapLayerRegistry,
                        QgsFeatureRequest,
@@ -15,9 +21,8 @@ from qgis.core import (QgsMapLayerRegistry,
                        QgsSingleSymbolRendererV2,
                        QgsFillSymbolV2,
                        QgsGeometry)
+
 from shapely.wkt import loads
-from math import sqrt
-import logging
 
 
 def layer_has_z(layer):
@@ -26,7 +31,6 @@ def layer_has_z(layer):
 
     note: we return True for a layer with no geometries
     """
-
     if not isinstance(layer, QgsVectorLayer):
         return False
     if not layer.isSpatial():
@@ -38,7 +42,6 @@ def layer_has_z(layer):
 
 def is_layer_projected_in_section(layer_id, section_id):
     layers = QgsMapLayerRegistry.instance().mapLayers()
-
     for layer in layers:
         if (layers[layer].customProperty('section_id') == section_id and
                 layers[layer].customProperty('projected_layer') == layer_id):
@@ -59,7 +62,6 @@ def projected_layer_to_original(layer, custom_property='projected_layer'):
 def projected_feature_to_original(source_layer, feature):
     # needed so we can use attribute(name)
     link = get_feature_attribute_values(source_layer, feature, 'link')
-
     try:
         result = list(query_layer_features_by_attributes(
             source_layer, {'link': link}))
@@ -84,21 +86,17 @@ def does_buffer_interesects_feature(buf, feature):
 
 def intersect_linestring_layer_with_wkt(layer, wkt, buffer_width):
     """ Return all features from given layer that intersects with wkt """
-
     assert QgsWKBTypes.geometryType(
             int(layer.wkbType())) == QgsWKBTypes.LineGeometry
 
     line = loads(wkt.replace('Z', ' Z'))
-
     if not line.is_valid:
         logging.warning('Invalid feature geometry wkt={}'.format(wkt))
         return
-
     # square cap style for the buffer -> less points
     buf = line.buffer(buffer_width, cap_style=2)
     bbox = QgsRectangle(
         buf.bounds[0], buf.bounds[1], buf.bounds[2], buf.bounds[3])
-
     # request features inside bounding-box
     for feature in layer.getFeatures(QgsFeatureRequest(bbox)):
         if does_buffer_interesects_feature(buf, feature):
@@ -107,14 +105,11 @@ def intersect_linestring_layer_with_wkt(layer, wkt, buffer_width):
 
 def intersect_features_with_wkt(layers_features, wkt, buffer_width):
     line = loads(wkt.replace('Z', ' Z'))
-
     if not line.is_valid:
         logging.warning('Invalid feature geometry wkt={}'.format(wkt))
         return
-
     # square cap style for the buffer -> less points
     buf = line.buffer(buffer_width, cap_style=2)
-
     # request features inside bounding-box
     for layer_id in layers_features:
         layer = get_layer_by_id(layer_id)
@@ -149,7 +144,6 @@ def insert_features_in_layer(features, layer):
 
 def create_memory_layer(geometry_type, crs, name, custom_properties=None):
     assert geometry_type in (QGis.Point, QGis.Line, QGis.Polygon)
-
     layer = QgsVectorLayer(
         "{}?crs={}&index=yes".format(
             {
@@ -159,13 +153,10 @@ def create_memory_layer(geometry_type, crs, name, custom_properties=None):
             }[geometry_type],
             crs.authid()
             ), name, "memory")
-
     layer.setCrs(crs)
-
     if custom_properties:
         for key in custom_properties:
             layer.setCustomProperty(key, custom_properties[key])
-
     return layer
 
 
@@ -176,7 +167,6 @@ def copy_layer_attributes_to_layer(src_layer,
         src_layer.fields().count())]
     if extra_attributes:
         attr += extra_attributes
-
     dst_layer.dataProvider().addAttributes(attr)
     dst_layer.updateFields()
 
@@ -187,12 +177,9 @@ def clone_layer_as_memory_layer(layer, custom_properties=None):
         layer.crs(),
         layer.name(),
         custom_properties)
-
     copy_layer_attributes_to_layer(layer, clone)
-
     # cpy style
     clone.setRendererV2(layer.rendererV2().clone())
-
     return clone
 
 
@@ -200,7 +187,6 @@ def layer_matches_all_properties(layer, properties):
     for key in properties:
         if layer.customProperty(key) != properties[key]:
             return False
-
     return True
 
 
@@ -245,34 +231,27 @@ def __fixup_layer_attribute_names(layer, *attributes_value):
         for name in arg:
             result[__fixup_layer_attribute_name(
                 layer, name)] = arg[name]
-
     return result
 
 
 def query_layer_features_by_attributes(layer, *attributes_value):
     assert len(attributes_value) > 0
     expr = []
-
     fixed = __fixup_layer_attribute_names(layer, *attributes_value)
     for attr in fixed:
         expr += ['"{}" = \'{}\''.format(attr, fixed[attr])]
-
     req = QgsFeatureRequest()
-
     if len(attributes_value) == 1:
         req.setFilterExpression(expr[0])
     else:
         req.setFilterExpression(' AND '.join(expr))
-
     logging.debug('query_layer_features_by_attributes req = "{}"'.format(
         req.filterExpression().expression()))
-
     return layer.getFeatures(req)
 
 
 def query_layer_features_by_attributes_in(layer, *attributes_in):
     assert len(attributes_in) > 0
-
     expr = []
     fixed = __fixup_layer_attribute_names(layer, *attributes_in)
     for attr in fixed:
@@ -280,13 +259,11 @@ def query_layer_features_by_attributes_in(layer, *attributes_in):
         for v in fixed[attr]:
             ex += "'{}',".format(str(v))
         expr += ['"{}" IN ({})'.format(attr, ex[0:-1])]
-
     req = QgsFeatureRequest()
     if len(attributes_in) == 1:
         req.setFilterExpression(expr[0])
     else:
         req.setFilterExpression(' AND '.join(expr))
-
     return layer.getFeatures(req)
 
 
@@ -313,7 +290,6 @@ def get_all_features_attributes(layer, *attributes):
         attr = []
         for a in attributes:
             attr += [feature.attribute(__fixup_layer_attribute_name(layer, a))]
-
         yield attr
 
 
@@ -339,7 +315,6 @@ def get_feature_attribute_values(layer, feature, *attributes):
         idx = layer.fields().fieldNameIndex(
             __fixup_layer_attribute_name(layer, a))
         result += [feature[idx]]
-
     if len(attributes) == 1:
         return result[0]
     return result
