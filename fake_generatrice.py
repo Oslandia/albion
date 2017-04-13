@@ -1,22 +1,27 @@
 # coding: utf-8
 
-from qgis.core import QgsFeatureRequest, QgsGeometry
+from functools import partial
+
+from qgis.core import QgsFeatureRequest
+
 from shapely.geometry import Point
 from shapely.ops import transform
 from shapely.wkt import loads
+
 from .qgis_hal import (insert_features_in_layer,
                        get_id,
                        create_new_feature,
                        clone_feature_with_geometry_transform,
                        get_feature_attribute_values,
-                       feature_to_shapely_wkt)
+                       feature_to_shapely_wkt,
+                       qgeom_from_wkt)
 from .graph_operations import compute_segment_geometry
-from functools import partial
+
 
 
 def __transform_geom(translation, geom):
     g = loads(geom.exportToWkt().replace("Z", " Z"))
-    return QgsGeometry.fromWkt(
+    return qgeom_from_wkt(
         transform(lambda x, y, z: (x + translation[0],
                                    y + translation[1],
                                    z + translation[2]),

@@ -1,5 +1,12 @@
 # coding: utf-8
 
+import logging
+import traceback
+from operator import xor
+
+from shapely.geometry import LineString
+from shapely.wkt import loads
+
 from .qgis_hal import (
     query_layer_feature_by_id,
     get_layer_max_feature_attribute,
@@ -19,16 +26,10 @@ from .qgis_hal import (
     query_layer_features_by_attributes_in,
     get_layer_features_count_by_attributes,
     layer_has_field,
-    remove_features_from_layer)
+    remove_features_from_layer,
+    qgeom_from_wkt)
 from .graph import extract_paths
 from .utils import project_point
-
-from qgis.core import QgsGeometry
-from operator import xor
-from shapely.geometry import LineString
-from shapely.wkt import loads
-import logging
-import traceback
 
 
 def is_fake_feature(layer, feature):
@@ -253,7 +254,7 @@ def refresh_graph_layer_edges(self, graph_layer):
 
                 # update geometry
                 graph_layer.dataProvider().changeGeometryValues(
-                    {edge.id(): QgsGeometry.fromWkt(line_string.wkt)})
+                    {edge.id(): qgeom_from_wkt(line_string.wkt)})
             except Exception as e:
                 logging.error(e)
         else:

@@ -24,7 +24,6 @@ from shapely.wkt import loads
 from shapely.geometry import Point
 
 from .graph_edit_tool import GraphEditTool
-
 from .viewer_3d.viewer_3d import Viewer3D
 
 from .fake_generatrice import create as fg_create
@@ -50,7 +49,8 @@ from .qgis_hal import (get_feature_by_id,
                        insert_features_in_layer,
                        get_layer_max_feature_attribute,
                        remove_features_from_layer,
-                       is_3d_layer)
+                       is_3d_layer,
+                       qgeom_from_wkt)
 
 from .graph import to_volume
 
@@ -707,7 +707,7 @@ class Plugin(QObject):
                 layer = get_layer_by_id(layer_id)
                 featA = get_feature_by_id(layer, featA_id)
                 featB = get_feature_by_id(layer, featB_id)
-                target.dataProvider().changeGeometryValues({segment.id(): QgsGeometry.fromWkt(GraphEditTool.segmentGeometry(featA, featB).wkt)})
+                target.dataProvider().changeGeometryValues({segment.id(): qgeom_from_wkt(GraphEditTool.segmentGeometry(featA, featB).wkt)})
 
             target.endEditCommand()
             target.updateExtents()
@@ -747,7 +747,7 @@ class Plugin(QObject):
     #                 featA = layer.getFeatures(QgsFeatureRequest(segment.attribute('start'))).next()
     #                 featB = layer.getFeatures(QgsFeatureRequest(segment.attribute('end'))).next()
 
-    #                 layer.changeGeometry(segment.id(), QgsGeometry.fromWkt(GraphEditTool.segmentGeometry(featA, featB).wkt))
+    #                 layer.changeGeometry(segment.id(), qgeom_from_wkt(GraphEditTool.segmentGeometry(featA, featB).wkt))
     #             print 'ICI <'
 
     #             target.endEditCommand()

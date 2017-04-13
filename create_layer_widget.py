@@ -4,11 +4,8 @@ import os
 import logging
 from math import sqrt
 
-# from qgis.core import *
-# from qgis.gui import *
-from qgis.core import QGis, QgsGeometry, QgsFeature, QgsMapLayer, QgsMapLayerRegistry, QgsVectorLayer, QgsField
-# from qgis.gui import QgsMapLa
-
+from qgis.core import (QGis, QgsGeometry, QgsFeature, QgsMapLayer,
+                       QgsMapLayerRegistry, QgsVectorLayer, QgsField)
 
 from PyQt4 import uic
 from PyQt4.QtCore import QVariant

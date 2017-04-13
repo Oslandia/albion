@@ -10,6 +10,7 @@ from qgis.gui import (QgsMapCanvas, QgsMapToolPan,
 from PyQt4.QtGui import QColor, QMessageBox
 
 from .action_state_helper import ActionStateHelper
+from .qgis_hal import qgeom_from_wkt
 
 
 class Canvas(QgsMapCanvas):
@@ -90,7 +91,7 @@ class Canvas(QgsMapCanvas):
         if not line_wkt:
             return
         self.__highlighter = QgsRubberBand(self.__iface.mapCanvas(), QGis.Line)
-        self.__highlighter.addGeometry(QgsGeometry.fromWkt(line_wkt), None) # todo use section.line
+        self.__highlighter.addGeometry(qgeom_from_wkt(line_wkt), None) # todo use section.line
         self.__highlighter.setWidth((2 * width) / self.__iface.mapCanvas().getCoordinateTransform().mapUnitsPerPixel())
         color = QColor(255, 0, 0, 128)
         self.__highlighter.setColor(color)
@@ -133,7 +134,7 @@ class Canvas(QgsMapCanvas):
 
         ext = self.extent()
 
-        line = QgsGeometry.fromWkt(self.__section.line.wkt)
+        line = qgeom_from_wkt(self.__section.line.wkt)
 
         # section visibility bounds
         start = max(0, ext.xMinimum())

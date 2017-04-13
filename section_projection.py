@@ -4,8 +4,6 @@ import logging
 from shapely.wkt import loads
 from shapely.ops import transform
 
-from qgis.core import (QgsGeometry)
-
 from .qgis_hal import (remove_features_from_layer,
                        clone_feature_with_geometry_transform,
                        intersect_linestring_layer_with_wkt,
@@ -14,7 +12,8 @@ from .qgis_hal import (remove_features_from_layer,
                        create_new_feature,
                        get_all_layer_features,
                        get_feature_attribute_values,
-                       intersect_features_with_wkt)
+                       intersect_features_with_wkt,
+                       qgeom_from_wkt)
 from .graph_operations import compute_section_polygons_from_graph
 from .utils import create_projected_layer, project_point, unproject_point
 
@@ -139,7 +138,4 @@ def __transform(qgs_geometry, point_transformation):
     """returns a transformed geometry"""
     # TODO use wkb to optimize ?
     geom = loads(qgs_geometry.exportToWkt().replace("Z", " Z"))
-    return QgsGeometry.fromWkt(
-            transform(
-                lambda x, y, z: point_transformation(x, y, z),
-                geom).wkt)
+    return qgeom_from_wkt(transform(point_transformation, geom).wkt)

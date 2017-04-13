@@ -1,17 +1,20 @@
 # coding: utf-8
-from qgis.core import (QGis,
-                       QgsField,
-                       QgsMapLayerRegistry,
-                       QgsFeature,
-                       QgsGeometry)
-from PyQt4.QtCore import QVariant, QTimer
-from shapely.geometry import LineString
 
 import logging
 
+from qgis.core import (QGis,
+                       QgsField,
+                       QgsMapLayerRegistry,
+                       QgsFeature)
+
+from PyQt4.QtCore import QVariant, QTimer
+
+from shapely.geometry import LineString
+
 from .qgis_hal import (insert_features_in_layer,
                        create_memory_layer,
-                       copy_layer_attributes_to_layer)
+                       copy_layer_attributes_to_layer,
+                       qgeom_from_wkt)
 
 
 class ConvertDataLayer():
@@ -43,8 +46,7 @@ class ConvertDataLayer():
                   f.attribute('To Z'))
             geom = LineString([p1, p2])
             new_feature = QgsFeature()
-            new_feature.setGeometry(
-                QgsGeometry.fromWkt(geom.wkt.replace(' Z', 'Z')))
+            new_feature.setGeometry(qgeom_from_wkt(geom.wkt.replace(' Z', 'Z')))
 
             attrs = f.attributes()
             attrs += [self.my_id]
