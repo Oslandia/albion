@@ -10,8 +10,6 @@ from qgis.core import (QgsGeometry,
                        QgsLayerTreeLayer,
                        QgsSingleSymbolRendererV2,
                        QgsMapLayerRegistry)
-# from qgis.core import *
-# from qgis.gui import *
 
 from PyQt4.QtCore import Qt, QObject
 from PyQt4.QtGui import (QDockWidget,
@@ -69,8 +67,7 @@ from .section_projection import (project_layer_as_linestring,
 
 from .global_toolbar import GlobalToolbar
 
-from .utils import (max_value,
-                    icon,
+from .utils import (icon,
                     create_projected_layer,
                     sort_id_along_implicit_centroids_line,
                     centroids_to_line_wkt,
