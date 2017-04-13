@@ -50,7 +50,7 @@ from .qgis_hal import (get_feature_by_id,
                        insert_features_in_layer,
                        get_layer_max_feature_attribute,
                        remove_features_from_layer,
-                       is_projected_layer)
+                       is_3d_layer)
 
 from .graph import to_volume
 
@@ -548,7 +548,7 @@ class Plugin(QObject):
 
         for layer in get_all_layers():
             # only draw projected layers
-            if not is_projected_layer(layer, section_layers_id):
+            if not is_3d_layer(layer, section_layers_id):
                 continue
 
             layer_vertices = []

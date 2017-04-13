@@ -380,10 +380,10 @@ def root_layer_group_from_iface(iface):
     return iface.layerTreeView().layerTreeModel().rootGroup()
 
 
-def is_projected_layer(layer, section_layers_id):
-    """Return True if it's a projected layer
+def is_3d_layer(layer, section_layers_id):
+    """Return True if it's a layer which is drew in 3D
 
-    XXX is it a better to identify a 'projected' layer (by an attribute or some
+    XXX is it a better to identify this kind of layer (by an attribute or some
     metadata)?
     """
     if layer.customProperty('section_id') is not None:
