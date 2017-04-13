@@ -25,6 +25,7 @@ import math
 
 from .main_window import MainWindow
 from shapely.wkt import loads
+from shapely.geometry import Point
 
 from .graph_edit_tool import GraphEditTool
 
@@ -841,56 +842,67 @@ class Plugin(QObject):
 
             self.__on_graph_modified()
 
-    def __select_previous_section_line(self):
+    def __cycle_through_section_lines(self, direction, Farthest=False):
+        ''' Select the nearest line to the current one, assuming they are all
+            roughly parallel. The selection is performed by selecting
+            the line whose centroid projected on the normal of the current line
+            is the closest.
+            If Farthest is True, then we select the farthest away (useful for
+            looping)
+        '''
         if not self.__section_main.section.is_valid:
             return
         layer = self.__section_main.section.layer
         if layer is None:
             return
-        centroids = {}
 
+        current_id = get_id(self.__section_main.section.feature)
+        line = self.__section_main.section.line
+        delta = [
+            line.coords[-1][0] - line.coords[0][0],
+            line.coords[-1][1] - line.coords[0][1]
+        ]
+        # normal to current line
+        normal = [-delta[1], delta[0]]
+        normal_wkt = 'LINESTRING({} {}, {} {})'.format(
+            line.centroid.x, line.centroid.y,
+            line.centroid.x + direction * normal[0],
+            line.centroid.y + direction * normal[1])
+        normal_shapely = loads(normal_wkt)
+
+        selected = None
+        best_distance = float('inf') if not Farthest else 0
+        cmp_reference = -1 if not Farthest else 1
+
+        # project all centroids on normal and select nearest
         for f in get_all_layer_features(layer):
-            centroids[get_id(f)] = get_feature_centroid(f)[0:2]  # drop z coord
+            if get_id(f) == current_id:
+                continue
+            c = get_feature_centroid(f)
+            d = normal_shapely.project(Point(c[0], c[1]))
+            if d > 0 and cmp(d, best_distance) == cmp_reference:
+                best_distance = d
+                selected = f
 
-        s = sort_id_along_implicit_centroids_line(centroids)
+        if selected is not None:
+            section_width = float(
+                self.__section_main.toolbar.buffer_width.text())
+            self.__section_main.section.update(
+                QgsGeometry.exportToWkt(selected.geometry()),
+                layer,
+                selected,
+                section_width)
+            return True
 
-        current = s.index(get_id(self.__section_main.section.feature))
+        return False
 
-        previous = get_feature_by_id(layer,
-                                     s[(current - 1 + len(s)) % len(s)])
-
-        section_width = float(self.__section_main.toolbar.buffer_width.text())
-        self.__section_main.section.update(
-            QgsGeometry.exportToWkt(previous.geometry()),
-            layer,
-            previous,
-            section_width)
+    def __select_previous_section_line(self):
+        if not self.__cycle_through_section_lines(-1):
+            self.__cycle_through_section_lines(+1, True)
 
     def __select_next_section_line(self):
-        if not self.__section_main.section.is_valid:
-            return
-        layer = self.__section_main.section.layer
-        if layer is None:
-            return
-        centroids = {}
-
-        for f in get_all_layer_features(layer):
-            centroids[get_id(f)] = get_feature_centroid(f)[0:2]  # drop z coord
-
-        s = sort_id_along_implicit_centroids_line(centroids)
-
-        current = s.index(get_id(self.__section_main.section.feature))
-
-        n = get_feature_by_id(layer,
-                                 s[(current + 1) % len(s)])
-
-        section_width = float(self.__section_main.toolbar.buffer_width.text())
-        self.__section_main.section.update(
-            QgsGeometry.exportToWkt(n.geometry()),
-            layer,
-            n,
-            section_width)
-
+        if not self.__cycle_through_section_lines(+1):
+            self.__cycle_through_section_lines(-1, True)
 
     @staticmethod
     def _compute_fake_generatrice_translation_vec(centroid, centroid2, dist):
