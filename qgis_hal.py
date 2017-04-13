@@ -363,7 +363,7 @@ def init_layer_polygon_renderer(layer):
 def create_new_feature(layer, wkt, attributes=None):
     new_feature = QgsFeature()
     if wkt is not None:
-        geom = QgsGeometry.fromWkt(wkt)
+        geom = qgeom_from_wkt(wkt)
         if geom is None:
             raise Exception('invalid wkt "{}"'.format(wkt))
         new_feature.setGeometry(geom)
@@ -399,3 +399,9 @@ def is_3d_layer(layer, section_layers_id):
     if get_id(layer) in section_layers_id:
         return False
     return True
+
+
+def qgeom_from_wkt(wkt):
+    """Return a QGis Geometry from a wkt string
+    """
+    return QgsGeometry.fromWkt(wkt)
