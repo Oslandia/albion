@@ -827,12 +827,12 @@ class Plugin(QObject):
 
             self.__on_graph_modified()
 
-    def __cycle_through_section_lines(self, direction, Farthest=False):
+    def __cycle_through_section_lines(self, direction, farthest=False):
         ''' Select the nearest line to the current one, assuming they are all
             roughly parallel. The selection is performed by selecting
             the line whose centroid projected on the normal of the current line
             is the closest.
-            If Farthest is True, then we select the farthest away (useful for
+            If farthest is True, then we select the farthest away (useful for
             looping)
         '''
         if not self.__section_main.section.is_valid:
@@ -856,8 +856,8 @@ class Plugin(QObject):
         normal_shapely = loads(normal_wkt)
 
         selected = None
-        best_distance = float('inf') if not Farthest else 0
-        cmp_reference = -1 if not Farthest else 1
+        best_distance = float('inf') if not farthest else 0
+        cmp_reference = -1 if not farthest else 1
 
         # project all centroids on normal and select nearest
         for f in get_all_layer_features(layer):
