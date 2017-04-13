@@ -4,8 +4,7 @@ import sys
 import logging
 import traceback
 
-from qgis.core import (QgsGeometry,
-                       QgsVectorLayer,
+from qgis.core import (QgsVectorLayer,
                        QgsLayerTreeLayer,
                        QgsMapLayerRegistry)
 
@@ -50,7 +49,8 @@ from .qgis_hal import (get_feature_by_id,
                        get_layer_max_feature_attribute,
                        remove_features_from_layer,
                        is_3d_layer,
-                       qgeom_from_wkt)
+                       qgeom_from_wkt,
+                       wkt_from_qgeom)
 
 from .graph import to_volume
 
@@ -873,7 +873,7 @@ class Plugin(QObject):
             section_width = float(
                 self.__section_main.toolbar.buffer_width.text())
             self.__section_main.section.update(
-                QgsGeometry.exportToWkt(selected.geometry()),
+                wkt_from_qgeom(selected.geometry()),
                 layer,
                 selected,
                 section_width)

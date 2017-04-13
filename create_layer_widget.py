@@ -14,7 +14,7 @@ from PyQt4.QtGui import QDialog
 from shapely.wkt import loads
 from shapely.geometry import LineString
 
-from .qgis_hal import insert_features_in_layer
+from .qgis_hal import insert_features_in_layer, wkt_from_qgeom
 
 
 def substring_3d(linestring, from_, to_):
@@ -123,7 +123,7 @@ class CreateLayerWidget(QDialog):
             id_ = feature[join_field]
             geom = QgsGeometry.fromWkt(
                     substring_3d(
-                        loads(QgsGeometry.exportToWkt(geometries[id_]).replace('Z', ' ')),
+                        loads(wkt_from_qgeom(geometries[id_]).replace('Z', ' ')),
                         from_, to_).wkt)
             new_feature = QgsFeature()
             attrs = feature.attributes()

@@ -1,5 +1,7 @@
 # coding: utf-8
 
+import logging
+
 from qgis.core import (QgsMapLayer,
                        QgsRectangle,
                        QgsGeometry,
@@ -10,10 +12,10 @@ from qgis.core import (QgsMapLayer,
 from qgis.gui import QgsMapTool
 
 from PyQt4.QtCore import pyqtSignal
-from shapely.geometry import LineString
-from .qgis_hal import get_all_layers_with_property_set, get_id
 
-import logging
+from shapely.geometry import LineString
+
+from .qgis_hal import get_all_layers_with_property_set, get_id, wkt_from_qgeom
 
 
 class LineSelectTool(QgsMapTool):
@@ -48,7 +50,7 @@ class LineSelectTool(QgsMapTool):
                        feat.geometry().length() > 0:
                         logging.info('found line in {}'.format(layer.name()))
                         self.line_clicked.emit(
-                            QgsGeometry.exportToWkt(feat.geometry()),
+                            wkt_from_qgeom(feat.geometry()),
                             layer,
                             feat)
                         return
