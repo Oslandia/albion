@@ -877,6 +877,8 @@ class Plugin(QObject):
                 layer,
                 selected,
                 section_width)
+
+            self.__dock.setWindowTitle('Section (id={})'.format(get_id(selected)))
             return True
 
         return False

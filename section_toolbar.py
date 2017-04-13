@@ -17,7 +17,8 @@ from .qgis_hal import (is_layer_projected_in_section,
                        get_layers_with_properties,
                        get_name,
                        layer_has_z,
-                       root_layer_group_from_iface)
+                       root_layer_group_from_iface,
+                       get_id)
 
 from .action_state_helper import ActionStateHelper
 
@@ -107,6 +108,9 @@ class Toolbar(QToolBar):
         self.selectLineAction.setChecked(False)
         self.__iface_canvas.unsetMapTool(self.__tool)
         self.line_clicked.emit(wkt_, layer, feature, float(self.buffer_width.text()))
+
+        self.parentWidget().parentWidget().setWindowTitle(
+            'Section (id={})'.format(get_id(feature)))
         ActionStateHelper.update_all()
 
     def __add_layer(self):
