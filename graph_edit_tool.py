@@ -62,7 +62,6 @@ class GraphEditTool(QgsMapToolEmitPoint):
         best = None
         for feat in layer.getFeatures(QgsFeatureRequest(rect)):
             # select nearest feature
-            p = feat.geometry().centroid().asPoint()
             d = feat.geometry().distance(pt)
 
             if d < dist:
