@@ -10,7 +10,6 @@ from qgis.core import QGis
 from shapely.geometry import Point
 from shapely.wkt import loads
 
-
 from .qgis_hal import (
     clone_layer_as_memory_layer,
     get_id,
@@ -20,11 +19,16 @@ from .qgis_hal import (
 
 
 def max_value(values, default):
+    """Return the max of values
+
+    If values is empty, return the `default` value
+    """
     return default if len(values) == 0 else max(values)
 
 def icon(name):
+    """Return a QIcon instance from the `res` directory
+    """
     return QIcon(os.path.join(os.path.dirname(__file__), 'res', name))
-
 
 def create_projected_layer(layer, section_id):
     return clone_layer_as_memory_layer(
@@ -50,34 +54,57 @@ def create_projected_polygon_layer(layer, section_id):
     return polygon_layer
 
 def project_point(line, z_scale, x, y, z=0):
+    """Project a 3D point
+
+    Carry out a 3D -> 2D transformation.
+
+    Paramaters
+    ----------
+
+    line : LineString
+    z_scale: float
+    x : scalar or tuple
+    y : scalar or tuple
+    z : scalar or tuple
+
+    Return a coordinate or a list of coords [(x1, x2), (y1, y1), (0, 0)]
+    """
     # project a 3d point
     # x/y/z can be scalars or tuples
     if isinstance(x, tuple):
-        _x = ()
-        _y = ()
-        _z = tuple((0 for i in range(0, len(x))))
-        for i in range(0, len(x)):
-            _x += (line.project(Point(x[i], y[i])),)
-            _y += (z[i] * z_scale,)
-        return (_x, _y, _z)
+        coords_x = ()
+        coords_y = ()
+        coords_z = tuple((0 for _ in x))
+        for xx, yy, zz in zip(x, y, z):
+            coords_x += (line.project(Point(xx, yy)),)
+            coords_y += (zz * z_scale,)
+        return coords_x, coords_y, coords_z
     else:
-        _x = line.project(Point(x, y))
-        _y = z * z_scale
-        return (_x, _y, 0)
+        coord_x = line.project(Point(x, y))
+        coord_y = z * z_scale
+        return coord_x, coord_y, 0
 
 def unproject_point(line, z_scale, x, y, z):
-    # 2d -> 3d transfomration
-    # x/y/z can be scalars or tuples
-    if isinstance(x, tuple):
-        _x = ()
-        _y = ()
-        for i in range(0, len(x)):
-            q = line.interpolate(x[i])
-            _x += (q.x, )
-            _y += (q.y, )
+    """Unproject a 3D point
 
-        return (_x,
-                _y, tuple((v / z_scale for v in y)))
+    Carry out a 2D -> 3D transformation.
+
+    line : LineString
+    z_scale : float
+    x : scalar or tuple
+    y : scalar or tuple
+    z : scalar or tuple
+
+    Return a coordinate or a list of coords [(x1, x2), (y1, y1), (z1, z2)]
+    """
+    if isinstance(x, tuple):
+        coords_x = ()
+        coords_y = ()
+        for xx in x:
+            q = line.interpolate(xx)
+            coords_x += (q.x, )
+            coords_y += (q.y, )
+        return (coords_x, coords_y, tuple((v / z_scale for v in y)))
     else:
         q = line.interpolate(x)
         return (q.x, q.y, y / z_scale)
