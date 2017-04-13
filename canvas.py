@@ -3,7 +3,6 @@
 from math import sqrt
 import logging
 
-# from qgis.core import QgsWKBTypes # unable to import QgsWKBTypes otherwize (quid?)
 from qgis.core import QGis, QgsGeometry, QgsRectangle, QgsApplication
 from qgis.gui import (QgsMapCanvas, QgsMapToolPan,
                       QgsMapToolZoom, QgsRubberBand)
