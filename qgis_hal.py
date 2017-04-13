@@ -405,3 +405,10 @@ def qgeom_from_wkt(wkt):
     """Return a QGis Geometry from a wkt string
     """
     return QgsGeometry.fromWkt(wkt)
+
+
+def wkt_from_qgeom(geom):
+    """Return a WKT string from a QGis Geometry object
+    """
+    return QgsGeometry.exportToWkt(geom)
+
