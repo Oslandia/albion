@@ -25,10 +25,12 @@ def max_value(values, default):
     """
     return default if len(values) == 0 else max(values)
 
+
 def icon(name):
     """Return a QIcon instance from the `res` directory
     """
     return QIcon(os.path.join(os.path.dirname(__file__), 'res', name))
+
 
 def create_projected_layer(layer, section_id):
     return clone_layer_as_memory_layer(
@@ -37,6 +39,7 @@ def create_projected_layer(layer, section_id):
             'section_id': section_id,
             'projected_layer': get_id(layer)
         })
+
 
 def create_projected_polygon_layer(layer, section_id):
     polygon_layer = create_memory_layer(
@@ -47,11 +50,16 @@ def create_projected_polygon_layer(layer, section_id):
                 'polygon_projected_layer': layer.id(),
                 'section_id': section_id
             })
+
     polygon_layer.setReadOnly(True)
+
     copy_layer_attributes_to_layer(layer, polygon_layer)
+
     # cpy style
     init_layer_polygon_renderer(polygon_layer)
+
     return polygon_layer
+
 
 def project_point(line, z_scale, x, y, z=0):
     """Project a 3D point
@@ -71,6 +79,9 @@ def project_point(line, z_scale, x, y, z=0):
     """
     # project a 3d point
     # x/y/z can be scalars or tuples
+    # Z axis is mapped on Y axis in projection canvas.
+    # We want positive Z going downward, so reverse z_scale
+    z_scale = -z_scale
     if isinstance(x, tuple):
         coords_x = ()
         coords_y = ()
@@ -83,6 +94,7 @@ def project_point(line, z_scale, x, y, z=0):
         coord_x = line.project(Point(x, y))
         coord_y = z * z_scale
         return coord_x, coord_y, 0
+
 
 def unproject_point(line, z_scale, x, y, z):
     """Unproject a 3D point
@@ -97,6 +109,9 @@ def unproject_point(line, z_scale, x, y, z):
 
     Return a coordinate or a list of coords [(x1, x2), (y1, y1), (z1, z2)]
     """
+    # Z axis is mapped on Y axis in projection canvas.
+    # We want positive Z going downward, so reverse z_scale
+    z_scale = -z_scale
     if isinstance(x, tuple):
         coords_x = ()
         coords_y = ()
@@ -107,7 +122,8 @@ def unproject_point(line, z_scale, x, y, z):
         return (coords_x, coords_y, tuple((v / z_scale for v in y)))
     else:
         q = line.interpolate(x)
-        return (q.x, q.y, y / z_scale)
+        return (q.x, -q.y, y / z_scale)
+
 
 def sort_id_along_implicit_centroids_line(centroids):
     ''' Receive a dict of 'id: centroid' and returns a sorted list of id.
@@ -123,6 +139,7 @@ def sort_id_along_implicit_centroids_line(centroids):
             max_distance = d
 
     line_wkt = centroids_to_line_wkt(extrema)
+
     line = loads(line_wkt)
 
     # project all centroids on this line
@@ -141,16 +158,19 @@ def sort_id_along_implicit_centroids_line(centroids):
 
     return sorted(projections, key=projections.get, reverse=reverse)
 
+
 def centroids_to_line_wkt(centroids):
     points = []
     for coords in centroids:
         points += [' '.join(str(x) for x in coords)]
     return 'LINESTRING({})'.format(', '.join(points))
 
+
 def distance2(coords1, coords2):
     """compute squared distance between two points
     """
-    return sum([pow(x - y, 2) for x,y in zip(coords1, coords2)])
+    return sum([pow(x - y, 2) for x, y in zip(coords1, coords2)])
+
 
 def length(coords):
     return math.sqrt(sum([x*x for x in coords]))
