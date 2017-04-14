@@ -16,7 +16,6 @@ from .section_tools import LineSelectTool
 from .qgis_hal import (is_layer_projected_in_section,
                        get_layers_with_properties,
                        get_name,
-                       layer_has_z,
                        root_layer_group_from_iface,
                        get_id)
 
