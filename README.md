@@ -33,3 +33,11 @@ pytest
 ```
 
 
+Process
+=======
+
+- Import directory
+- Create datamodel
+
+
+
