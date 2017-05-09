@@ -27,13 +27,19 @@ def load_devia(cur, filename, progress=None):
     cur.copy_expert("copy _albion.deviation from stdin delimiter ';' csv header", open(filename))
 
 def load_formation(cur, filename, progress):
-    cur.copy_expert("copy _albion.formation from stdin delimiter ';' csv header", open(filename))
+    cur.copy_expert("copy _albion.formation(hole_id, from_, to_, code, comments) from stdin delimiter ';' csv header", open(filename))
+    # fake update to trigger geometry construction
+    cur.execute("update albion.formation set geom=geom")
 
 def load_resi(cur, filename, progress):
-    cur.copy_expert("copy _albion.resistivity from stdin delimiter ';' csv header", open(filename))
+    cur.copy_expert("copy _albion.resistivity(hole_id, from_, to_, rho) from stdin delimiter ';' csv header", open(filename))
+    # fake update to trigger geometry construction
+    cur.execute("update albion.resistivity set geom=geom")
 
 def load_avp(cur, filename, progress):
-    cur.copy_expert("copy _albion.radiometry from stdin delimiter ';' csv header", open(filename))
+    cur.copy_expert("copy _albion.radiometry(hole_id, from_, to_, gamma) from stdin delimiter ';' csv header", open(filename))
+    # fake update to trigger geometry construction
+    cur.execute("update albion.radiometry set geom=geom")
 
 
 def load_file(cur, filename, progress=None):
