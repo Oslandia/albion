@@ -18,7 +18,7 @@ alter table _albion.grid alter column id set default uuid_generate_v4()::varchar
 create table _albion.metadata(
     id integer primary key default 1 check (id=1), -- only one entry in table
     srid integer not null references public.spatial_ref_sys(srid),
-    current_section varchar references _albion.grid(id),
+    current_section varchar references _albion.grid(id) on delete set null on update cascade,
     snap_distance real not null default 5,
     origin geometry('POINTZ', {srid}) not null default 'SRID={srid}; POINTZ(0 0 0)'::geometry,
     precision real,

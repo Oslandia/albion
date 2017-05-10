@@ -142,6 +142,19 @@ select row_number() over() as id, geom::geometry('POLYGON', {srid}) from poly wh
 ;
 
 
+create view albion.intersection_without_hole as
+with point as (
+    select (st_dumppoints(geom)).geom as geom from _albion.grid
+),
+non_collar as (
+    select geom from point
+    except
+    select st_force2d(geom) from _albion.collar
+)
+select row_number() over() as id, geom from non_collar
+;
+
+
 -- DATABASE INTERFACE (UPDATABE VIEWS)
 
 create or replace view albion.grid as
@@ -313,17 +326,34 @@ $$
             ', '$name', name));
 
         execute (select replace('
-            create table _albion.$name_link(
+            create or replace view albion.$name_node_section as
+            select f.id, f.hole_id, albion.section(f.geom, g.geom)::geometry(''LINESTRING'', {srid}) as geom
+            from albion.$name_node as f 
+            join albion.hole as h on h.id=f.hole_id
+            join albion.grid as g on st_intersects(st_startpoint(h.geom), g.geom)
+            where g.id = (select current_section from albion.metadata)
+            ', '$name', name));
+
+        execute (select replace('
+            create table _albion.$name_edge(
                 id varchar primary key default uuid_generate_v4()::varchar,
                 start_ varchar references _albion.$name_node(id),
                 end_ varchar references _albion.$name_node(id),
+                    unique (start_, end_),
                 grid_id varchar references _albion.grid(id),
-                geom geometry(''LINESTRINGZ'', {srid}) not null check (st_isvalid(geom) and st_numpoints(geom)=2)
+                geom geometry(''LINESTRINGZ'', {srid}) not null check (st_isvalid(geom))
             )
             ', '$name', name));
 
         execute (select replace('
-                create view albion.$name_link as select id, start_, end_, grid_id, geom from _albion.$name_link
+                create view albion.$name_edge as select id, start_, end_, grid_id, geom from _albion.$name_edge
+            ', '$name', name));
+
+        execute (select replace('
+            create or replace view albion.$name_edge_section as
+            select f.id, f.start_, f.end_, f.grid_id, albion.section(f.geom, g.geom)::geometry(''LINESTRING'', {srid}) as geom
+            from albion.$name_edge as f join albion.grid as g on g.id=f.grid_id
+            where g.id = (select current_section from albion.metadata)
             ', '$name', name));
 
         return 't'::boolean;
@@ -341,7 +371,7 @@ $$
 --select hole_id, from_, to_, code, comments
 
 create or replace view albion.formation_section as
-select f.id, f.from_, f.to_, f.code, f.comments, albion.section(f.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
+select f.id, f.hole_id, f.from_, f.to_, f.code, f.comments, albion.section(f.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
 from albion.formation as f 
 join albion.hole as h on h.id=f.hole_id
 join albion.grid as g on st_intersects(st_startpoint(h.geom), g.geom)
@@ -349,12 +379,170 @@ where g.id = (select current_section from albion.metadata)
 ;
 
 create or replace view albion.resistivity_section as
-select f.id, f.from_, f.to_, f.rho, albion.section(f.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
+select f.id, f.hole_id, f.from_, f.to_, f.rho, albion.section(f.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
 from albion.resistivity as f 
 join albion.hole as h on h.id=f.hole_id
 join albion.grid as g on st_intersects(st_startpoint(h.geom), g.geom)
 where g.id = (select current_section from albion.metadata)
 ;
 
+create or replace view albion.radiometry_section as
+select f.id, f.hole_id, f.from_, f.to_, f.gamma, albion.section(f.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
+from albion.radiometry as f 
+join albion.hole as h on h.id=f.hole_id
+join albion.grid as g on st_intersects(st_startpoint(h.geom), g.geom)
+where g.id = (select current_section from albion.metadata)
+;
 
+
+-- create graph edges for the specified grid element
+create or replace function albion.auto_connect(name varchar, grid_id varchar)
+returns boolean
+language plpgsql
+as
+$$
+    begin
+        execute (select replace(replace('
+        with node as ( 
+            select f.id, f.hole_id, st_3dlineinterpolatepoint(f.geom, .5) as geom
+            from albion.$name_node as f 
+            join albion.hole as h on h.id=f.hole_id
+            join albion.grid as g on st_intersects(st_startpoint(h.geom), g.geom)
+            where g.id = ''$grid_id''
+        ),
+        hole_pair as (
+            select
+                row_number() over() as id,
+                h.id as right, 
+                lag(h.id) over (order by st_linelocatepoint((select geom from albion.grid where id=''$grid_id''), st_startpoint(h.geom))) as left
+            from (select distinct hole_id from node) as n
+            join albion.hole as h on h.id=n.hole_id
+        ),
+        possible_edge as (
+            select 
+                n1.id as start_, 
+                n2.id as end_,
+                st_makeline(n1.geom, n2.geom) as geom, 
+                abs(st_z(n2.geom) - st_z(n1.geom))/st_distance(n2.geom, n1.geom) angle,
+                count(1) over (partition by n1.id) as c1,  
+                count(1) over (partition by n2.id) as c2, 
+                rank() over (partition by p.id order by abs(st_z(n2.geom) - st_z(n1.geom))/st_distance(n2.geom, n1.geom)) as rk
+            from hole_pair as p
+            join node as n1 on n1.hole_id=p.left
+            join node as n2 on n2.hole_id=p.right
+        )
+        insert into _albion.$name_edge(start_, end_, grid_id, geom)
+        select e.start_, e.end_, ''$grid_id'', e.geom from possible_edge as e
+        where e.rk <= greatest(e.c1, e.c2)
+        and not exists (select 1 from _albion.$name_edge where (start_=e.start_ and end_=e.end_) or (start_=e.end_ and end_=e.start_))
+        ', '$name', name), '$grid_id', grid_id::varchar)); 
+        return 't'::boolean;
+
+    end;
+$$
+;
+
+/*
+create or replace view albion.current_section_auto_edge as
+with hole_pair as (
+    select h.id as right, lag(h.id) over (order by st_linelocatepoint((select geom from albion.grid where id=(select current_section from albion.metadata)), st_startpoint(h.geom))) as left
+    from albion.hole as h where st_intersects(st_startpoint(h.geom), (select geom from albion.grid where id=(select current_section from albion.metadata)))
+)
+select row_number() over() as id, st_makeline(st_centroid(n1.geom), st_centroid(n2.geom)) as geom from hole_pair as p 
+join albion.test_node_section as n1 on n1.hole_id=p.left
+join albion.test_node_section as n2 on n2.hole_id=p.right
+where abs(st_y(st_centroid(n2.geom)) - st_y(st_centroid(n1.geom)))/(st_x(st_centroid(n2.geom)) - st_x(st_centroid(n1.geom))) < 5*pi()/180.0
+--order by st_distance(n1.geom, n2.geom)
+;
+
+
+create or replace view albion.current_section_auto_edge as
+select
+row_number() over() as id,
+st_makeline(st_centroid(n.geom), st_centroid(lag(n.geom) over (order by st_linelocatepoint((select geom from albion.grid where id=(select current_section from albion.metadata)), st_centroid(n.geom))))) as geom
+from albion.test_node_section as n
+;
+
+create or replace view albion.current_section_auto_edge as
+with hole_pair as (
+    select
+        row_number() over() as id,
+        h.id as right, 
+        lag(h.id) over (order by st_linelocatepoint((select geom from albion.grid where id=(select current_section from albion.metadata)), st_startpoint(h.geom))) as left
+    from albion.hole as h where st_intersects(st_startpoint(h.geom), (select geom from albion.grid where id=(select current_section from albion.metadata)))
+),
+possible_edge as (
+    select 
+        n1.id as start_, 
+        n2.id as end_,
+        st_makeline(st_centroid(n1.geom), st_centroid(n2.geom)) as geom, 
+        abs(st_y(st_centroid(n2.geom)) - st_y(st_centroid(n1.geom)))/(st_x(st_centroid(n2.geom)) - st_x(st_centroid(n1.geom))) angle, count(1) over (partition by n1.id) as c1,  count(1) over (partition by n2.id) as c2, rank() over (partition by p.id order by abs(st_y(st_centroid(n2.geom)) - st_y(st_centroid(n1.geom)))/(st_x(st_centroid(n2.geom)) - st_x(st_centroid(n1.geom)))) as rk
+    from hole_pair as p
+    join albion.test_node_section as n1 on n1.hole_id=p.left
+    join albion.test_node_section as n2 on n2.hole_id=p.right
+--    where p.left='GART_0211_1'
+)
+select row_number() over() as id, geom from possible_edge where rk <= greatest(c1, c2)
+;
+
+,
+recursive edge(start_) as (
+    select start_, geom from possible_edge order by angle limit 1
+    union
+    select start_, geom from possible_edge, re where 
+    order by ()
+    limit 1
+
+)
+
+limit 2
+--order by st_distance(n1.geom, n2.geom)
+;
+*/
+
+create or replace view albion.test_wall_edge as
+select e.id, e.grid_id, st_makeline(
+    st_3dlineinterpolatepoint(n1.geom, coalesce(
+         (select sum(st_3dlength(o.geom)) from _albion.test_node as o where o.hole_id=n2.hole_id and exists (select 1 from _albion.test_edge where start_=n1.id and end_=o.id) and st_z(st_3dlineinterpolatepoint(o.geom, .5)) >= st_z(st_3dlineinterpolatepoint(n2.geom, .5)))
+        /(select sum(st_3dlength(o.geom)) from _albion.test_node as o where o.hole_id=n2.hole_id and exists (select 1 from _albion.test_edge where start_=n1.id and end_=o.id))
+    , 1)), 
+    st_3dlineinterpolatepoint(n2.geom, coalesce(
+         (select sum(st_3dlength(o.geom)) from _albion.test_node as o where o.hole_id=n1.hole_id and exists (select 1 from _albion.test_edge where start_=o.id and end_=n2.id) and st_z(st_3dlineinterpolatepoint(o.geom, .5)) >= st_z(st_3dlineinterpolatepoint(n1.geom, .5))) 
+        /(select sum(st_3dlength(o.geom)) from _albion.test_node as o where o.hole_id=n1.hole_id and exists (select 1 from _albion.test_edge where start_=o.id and end_=n2.id))
+    , 1)) 
+) as geom
+from _albion.test_edge as e
+join _albion.test_node as n1 on n1.id=e.start_
+join _albion.test_node as n2 on n2.id=e.end_
+;
+
+create or replace view albion.test_ceil_edge as
+select e.id, e.grid_id, st_makeline(
+    st_3dlineinterpolatepoint(n1.geom, coalesce(
+         (select sum(st_3dlength(o.geom)) from _albion.test_node as o where o.hole_id=n2.hole_id and exists (select 1 from _albion.test_edge where start_=n1.id and end_=o.id) and st_z(st_3dlineinterpolatepoint(o.geom, .5)) > st_z(st_3dlineinterpolatepoint(n2.geom, .5)))
+        /(select sum(st_3dlength(o.geom)) from _albion.test_node as o where o.hole_id=n2.hole_id and exists (select 1 from _albion.test_edge where start_=n1.id and end_=o.id))
+    , 0)), 
+    st_3dlineinterpolatepoint(n2.geom, coalesce(
+         (select sum(st_3dlength(o.geom)) from _albion.test_node as o where o.hole_id=n1.hole_id and exists (select 1 from _albion.test_edge where start_=o.id and end_=n2.id) and st_z(st_3dlineinterpolatepoint(o.geom, .5)) > st_z(st_3dlineinterpolatepoint(n1.geom, .5))) 
+        /(select sum(st_3dlength(o.geom)) from _albion.test_node as o where o.hole_id=n1.hole_id and exists (select 1 from _albion.test_edge where start_=o.id and end_=n2.id))
+    , 0)) 
+) as geom
+from _albion.test_edge as e
+join _albion.test_node as n1 on n1.id=e.start_
+join _albion.test_node as n2 on n2.id=e.end_
+;
+
+
+
+create or replace view albion.test_wall_edge_section as
+select e.id, albion.section(e.geom, g.geom)::geometry('LINESTRING', 32632) as geom
+from albion.test_wall_edge as e join albion.grid as g on g.id=e.grid_id, albion.metadata as m
+where g.id=m.current_section
+;
+
+create or replace view albion.test_ceil_edge_section as
+select e.id, albion.section(e.geom, g.geom)::geometry('LINESTRING', 32632) as geom
+from albion.test_ceil_edge as e join albion.grid as g on g.id=e.grid_id, albion.metadata as m
+where g.id=m.current_section
+;
 
