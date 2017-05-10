@@ -34,59 +34,56 @@ psql niger -c "refresh materialized view albion.small_edge"
 
 psql niger -c "drop schema if exists albion cascade;"
 cat albion.sql | sed "s/{srid}/32632/g" |psql niger
-
-psql niger -c "
-drop table if exists _albion.tarat_u1_edge;
-drop table if exists _albion.tarat_u1_node;
-drop table if exists _albion.tarat_u2_edge;
-drop table if exists _albion.tarat_u2_node;
-drop table if exists _albion.tarat_u3_edge;
-drop table if exists _albion.tarat_u3_node;
-drop table if exists _albion.test_edge;
-drop table if exists _albion.test_node;
-select albion.create_graph('tarat_u1');
-select albion.create_graph('tarat_u2');
-select albion.create_graph('tarat_u3');
-select albion.create_graph('test');
-
-insert into albion.tarat_u1_node(hole_id, geom)
-select 
-    hole_id, 
-    st_makeline(st_3dlineinterpolatepoint(h.geom, f.from_/st_3dlength(h.geom)),
-    st_3dlineinterpolatepoint(h.geom, least(1,f.to_/st_3dlength(h.geom))))
-from albion.formation as f join albion.hole as h on h.id=f.hole_id
-where f.code=310
-and h.geom is not null
-and f.from_/st_3dlength(h.geom) < 1
-and f.from_ < f.to_;
-
-insert into albion.tarat_u2_node(hole_id, geom)
-select 
-    hole_id, 
-    st_makeline(st_3dlineinterpolatepoint(h.geom, f.from_/st_3dlength(h.geom)),
-    st_3dlineinterpolatepoint(h.geom, least(1,f.to_/st_3dlength(h.geom))))
-from albion.formation as f join albion.hole as h on h.id=f.hole_id
-where f.code=320
-and h.geom is not null
-and f.from_/st_3dlength(h.geom) < 1
-and f.from_ < f.to_;
-
-insert into albion.tarat_u3_node(hole_id, geom)
-select 
-    hole_id, 
-    st_makeline(st_3dlineinterpolatepoint(h.geom, f.from_/st_3dlength(h.geom)),
-    st_3dlineinterpolatepoint(h.geom, least(1,f.to_/st_3dlength(h.geom))))
-from albion.formation as f join albion.hole as h on h.id=f.hole_id
-where f.code=330
-and h.geom is not null
-and f.from_/st_3dlength(h.geom) < 1
-and f.from_ < f.to_;
-
+cat _albion_graph.sql | sed "s/{srid}/32632/g;s/{name}/test/g" | psql niger
+cat albion_graph.sql | sed "s/{srid}/32632/g;s/{name}/test/g" | psql niger
+psql niger << EOF
 insert into albion.test_node(hole_id, geom)
 select hole_id, geom 
 from albion.formation
-where (code=310 or code=330) and geom is not null
-;
-"
+where (code=310 or code=330) and geom is not null;
+
+select albion.auto_connect('test', '8c9819bb-b674-4f22-8cca-a360792622b5');
+
+select albion.auto_ceil_and_wall('test', '8c9819bb-b674-4f22-8cca-a360792622b5');
+
+select albion.auto_connect('test', id) from albion.grid;
+
+select albion.auto_ceil_and_wall('test', id) from albion.grid;
+EOF
+
+
+#insert into albion.tarat_u1_node(hole_id, geom)
+#select 
+#    hole_id, 
+#    st_makeline(st_3dlineinterpolatepoint(h.geom, f.from_/st_3dlength(h.geom)),
+#    st_3dlineinterpolatepoint(h.geom, least(1,f.to_/st_3dlength(h.geom))))
+#from albion.formation as f join albion.hole as h on h.id=f.hole_id
+#where f.code=310
+#and h.geom is not null
+#and f.from_/st_3dlength(h.geom) < 1
+#and f.from_ < f.to_;
+#
+#insert into albion.tarat_u2_node(hole_id, geom)
+#select 
+#    hole_id, 
+#    st_makeline(st_3dlineinterpolatepoint(h.geom, f.from_/st_3dlength(h.geom)),
+#    st_3dlineinterpolatepoint(h.geom, least(1,f.to_/st_3dlength(h.geom))))
+#from albion.formation as f join albion.hole as h on h.id=f.hole_id
+#where f.code=320
+#and h.geom is not null
+#and f.from_/st_3dlength(h.geom) < 1
+#and f.from_ < f.to_;
+#
+#insert into albion.tarat_u3_node(hole_id, geom)
+#select 
+#    hole_id, 
+#    st_makeline(st_3dlineinterpolatepoint(h.geom, f.from_/st_3dlength(h.geom)),
+#    st_3dlineinterpolatepoint(h.geom, least(1,f.to_/st_3dlength(h.geom))))
+#from albion.formation as f join albion.hole as h on h.id=f.hole_id
+#where f.code=330
+#and h.geom is not null
+#and f.from_/st_3dlength(h.geom) < 1
+#and f.from_ < f.to_;
+
 
 
