@@ -190,20 +190,20 @@ class Plugin(QObject):
                 load_file(cur, os.path.join(dir_, filename))
                 progress.setValue(1)
 
-        #for filename in os.listdir(dir_):
-        #    if filename.find('devia') != -1:
-        #        #self.__iface.messageBar().pushInfo('Albion:', "loading {}".format(os.path.join(dir_, filename)))
-        #        load_file(cur, os.path.join(dir_, filename))
-        #        progress.setValue(2)
+        for filename in os.listdir(dir_):
+            if filename.find('devia') != -1:
+                #self.__iface.messageBar().pushInfo('Albion:', "loading {}".format(os.path.join(dir_, filename)))
+                load_file(cur, os.path.join(dir_, filename))
+                progress.setValue(2)
 
-        #cur.execute("select albion.update_hole_geom()")
-        #progress.setValue(3)
+        cur.execute("select albion.update_hole_geom()")
+        progress.setValue(3)
 
-        #for filename in os.listdir(dir_):
-        #    if filename.find('formation') != -1 or filename.find('resi') != -1 or filename.find('avp') != -1:
-        #        #self.__iface.messageBar().pushInfo('Albion:', "loading {}".format(os.path.join(dir_, filename)))
-        #        load_file(cur, os.path.join(dir_, filename))
-        #        progress.setValue(progress.value() + 1)
+        for filename in os.listdir(dir_):
+            if filename.find('formation') != -1 or filename.find('resi') != -1 or filename.find('avp') != -1:
+                #self.__iface.messageBar().pushInfo('Albion:', "loading {}".format(os.path.join(dir_, filename)))
+                load_file(cur, os.path.join(dir_, filename))
+                progress.setValue(progress.value() + 1)
         progress.setValue(6)
         self.__iface.messageBar().clearWidgets()
 
