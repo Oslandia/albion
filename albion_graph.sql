@@ -34,9 +34,13 @@ $$
             from pt
             where pt.p != (select min(p) from pt) 
             and pt.p != (select max(p) from pt)
+        ),
+        ends as (
+            select (st_dumppoints(geom)).geom as geom from _albion.{name}_node as n
+            where id in (start_, end_)
         )
-        select st_makeline(s.geom order by st_linelocatepoint(g.geom, s.geom)) 
-        from snap as s, albion.grid as g
+        select st_makeline(st_snap(s.geom, n.geom, albion.precision()) order by st_linelocatepoint(g.geom, s.geom))
+        from snap as s, albion.grid as g, ends as n
         where g.id=grid_id
     );
     end;
@@ -231,4 +235,67 @@ create trigger {name}_ceil_edge_section_instead_trig
 ;
 
 
+-- view for incomming and outgoing edges
+
+create view albion.{name}_incoming_ceil_edge_section as
+select ce.id, ce.grid_id, albion.to_section(st_endpoint(ce.geom), g.geom)::geometry('POINT', {srid}) as geom
+from _albion.{name}_ceil_edge as ce
+join _albion.{name}_edge as e on e.id=ce.id,
+albion.grid as g
+where g.id=albion.current_section_id()
+and e.end_ in (select id from albion.{name}_node_section)
+and ce.grid_id != g.id
+;
+
+create view albion.{name}_outgoing_ceil_edge_section as
+select ce.id, ce.grid_id, albion.to_section(st_startpoint(ce.geom), g.geom)::geometry('POINT', {srid}) as geom
+from _albion.{name}_ceil_edge as ce
+join _albion.{name}_edge as e on e.id=ce.id,
+albion.grid as g
+where g.id=albion.current_section_id()
+and e.start_ in (select id from albion.{name}_node_section)
+and ce.grid_id != g.id
+;
+
+create view albion.{name}_incoming_wall_edge_section as
+select ce.id, ce.grid_id, albion.to_section(st_endpoint(ce.geom), g.geom)::geometry('POINT', {srid}) as geom
+from _albion.{name}_wall_edge as ce
+join _albion.{name}_edge as e on e.id=ce.id,
+albion.grid as g
+where g.id=albion.current_section_id()
+and e.end_ in (select id from albion.{name}_node_section)
+and ce.grid_id != g.id
+;
+
+create view albion.{name}_outgoing_wall_edge_section as
+select ce.id, ce.grid_id, albion.to_section(st_startpoint(ce.geom), g.geom)::geometry('POINT', {srid}) as geom
+from _albion.{name}_wall_edge as ce
+join _albion.{name}_edge as e on e.id=ce.id,
+albion.grid as g
+where g.id=albion.current_section_id()
+and e.start_ in (select id from albion.{name}_node_section)
+and ce.grid_id != g.id
+;
+
+-- crossing edges
+
+create view albion.{name}_crossing_ceil_edge_section as
+select ce.id, ce.grid_id, albion.to_section(ce.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
+    from _albion.{name}_ceil_edge as ce,
+    albion.grid as g
+    where g.id=albion.current_section_id()
+    and st_dwithin(g.geom, ce.geom, albion.snap_distance())
+    and ce.id not in (select id from albion.{name}_outgoing_ceil_edge_section union all select id from albion.{name}_incoming_ceil_edge_section)
+    and ce.grid_id != g.id
+;
+
+create view albion.{name}_crossing_wall_edge_section as
+select ce.id, ce.grid_id, albion.to_section(ce.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
+    from _albion.{name}_wall_edge as ce,
+    albion.grid as g
+    where g.id=albion.current_section_id()
+    and st_dwithin(g.geom, ce.geom, albion.snap_distance())
+    and ce.id not in (select id from albion.{name}_outgoing_wall_edge_section union all select id from albion.{name}_incoming_wall_edge_section)
+    and ce.grid_id != g.id
+;
 

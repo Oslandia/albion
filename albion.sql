@@ -15,6 +15,18 @@ $$
 $$
 ;
 
+create or replace function albion.precision()
+returns real
+language plpgsql stable
+as
+$$
+    begin
+        return (select precision from _albion.metadata);
+    end;
+$$
+;
+
+
 create or replace function albion.current_section_id()
 returns varchar
 language plpgsql stable
@@ -268,7 +280,7 @@ no_hole as (
     except
     select st_force2d(st_startpoint(geom)) from _albion.hole
 )
-select row_number() over() as id, geom from no_hole
+select row_number() over() as id, geom::geometry('POINT', {srid}) from no_hole
 ;
 
 

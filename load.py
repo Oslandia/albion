@@ -41,7 +41,6 @@ def load_avp(cur, filename, progress):
     # fake update to trigger geometry construction
     cur.execute("update albion.radiometry set geom=geom")
 
-
 def load_file(cur, filename, progress=None):
     if filename.find('collar') != -1:
         load_collar(cur, filename, progress)

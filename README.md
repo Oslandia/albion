@@ -36,8 +36,39 @@ pytest
 Process
 =======
 
-- Import directory
-- Create datamodel
+- Create project (no caps, no space, no accents)
+- Import data directory
+- Create the grid
+- Create a graph
+- Set graph nodes (cpy/paste features)
 
 
+Interface
+=========
 
+- Albion Menu: 
+    - new project (create db and load layers)
+    - --
+    - import data
+    - compute mineralization (adds table and layer)
+    - --
+    - new graph (create table and views and neww layers)
+    - clean graph
+    - --
+    - export project (`pg_dump`)
+    - import project (`pg_restore`)
+
+- Albion Toolbar:
+    - toggle section/top
+    - current graph
+    - grid line from points
+    - select current section (either on top view, or orthogonal in section view)
+    - previous section
+    - next section
+    - end distance
+    - auto-connect
+    - auto-wall and ceil 
+
+notes on 3D:
+- togle visibility
+- dynamic update on changes

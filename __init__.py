@@ -1,6 +1,6 @@
 # coding: utf-8
 
-from .plugin import Plugin
+from .new_plugin import Plugin
 
 
 def classFactory(iface):

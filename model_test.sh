@@ -46,9 +46,9 @@ select albion.auto_connect('test', '8c9819bb-b674-4f22-8cca-a360792622b5');
 
 select albion.auto_ceil_and_wall('test', '8c9819bb-b674-4f22-8cca-a360792622b5');
 
-select albion.auto_connect('test', id) from albion.grid;
+select count(albion.auto_connect('test', id)) from albion.grid;
 
-select albion.auto_ceil_and_wall('test', id) from albion.grid;
+select count(albion.auto_ceil_and_wall('test', id)) from albion.grid;
 EOF
 
 

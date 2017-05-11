@@ -9,6 +9,10 @@ create table _albion.grid(
     geom geometry('LINESTRING', {srid}))
 ;
 
+create table _albion.graph(
+    id varchar primary key default uuid_generate_v4()::varchar)
+;
+
 create index grid_geom_idx on _albion.grid using gist(geom)
 ;
 
@@ -21,8 +25,10 @@ create table _albion.metadata(
     current_section varchar references _albion.grid(id) on delete set null on update cascade,
     snap_distance real not null default 5,
     origin geometry('POINTZ', {srid}) not null default 'SRID={srid}; POINTZ(0 0 0)'::geometry,
-    precision real,
-    interpolation interpolation_method defaut 'balanced_tangential')
+    precision real default .01,
+    interpolation interpolation_method default 'balanced_tangential',
+    current_graph varchar references _albion.graph(id),
+    end_distance real default 25)
 ;
 
 create table _albion.collar(
