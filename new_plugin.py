@@ -11,6 +11,8 @@ from qgis.core import (QgsVectorLayer,
                        QgsProject,
                        QgsLayerTreeLayer)
 
+from qgis.gui import QgsMapToolEmitPoint
+
 from PyQt4.QtCore import (Qt, QObject)
 from PyQt4.QtGui import (QMenu, 
                          QToolBar, 
@@ -52,6 +54,7 @@ import os
 import time
 
 from .load import load_file
+from .utils import icon
 
 AXIS_LAYER_TYPE = AxisLayerType()
 QgsPluginLayerRegistry.instance().addPluginLayerType(AXIS_LAYER_TYPE)
@@ -73,6 +76,9 @@ class Plugin(QObject):
         self.__project = None
         self.__menu = None
         self.__toolbar = None
+        self.__click_tool = None
+        self.__previous_tool = None
+        self.__select_current_section_action = None
 
         if not check_cluster():
             init_cluster()
@@ -98,7 +104,12 @@ class Plugin(QObject):
 
         self.__toolbar = QToolBar('Albion')
         self.__iface.mainWindow().addToolBar(self.__toolbar)
+        self.__select_current_section_action = self.__toolbar.addAction(icon('select_line.svg'), 'select section')
+        self.__select_current_section_action.setCheckable(True)
+        self.__select_current_section_action.triggered.connect(self.__select_current_section)
 
+        self.__toolbar.addAction(icon('previous_line.svg'), 'previous section').triggered.connect(self.__select_previous_section)
+        self.__toolbar.addAction(icon('next_line.svg'), 'next section').triggered.connect(self.__select_next_section)
 
     def unload(self):
         self.__menu and self.__menu.setParent(None)
@@ -118,18 +129,27 @@ class Plugin(QObject):
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
         
+        for layer_name in reversed(['cell', 'formation', 'grid', 'hole', 
+                'intersection_without_hole', 'collar', 'small_edge', 'close_point']):
+            layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
+            QgsMapLayerRegistry.instance().addMapLayer(layer, False)
+            node = QgsLayerTreeLayer(layer)
+            root.addChildNode(node)
+
         section_group = root.insertGroup(0, "section")
-        for layer_name in ['formation_section', 'resistivity_section',
+
+        for layer_name in ['collar_section', 'formation_section', 'resistivity_section',
                 'radiometry_section']:
             layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
             QgsMapLayerRegistry.instance().addMapLayer(layer, False)
             node = QgsLayerTreeLayer(layer)
             section_group.addChildNode(node)
 
-        for layer_name in ['cell', 'grid', 'hole', 
-                'intersection_without_hole', 'collar', 'small_edge', 'close_point']:
-            self.__iface.addVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
-
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select id from albion.graph")
+        self.__add_graph_layers([id_ for id_, in cur.fetchall()])
+        con.close()
 
         self.__iface.actionSaveProject().trigger()
 
@@ -212,24 +232,34 @@ class Plugin(QObject):
         con.commit()
         con.close()
 
-        for layer_name in [graph+'_edge']:
-            self.__iface.addVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
+        self.__add_graph_layers([graph])
 
+    def __add_graph_layers(self, graphs):
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+        assert(conn_info)
         root = QgsProject.instance().layerTreeRoot()
-        section_group = root.findGroup("section")
-        for layer_name in [graph+'_node_section', graph+'_edge_section',
-                graph+'_ceil_edge_section',
-                graph+'_crossing_ceil_edge_section',
-                graph+'_incoming_ceil_edge_section', graph+'_outgoing_ceil_edge_section', 
-                graph+'_wall_edge_section',
-                graph+'_crossing_wall_edge_section',
-                graph+'_incoming_wall_edge_section', graph+'_outgoing_wall_edge_section',
-                ]:
-            print('{} srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name))
-            layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
-            QgsMapLayerRegistry.instance().addMapLayer(layer, False)
-            node = QgsLayerTreeLayer(layer)
-            section_group.addChildNode(node)
+        for graph in graphs:
+
+            for layer_name in [graph+'_edge', graph+'_node']:
+                layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
+                QgsMapLayerRegistry.instance().addMapLayer(layer, False)
+                node = QgsLayerTreeLayer(layer)
+                root.addChildNode(node)
+
+            section_group = root.findGroup("section")
+            for layer_name in [graph+'_node_section', graph+'_edge_section',
+                    graph+'_ceil_edge_section',
+                    graph+'_crossing_ceil_edge_section',
+                    graph+'_incoming_ceil_edge_section', graph+'_outgoing_ceil_edge_section', 
+                    graph+'_wall_edge_section',
+                    graph+'_crossing_wall_edge_section',
+                    graph+'_incoming_wall_edge_section', graph+'_outgoing_wall_edge_section',
+                    ]:
+                layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
+                QgsMapLayerRegistry.instance().addMapLayer(layer, False)
+                node = QgsLayerTreeLayer(layer)
+                section_group.addChildNode(node)
         
         self.__iface.actionSaveProject().trigger()
 
@@ -250,7 +280,7 @@ class Plugin(QObject):
 
         progressMessageBar = self.__iface.messageBar().createMessage("Loading {}...".format(dir_))
         progress = QProgressBar()
-        progress.setMaximum(6)
+        progress.setMaximum(5)
         progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
         progressMessageBar.layout().addWidget(progress)
         self.__iface.messageBar().pushWidget(progressMessageBar, self.__iface.messageBar().INFO)
@@ -264,9 +294,6 @@ class Plugin(QObject):
             if filename.find('devia') != -1:
                 load_file(cur, os.path.join(dir_, filename))
                 progress.setValue(2)
-
-        cur.execute("select albion.update_hole_geom()")
-        progress.setValue(3)
 
         for filename in os.listdir(dir_):
             if filename.find('formation') != -1 or filename.find('resi') != -1 or filename.find('avp') != -1:
@@ -289,6 +316,65 @@ class Plugin(QObject):
 
         self.__iface.actionSaveProject().trigger()
 
+    def __select_current_section(self):
+        #@todo switch behavior when in section view -> ortho
+        self.__click_tool = QgsMapToolEmitPoint(self.__iface.mapCanvas())
+        self.__iface.mapCanvas().setMapTool(self.__click_tool)
+        self.__click_tool.canvasClicked.connect(self.__map_clicked)
+        self.__select_current_section_action.setChecked(True)
+
+    def __map_clicked(self, point, button):
+        print(point, button)
+        self.__select_current_section_action.setChecked(False)
+        self.__click_tool.setParent(None)
+        self.__click_tool = None
+
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        
+
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""update albion.metadata set current_section=(
+                select id from albion.grid where st_dwithin(
+                    geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 5*albion.snap_distance())
+                limit 1
+                )""".format(srid=srid, x=point.x(), y=point.y()))
+        cur.execute("select st_extent(geom) from albion.collar_section")
+        print('section extent ', cur.fetchone())
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __select_next_section(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""update albion.metadata set current_section=albion.next_section()""")
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __select_previous_section(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""update albion.metadata set current_section=albion.previous_section()""")
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __refresh_layers(self):
+        for layer in self.__iface.mapCanvas().layers():
+            layer.triggerRepaint()
+        
 
     #def __toggle_axis(self):
     #    if self.__axis_layer:

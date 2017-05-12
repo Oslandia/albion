@@ -25,6 +25,7 @@ def load_collar(cur, filename, progress):
 
 def load_devia(cur, filename, progress=None):
     cur.copy_expert("copy _albion.deviation from stdin delimiter ';' csv header", open(filename))
+    cur.execute("select albion.update_hole_geom()")
 
 def load_formation(cur, filename, progress):
     cur.copy_expert("copy _albion.formation(hole_id, from_, to_, code, comments) from stdin delimiter ';' csv header", open(filename))

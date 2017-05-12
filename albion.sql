@@ -462,11 +462,23 @@ where g.id = albion.current_section_id()
 
 
 create or replace view albion.collar_section as
-select f.id, f.comments, albion.to_section(f.geom, g.geom)
+select f.id, f.comments, albion.to_section(f.geom, g.geom) as geom
 from albion.collar as f 
 join albion.grid as g on st_intersects(f.geom, g.geom)
 where g.id = albion.current_section_id()
 ;
+
+create or replace view albion.hole_section as
+select f.id, f.collar_id, albion.to_section(f.geom, g.geom) as geom
+from albion.hole as f 
+join albion.grid as g on st_intersects(st_startpoint(f.geom), g.geom)
+where g.id = albion.current_section_id()
+;
+
+create or replace view albion.graph as
+select id from _albion.graph
+;
+
 
 -- create graph edges for the specified grid element
 create or replace function albion.auto_connect(name varchar, grid_id varchar)
@@ -585,5 +597,64 @@ $$
 $$
 ;
 
+create or replace function albion.next_section(linestring geometry default albion.current_section_geom())
+returns varchar
+language plpgsql stable
+as
+$$
+    begin
+        return (
+            with direction as (
+                select st_rotate( linestring, pi()/2, st_centroid(linestring)) as geom
+            ),
+            half_direction as (
+                select st_linesubstring(
+                    geom, 
+                    st_linelocatepoint(geom, st_centroid(
+                    st_intersection(geom, linestring))), 1) as geom
+                from direction
+            )
+            select id
+            from albion.grid as g, half_direction as h
+            where not st_intersects(g.geom, linestring)
+            and st_intersects(g.geom, h.geom)
+            order by st_linelocatepoint(h.geom, st_centroid(st_intersection(h.geom, g.geom)))
+            limit 1
+        );
+    end;
+$$
+;
+
+create or replace function albion.previous_section(linestring geometry default albion.current_section_geom())
+returns varchar
+language plpgsql stable
+as
+$$
+    begin
+        return (
+            with direction as (
+                select
+                    st_rotate(
+                        linestring,
+                        -pi()/2, 
+                        st_centroid(linestring)) as geom
+            ),
+            half_direction as (
+                select st_linesubstring(
+                    geom, 
+                    st_linelocatepoint(geom, st_centroid(
+                    st_intersection(geom, linestring))), 1) as geom
+                from direction
+            )
+            select id
+            from albion.grid as g, half_direction as h
+            where not st_intersects(g.geom, linestring)
+            and st_intersects(g.geom, h.geom)
+            order by st_linelocatepoint(h.geom, st_centroid(st_intersection(h.geom, g.geom)))
+            limit 1
+        );
+    end;
+$$
+;
 
 
