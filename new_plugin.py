@@ -20,6 +20,7 @@ from PyQt4.QtGui import (QMenu,
                          QLineEdit, 
                          QFileDialog, 
                          QProgressBar,
+                         QComboBox,
                          QApplication)
 
 import psycopg2 
@@ -79,6 +80,8 @@ class Plugin(QObject):
         self.__click_tool = None
         self.__previous_tool = None
         self.__select_current_section_action = None
+        self.__current_graph = QComboBox()
+        self.__current_graph.setMinimumWidth(150)
 
         if not check_cluster():
             init_cluster()
@@ -110,11 +113,29 @@ class Plugin(QObject):
 
         self.__toolbar.addAction(icon('previous_line.svg'), 'previous section').triggered.connect(self.__select_previous_section)
         self.__toolbar.addAction(icon('next_line.svg'), 'next section').triggered.connect(self.__select_next_section)
+        self.__toolbar.addWidget(self.__current_graph)
+        self.__toolbar.addAction(icon('auto_connect.svg'), 'auto connect').triggered.connect(self.__auto_connect)
+        self.__toolbar.addAction(icon('auto_ceil_wall.svg'), 'auto ceil and wall').triggered.connect(self.__auto_ceil_wall)
+
+        QgsProject.instance().readProject.connect(self.__qgis__project__loaded)
+        self.__qgis__project__loaded() # case of reload
 
     def unload(self):
         self.__menu and self.__menu.setParent(None)
         self.__toolbar and self.__toolbar.setParent(None)
         stop_cluster()
+        QgsProject.instance().readProject.disconnect(self.__qgis__project__loaded)
+
+    def __qgis__project__loaded(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        self.__current_graph.clear()
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select id from albion.graph")
+        self.__current_graph.addItems([id_ for id_, in cur.fetchall()])
+        con.close()
 
     def __reset_qgis_project(self):
 
@@ -135,6 +156,11 @@ class Plugin(QObject):
             QgsMapLayerRegistry.instance().addMapLayer(layer, False)
             node = QgsLayerTreeLayer(layer)
             root.addChildNode(node)
+        
+        layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="(SELECT albion.current_section_id() as id, albion.current_section_geom() as geom)" (geom) sql='.format(conn_info, srid), 'current_section', 'postgres')
+        QgsMapLayerRegistry.instance().addMapLayer(layer, False)
+        node = QgsLayerTreeLayer(layer)
+        root.addChildNode(node)
 
         section_group = root.insertGroup(0, "section")
 
@@ -233,6 +259,8 @@ class Plugin(QObject):
         con.close()
 
         self.__add_graph_layers([graph])
+        self.__current_graph.addItem(graph)
+        self.__current_graph.setCurrentIndex(self.__current_graph.findText(graph))
 
     def __add_graph_layers(self, graphs):
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
@@ -370,6 +398,35 @@ class Plugin(QObject):
         con.commit()
         con.close()
         self.__refresh_layers()
+
+    def __auto_connect(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""
+                select albion.auto_connect('{}', albion.current_section_id())
+                """.format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __auto_ceil_wall(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""
+                select albion.auto_ceil_and_wall('{}', albion.current_section_id())
+                """.format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+
+
 
     def __refresh_layers(self):
         for layer in self.__iface.mapCanvas().layers():
