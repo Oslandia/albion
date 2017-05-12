@@ -97,7 +97,7 @@ class Plugin(QObject):
         self.__menu.addAction('Compute &Mineralization')
         self.__menu.addSeparator()
         self.__menu.addAction('New &Graph').triggered.connect(self.__new_graph)
-        self.__menu.addAction('&Clean Graph')
+        self.__menu.addAction('&Fix Current Graph')
         self.__menu.addSeparator()
         self.__menu.addAction('&Export Project')
         self.__menu.addAction('Import Project')

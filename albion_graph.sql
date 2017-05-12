@@ -39,7 +39,7 @@ $$
             select (st_dumppoints(geom)).geom as geom from _albion.{name}_node as n
             where id in (start_, end_)
         )
-        select st_makeline(st_snap(s.geom, n.geom, albion.precision()) order by st_linelocatepoint(g.geom, s.geom))
+        select st_removerepeatedpoints(st_makeline(st_snap(s.geom, n.geom, albion.precision()) order by st_linelocatepoint(g.geom, s.geom)), albion.precision())
         from snap as s, albion.grid as g, ends as n
         where g.id=grid_id
     );
@@ -298,4 +298,7 @@ select ce.id, ce.grid_id, albion.to_section(ce.geom, g.geom)::geometry('LINESTRI
     and ce.id not in (select id from albion.{name}_outgoing_wall_edge_section union all select id from albion.{name}_incoming_wall_edge_section)
     and ce.grid_id != g.id
 ;
+
+-- fix intersections with no data
+
 

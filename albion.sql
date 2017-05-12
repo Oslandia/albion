@@ -271,18 +271,17 @@ select row_number() over() as id, geom::geometry('POLYGON', {srid}) from poly wh
 ;
 
 
-create view albion.intersection_without_hole as
+create or replace view albion.intersection_without_hole as
 with point as (
     select (st_dumppoints(geom)).geom as geom from _albion.grid
 ),
 no_hole as (
-    select geom from point
+    select distinct geom from point
     except
     select st_force2d(st_startpoint(geom)) from _albion.hole
 )
 select row_number() over() as id, geom::geometry('POINT', {srid}) from no_hole
 ;
-
 
 -- DATABASE INTERFACE (UPDATABE VIEWS)
 
@@ -462,16 +461,23 @@ where g.id = albion.current_section_id()
 
 
 create or replace view albion.collar_section as
-select f.id, f.comments, albion.to_section(f.geom, g.geom) as geom
+select f.id, f.comments, albion.to_section(f.geom, g.geom)::geometry('POINT', {srid}) as geom
 from albion.collar as f 
 join albion.grid as g on st_intersects(f.geom, g.geom)
 where g.id = albion.current_section_id()
 ;
 
 create or replace view albion.hole_section as
-select f.id, f.collar_id, albion.to_section(f.geom, g.geom) as geom
+select f.id, f.collar_id, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
 from albion.hole as f 
 join albion.grid as g on st_intersects(st_startpoint(f.geom), g.geom)
+where g.id = albion.current_section_id()
+;
+
+create or replace view albion.intersection_without_hole_section as
+select f.id, albion.to_section(st_force3d(f.geom), g.geom)::geometry('POINT', {srid}) as geom
+from albion.intersection_without_hole as f 
+join albion.grid as g on st_intersects(f.geom, g.geom)
 where g.id = albion.current_section_id()
 ;
 
@@ -657,4 +663,77 @@ $$
 $$
 ;
 
+
+create or replace function albion.fix_wall_and_ceil(name varchar, section geometry)
+returns boolean
+language plpgsql
+as 
+$$
+    begin
+        execute (select replace(replace('
+        with pt_wall as (
+            select h.id as hid, e.id as eid, (st_dumppoints(e.geom)).path as pth, (st_dumppoints(e.geom)).geom as geom
+            from albion.$name_wall_edge as e, albion.intersection_without_hole as h
+            where st_intersects(e.geom, h.geom)
+            and st_intersects(h.geom, ''$section''::geometry)
+        ),
+        inter_wall as (
+            select pt.hid, pt.eid, pt.geom, pt.pth, count(1) over (partition by h.id) as ct
+            from pt_wall as pt, albion.intersection_without_hole as h
+            where st_intersects(pt.geom, h.geom)
+        ),
+        new_wall_pt as (
+            select eid, pth, st_setsrid(st_makepoint(
+                avg(st_x(geom)) over (partition by hid),
+                avg(st_y(geom)) over (partition by hid),
+                avg(st_z(geom)) over (partition by hid)
+                ), 32632) as geom
+            from inter_wall
+            --where ct=2
+        ),
+        pt_ceil as (
+            select h.id as hid, e.id as eid, (st_dumppoints(e.geom)).path as pth, (st_dumppoints(e.geom)).geom as geom
+            from albion.$name_ceil_edge as e, albion.intersection_without_hole as h
+            where st_intersects(e.geom, h.geom)
+            and st_intersects(h.geom, ''$section''::geometry)
+        ),
+        inter_ceil as (
+            select pt.hid, pt.eid, pt.geom, pt.pth, count(1) over (partition by h.id) as ct
+            from pt_ceil as pt, albion.intersection_without_hole as h
+            where st_intersects(pt.geom, h.geom)
+        ),
+        new_ceil_pt as (
+            select eid, pth, st_setsrid(st_makepoint(
+                avg(st_x(geom)) over (partition by hid),
+                avg(st_y(geom)) over (partition by hid),
+                avg(st_z(geom)) over (partition by hid)
+                ), 32632) as geom
+            from inter_ceil
+            --where ct=2
+        ),
+        update_ceil as (
+            update albion.$name_ceil_edge as e set geom=ST_SetPoint(e.geom, p.pth[1]-1, p.geom)
+            from new_ceil_pt as p where p.eid=e.id
+            returning id
+        )
+        update albion.$name_wall_edge as e set geom=ST_SetPoint(e.geom, p.pth[1]-1, p.geom)
+        from new_wall_pt as p where p.eid=e.id
+        ', '$name', name), '$section', section::varchar)); 
+
+        return 't'::boolean;
+    end;
+$$
+;
+
+
+
+--create materialized view buggy
+--as
+--with t as (
+--    select id, (st_dumppoints(geom)).geom as geom from albion.test_graph_ceil_edge
+--)
+--select a.id, a.geom from t as a, t as b
+--where st_dwithin(a.geom, b.geom, 1)
+--and a.id > b.id
+--and not st_intersects(a.geom, b.geom)
 
