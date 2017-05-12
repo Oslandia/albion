@@ -134,7 +134,7 @@ create trigger {name}_edge_section_instead_trig
        for each row execute procedure albion.{name}_edge_section_instead_fct()
 ;
 
-create or replace view albion.{name}_wall_edge as select id, grid_id, geom from _albion.{name}_wall_edge;
+create or replace view albion.{name}_wall_edge as select id, grid_id, geom::geometry('LINESTRINGZ', {srid}) from _albion.{name}_wall_edge;
 
 create or replace view albion.{name}_wall_edge_section as
 select e.id, e.grid_id,albion.to_section(e.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
@@ -184,7 +184,7 @@ create trigger {name}_wall_edge_section_instead_trig
        for each row execute procedure albion.{name}_wall_edge_section_instead_fct()
 ;
 
-create or replace view albion.{name}_ceil_edge as select id, grid_id, geom from _albion.{name}_ceil_edge;
+create or replace view albion.{name}_ceil_edge as select id, grid_id, geom::geometry('LINESTRINGZ', {srid}) from _albion.{name}_ceil_edge;
 
 create or replace view albion.{name}_ceil_edge_section as
 select e.id, e.grid_id, albion.to_section(e.geom, g.geom)::geometry('LINESTRING', {srid}) as geom

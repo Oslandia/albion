@@ -3,6 +3,12 @@ drop table if exists _albion.{name}_wall_edge cascade;
 drop table if exists _albion.{name}_edge cascade;
 drop table if exists _albion.{name}_node cascade;
 
+delete from _albion.graph where id='{name}'
+;
+
+insert into _albion.graph(id) values ('{name}')
+;
+
 create table _albion.{name}_node(
     id varchar primary key,
     hole_id varchar references _albion.hole(id),

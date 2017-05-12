@@ -52,7 +52,7 @@ Interface
     - import data
     - compute mineralization (adds table and layer)
     - --
-    - new graph (create table and views and neww layers)
+    - new graph (create table and views and new layers)
     - clean graph
     - --
     - export project (`pg_dump`)

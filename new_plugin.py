@@ -8,7 +8,8 @@ from qgis.core import (QgsVectorLayer,
                        QgsLayerTreeLayer,
                        QgsMapLayerRegistry,
                        QgsPluginLayerRegistry, 
-                       QgsProject)
+                       QgsProject,
+                       QgsLayerTreeLayer)
 
 from PyQt4.QtCore import (Qt, QObject)
 from PyQt4.QtGui import (QMenu, 
@@ -91,6 +92,7 @@ class Plugin(QObject):
         self.__menu.addSeparator()
         self.__menu.addAction('&Export Project')
         self.__menu.addAction('Import Project')
+        self.__menu.addAction('Reset QGIS Project').triggered.connect(self.__reset_qgis_project)
         
         self.__iface.mainWindow().menuBar().addMenu(self.__menu)
 
@@ -102,6 +104,34 @@ class Plugin(QObject):
         self.__menu and self.__menu.setParent(None)
         self.__toolbar and self.__toolbar.setParent(None)
         stop_cluster()
+
+    def __reset_qgis_project(self):
+
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+
+        QgsMapLayerRegistry.instance().removeAllMapLayers()
+   
+        root = QgsProject.instance().layerTreeRoot()
+        root.removeAllChildren()
+
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+        
+        section_group = root.insertGroup(0, "section")
+        for layer_name in ['formation_section', 'resistivity_section',
+                'radiometry_section']:
+            layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
+            QgsMapLayerRegistry.instance().addMapLayer(layer, False)
+            node = QgsLayerTreeLayer(layer)
+            section_group.addChildNode(node)
+
+        for layer_name in ['cell', 'grid', 'hole', 
+                'intersection_without_hole', 'collar', 'small_edge', 'close_point']:
+            self.__iface.addVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
+
+
+        self.__iface.actionSaveProject().trigger()
 
     def __new_project(self):
 
@@ -148,22 +178,60 @@ class Plugin(QObject):
         cur.execute("create extension \"uuid-ossp\"")
         for file_ in ('_albion.sql', 'albion.sql'):
             for statement in open(os.path.join(os.path.dirname(__file__), file_)).read().split('\n;\n')[:-1]:
-                print(statement)
                 cur.execute(statement.format(srid=srid))
         cur.execute("insert into albion.metadata(srid, snap_distance) select 32632, 2")
         con.commit()
         con.close()
 
-        for layer_name in ['cell', 'grid', 'hole', 
-                'intersection_without_hole', 'collar', 'small_edge', 'close_point']:
-            print('add layer', layer_name)
-            self.__iface.addVectorLayer('{} srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
-            #QgsMapLayerRegistry.instance().addMapLayer(layer)
+        self.__reset_qgis_project()
 
-        self.__iface.actionSaveProject().trigger()
 
     def __new_graph(self):
-        pass
+
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+
+        graph, ok = QInputDialog.getText(self.__iface.mainWindow(),
+                "Graph",
+                 "Graph name (no space, no caps, ascii only):", QLineEdit.Normal,
+                 'test_graph')
+
+        if not ok:
+            return
+
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+
+        for file_ in ('_albion_graph.sql', 'albion_graph.sql'):
+            for statement in open(os.path.join(os.path.dirname(__file__), file_)).read().split('\n;\n')[:-1]:
+                cur.execute(statement.format(srid=srid, name=graph))
+
+        con.commit()
+        con.close()
+
+        for layer_name in [graph+'_edge']:
+            self.__iface.addVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
+
+        root = QgsProject.instance().layerTreeRoot()
+        section_group = root.findGroup("section")
+        for layer_name in [graph+'_node_section', graph+'_edge_section',
+                graph+'_ceil_edge_section',
+                graph+'_crossing_ceil_edge_section',
+                graph+'_incoming_ceil_edge_section', graph+'_outgoing_ceil_edge_section', 
+                graph+'_wall_edge_section',
+                graph+'_crossing_wall_edge_section',
+                graph+'_incoming_wall_edge_section', graph+'_outgoing_wall_edge_section',
+                ]:
+            print('{} srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name))
+            layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
+            QgsMapLayerRegistry.instance().addMapLayer(layer, False)
+            node = QgsLayerTreeLayer(layer)
+            section_group.addChildNode(node)
+        
+        self.__iface.actionSaveProject().trigger()
 
     def __import_data(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
@@ -173,6 +241,9 @@ class Plugin(QObject):
                         "" )
         if not dir_:
             return
+
+        #@todo run the collar import, and then subprocess the rest to allow the user
+        #      to edit the grid without waiting
 
         con = psycopg2.connect(QgsProject.instance().readEntry("albion", "conn_info", "")[0])
         cur = con.cursor()
@@ -186,13 +257,11 @@ class Plugin(QObject):
         progress.setValue(0)
         for filename in os.listdir(dir_):
             if filename.find('collar') != -1:
-                #self.__iface.messageBar().pushInfo('Albion:', "loading {}".format(os.path.join(dir_, filename)))
                 load_file(cur, os.path.join(dir_, filename))
                 progress.setValue(1)
 
         for filename in os.listdir(dir_):
             if filename.find('devia') != -1:
-                #self.__iface.messageBar().pushInfo('Albion:', "loading {}".format(os.path.join(dir_, filename)))
                 load_file(cur, os.path.join(dir_, filename))
                 progress.setValue(2)
 
@@ -201,7 +270,6 @@ class Plugin(QObject):
 
         for filename in os.listdir(dir_):
             if filename.find('formation') != -1 or filename.find('resi') != -1 or filename.find('avp') != -1:
-                #self.__iface.messageBar().pushInfo('Albion:', "loading {}".format(os.path.join(dir_, filename)))
                 load_file(cur, os.path.join(dir_, filename))
                 progress.setValue(progress.value() + 1)
         progress.setValue(6)
