@@ -164,7 +164,7 @@ $$
             return (
             select st_setsrid(st_makeline(
                     st_makepoint(st_x(geom), st_y(geom), st_z(geom) - from_),
-                    st_makepoint(st_x(geom), st_y(geom), st_z(geom) - to_)), st_srid(hole_geom))
+                    st_makepoint(st_x(geom), st_y(geom), st_z(geom) - to_)), st_srid(geom))
             from _albion.collar where id=collar_id
             );
         end if;
@@ -484,7 +484,6 @@ where g.id = albion.current_section_id()
 create or replace view albion.graph as
 select id from _albion.graph
 ;
-
 
 -- create graph edges for the specified grid element
 create or replace function albion.auto_connect(name varchar, grid_id varchar)
@@ -819,6 +818,8 @@ language plpython3u immutable
 as
 $$
     import os
+    from collections import defaultdict
+    import math
     import re
     from subprocess import Popen, PIPE
     import numpy
@@ -876,15 +877,16 @@ $$
             geo.write("Plane Surface(%d) = {%s};\n"%(current_id, ", ".join((str(i) for i in surface_idx))))
         
     tmp_out_file = os.path.join(tempdir, 'tmp_mesh.msh')
-    cmd = ['gmsh', '-2', '-algo', 'meshadapt', tmp_in_file, '-o', tmp_out_file ]
-    plpy.notice("running "+' '.join(cmd))
+    cmd = ['gmsh', '-2', '-algo', 'del2d', tmp_in_file, '-o', tmp_out_file ]
+    #plpy.notice("running "+' '.join(cmd))
     if os.name == 'posix':
         out, err = Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
     else:
         out, err = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE).communicate()
 
     for e in err.split(b"\n"):
-        plpy.notice(str(e))
+        if len(e):
+            plpy.notice(e)
 
     with open(tmp_out_file) as out:
         while not re.match("^\$Nodes", out.readline()):
@@ -898,27 +900,46 @@ $$
         assert re.match("^\$Elements", out.readline())
 
 
+        with open('/tmp/debug_alti.txt', 'w') as dbg:
+            for k, v in altitudes.items():
+                dbg.write("{} {}\n".format(k, v))
+
         # set node altitude
         for i in range(len(nodes)):
             nodes[i,2] = altitudes.get("%.2f %.2f"%(nodes[i,0], nodes[i,1]), 9999)
-            
-
 
         elements = []
-        neighbors = {}
+        neighbors = defaultdict(set)
         nb_elem = int(out.readline())
         for i in range(nb_elem):
             spl = out.readline().split()
             if spl[1] == '2':
                 elements.append([int(n) - 1 for n in spl[-3:]])
-                neighbors[elements[-1][0]] = (elements[-1][1], elements[-1][2])
-                neighbors[elements[-1][1]] = (elements[-1][2], elements[-1][0])
-                neighbors[elements[-1][2]] = (elements[-1][0], elements[-1][1])
+                neighbors[elements[-1][0]]|= set((elements[-1][1], elements[-1][2]))
+                neighbors[elements[-1][1]]|= set((elements[-1][2], elements[-1][0]))
+                neighbors[elements[-1][2]]|= set((elements[-1][0], elements[-1][1]))
 
-        for i, in numpy.argwhere(nodes[:,2]==9999):
-            nodes[i,2] = numpy.mean([altitudes["%.2f %.2f"%(nodes[n,0], nodes[n,1])] 
-                for n in neighbors[i] if "%.2f %.2f"%(nodes[n,0], nodes[n,1]) in altitudes])
+        with open('/tmp/debug_neigh.txt', 'w') as dbg:
+            for k, v in neighbors.items():
+                dbg.write("{} {}\n".format(k, v))
 
+
+        for l in range(4):
+            cont = False
+            #plpy.notice("fixing {} altitudes".format(len([i for i, in numpy.argwhere(nodes[:,2]==9999)])))
+            for i, in numpy.argwhere(nodes[:,2]==9999):
+                z =[nodes[n,2] for n in neighbors[i] if nodes[n,2] != 9999]
+                if len(z):
+                    #plpy.notice("set altitude of node %.2f %.2f"%(nodes[i,0], nodes[i,1]), z)
+                    nodes[i,2] = numpy.mean(z) 
+                else:
+                    cont = True
+                    #plpy.notice("cannot find altitude of node %.2f %.2f"%(nodes[i,0], nodes[i,1]),
+                    #    "with neighbors:", " ".join(["%.2f %.2f"%(nodes[n,0], nodes[n,1]) for n in neighbors[i]]))
+            if not cont:
+                break
+        #plpy.notice("z in range %.2f %.2f"%(numpy.min(nodes[:,2]), numpy.max(nodes[:,2])))
+            
         for element in elements:
             result.append(Polygon([(coord[0], coord[1], coord[2])
                     for coord in reversed(nodes[element])]))
@@ -956,3 +977,33 @@ $$
     return res
 $$
 ;
+
+create or replace function albion.triangulate_edge(graph varchar, edge_id varchar)
+returns geometry
+language plpython3u stable
+as
+$$
+    from shapely import wkb
+    from shapely.geometry import MultiPolygon, Polygon, Point
+
+    res = plpy.execute("select geom from albion.{name}_ceil_edge where id='{edge_id}'".format(name=graph, edge_id=edge_id))
+    ceil_ = wkb.loads(res[0]['geom'], True)
+    res = plpy.execute("select geom from albion.{name}_wall_edge where id='{edge_id}'".format(name=graph, edge_id=edge_id))
+    wall_ = wkb.loads(res[0]['geom'], True)
+    ci, wi = 0, 0
+    triangles = []
+    #plpy.notice(list(ceil_.coords))
+    #plpy.notice(list(wall_.coords))
+    while ci < (len(ceil_.coords)-1) or wi < (len(wall_.coords)-1):
+        #plpy.notice(ci, wi)
+        if ceil_.project(Point(ceil_.coords[ci])) > wall_.project(Point(wall_.coords[wi])) and wi<(len(wall_.coords)-1): # wall forward
+
+            triangles.append(Polygon([ceil_.coords[ci], wall_.coords[wi], wall_.coords[wi+1]]))
+            wi += 1
+        else: # ceil forward
+            triangles.append(Polygon([wall_.coords[wi], ceil_.coords[ci+1], ceil_.coords[ci]]))
+            ci += 1
+    return MultiPolygon(triangles)
+$$
+;
+

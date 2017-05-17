@@ -43,8 +43,8 @@ $$
             select (st_dumppoints(geom)).geom as geom from _albion.{name}_node as n
             where id in (start_, end_)
         )
-        select st_removerepeatedpoints(st_makeline(st_snap(s.geom, n.geom, albion.precision()) order by st_linelocatepoint(g.geom, s.geom)), albion.precision())
-        from snap as s, albion.grid as g, ends as n
+        select st_makeline(s.geom order by st_linelocatepoint(g.geom, s.geom))
+        from snap as s, albion.grid as g
         where g.id=grid_id
     );
     end;

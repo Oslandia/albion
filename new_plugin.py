@@ -98,6 +98,7 @@ class Plugin(QObject):
         self.__menu.addSeparator()
         self.__menu.addAction('New &Graph').triggered.connect(self.__new_graph)
         self.__menu.addAction('&Fix Current Graph')
+        self.__menu.addAction('Delete Graph').triggered.connect(self.__delete_graph)
         self.__menu.addSeparator()
         self.__menu.addAction('&Export Project')
         self.__menu.addAction('Import Project')
@@ -262,6 +263,44 @@ class Plugin(QObject):
         self.__current_graph.addItem(graph)
         self.__current_graph.setCurrentIndex(self.__current_graph.findText(graph))
 
+    def __delete_graph(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+
+        graph, ok = QInputDialog.getText(self.__iface.mainWindow(),
+                "Graph",
+                 "Graph name:", QLineEdit.Normal,
+                 '')
+
+        if not ok:
+            return
+
+        for id_ in QgsMapLayerRegistry.instance().mapLayers():
+            if id_.find(graph) != -1:
+                QgsMapLayerRegistry.instance().removeMapLayer(id_)
+
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""
+            select table_name from information_schema.tables 
+            where table_schema = '_albion' 
+            and table_name like '{}%'
+            """.format(graph))
+
+        for table, in cur.fetchall():
+            cur.execute("""
+                drop table if exists _albion.{table} cascade
+                """.format(table=table))
+        cur.execute("""
+            delete from albion.graph where id='{graph}'
+            """.format(graph=graph))
+        con.commit()
+        con.close()
+        self.__current_graph.removeItem(self.__current_graph.findText(graph))
+
     def __add_graph_layers(self, graphs):
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
@@ -368,7 +407,7 @@ class Plugin(QObject):
         cur = con.cursor()
         cur.execute("""update albion.metadata set current_section=(
                 select id from albion.grid where st_dwithin(
-                    geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 5*albion.snap_distance())
+                    geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 5)
                 limit 1
                 )""".format(srid=srid, x=point.x(), y=point.y()))
         cur.execute("select st_extent(geom) from albion.collar_section")

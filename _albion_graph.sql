@@ -12,7 +12,7 @@ insert into _albion.graph(id) values ('{name}')
 create table _albion.{name}_node(
     id varchar primary key,
     hole_id varchar references _albion.hole(id),
-    geom geometry('LINESTRINGZ', {srid}) not null check (st_isvalid(geom) and st_numpoints(geom)=2)
+    geom geometry('LINESTRINGZ', {srid}) not null check (st_numpoints(geom)=2)
 )
 ;
 
