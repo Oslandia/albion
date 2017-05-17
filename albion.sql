@@ -726,7 +726,6 @@ $$
 ;
 
 
-
 --create materialized view buggy
 --as
 --with t as (
@@ -737,3 +736,223 @@ $$
 --and a.id > b.id
 --and not st_intersects(a.geom, b.geom)
 
+create or replace function albion.set_line_z_at(line geometry, point geometry, z real)
+returns geometry
+language plpgsql immutable
+as
+$$
+    begin
+        return (
+            with pt as (
+                select (t.d).geom as geom, st_linelocatepoint(line, (t.d).geom) as alpha
+                from (select st_dumppoints(line) as d) as t
+                where not st_intersects((t.d).geom, point)
+                union
+                select st_setsrid(
+                    st_makepoint(
+                        st_x(point),
+                        st_y(point),
+                        z
+                    ), {srid}) as geom, st_linelocatepoint(line, point) as alpha
+            )
+            select st_makeline(geom order by alpha) from pt
+        );
+    end;
+$$
+;
+
+create or replace function albion.fix_column(name varchar, point geometry)
+returns varchar
+language plpython3u
+as
+$$
+    results = plpy.execute("""
+        select edge, start_, end_ 
+        from albion.{name}_fix_me 
+        where st_intersects(geom, '{point}'::geometry)
+        order by start_ desc
+        """.format(name=name, point=point))
+
+    if len(results) < 2:
+        return 'noting to do'
+
+    last_start, last_end = results[0]['start_'], results[0]['end_']
+    columns = [[dict(results[0])]]
+    for res in results[1:]:
+        if res['start_'] < last_end:
+            # save column
+            columns.append([dict(res)])
+            last_start, last_end = res['start_'], res['end_']
+        else:
+            # append to 
+            columns[-1].append(dict(res))
+            last_end = res['end_']
+
+    for col in columns:
+        if len(col) == 1:
+            return 'noting to do'
+        elif len(col) == 2:
+            start_ = .5*(col[0]['start_'] + col[1]['start_'])
+            end_ = .5*(col[0]['end_'] + col[1]['end_'])
+            plpy.execute("""
+                update _albion.{name}_ceil_edge 
+                set geom=albion.set_line_z_at(geom, '{point}'::geometry, {start_}) 
+                where id in ('{e1}', '{e2}')
+                """.format(name=name, point=point, e1=col[0]['edge'], e2=col[1]['edge'], start_=start_))
+            plpy.execute("""
+                update _albion.{name}_wall_edge 
+                set geom=albion.set_line_z_at(geom, '{point}'::geometry, {end_}) 
+                where id in ('{e1}', '{e2}')
+                """.format(name=name, point=point, e1=col[0]['edge'], e2=col[1]['edge'], end_=end_))
+            return 'fixed'+str(columns)
+        else:
+            return 'not handled'+str(columns)
+
+    return str(columns)
+$$
+;
+
+
+create or replace function albion.triangulate(poly geometry)
+returns geometry
+language plpython3u immutable
+as
+$$
+    import os
+    import re
+    from subprocess import Popen, PIPE
+    import numpy
+    import tempfile
+    from shapely import wkb
+    from shapely.geometry import MultiPolygon, Polygon, Point 
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    if poly is None:
+        return None
+
+    polygons = wkb.loads(poly, True)
+    if not isinstance(polygons, MultiPolygon):
+        polygons = MultiPolygon([polygons])
+    node_map = {}
+    current_id = 0
+    tempdir = '/tmp' #tempfile.mkdtemp()
+    tmp_in_file = os.path.join(tempdir, 'tmp_mesh.geo')
+    result = []
+    altitudes={}
+    with open(tmp_in_file, "w") as geo:
+        for polygon in polygons:
+            if len(polygon.exterior.coords) == 4:
+                result.append(polygon)
+                continue
+            #elif len(polygon.exterior.coords) == 5:
+            #    result.append(Polygon(polygon.exterior.coords[:3]))
+            #    result.append(Polygon(polygon.exterior.coords[2:]))
+            #    continue
+
+            surface_idx = []
+            for ring in [polygon.exterior] + list(polygon.interiors):
+                ring_idx = []
+                for coord in ring.coords:
+                    sc = "%.2f %.2f"%(coord[0], coord[1])
+                    altitudes[sc] = coord[2] if len(coord) == 3 else 0
+                    if sc in node_map:
+                        ring_idx.append(node_map[sc])
+                    else:
+                        current_id += 1
+                        ring_idx.append(current_id)
+                        node_map[sc] = current_id
+                        geo.write("Point(%d) = {%f, %f, %f, 9999};\n"%(current_id, coord[0], coord[1], 0))
+
+                loop_idx = []
+                for i, j in zip(ring_idx[:-1], ring_idx[1:]):
+                    current_id += 1
+                    geo.write("Line(%d) = {%d, %d};\n"%(current_id, i, j))
+                    loop_idx.append(current_id)
+                current_id += 1
+                geo.write("Line Loop(%d) = {%s};\n"%(current_id, ", ".join((str(i) for i in loop_idx))))
+                surface_idx.append(current_id)
+            current_id += 1
+            geo.write("Plane Surface(%d) = {%s};\n"%(current_id, ", ".join((str(i) for i in surface_idx))))
+        
+    tmp_out_file = os.path.join(tempdir, 'tmp_mesh.msh')
+    cmd = ['gmsh', '-2', '-algo', 'meshadapt', tmp_in_file, '-o', tmp_out_file ]
+    plpy.notice("running "+' '.join(cmd))
+    if os.name == 'posix':
+        out, err = Popen(cmd, stdout=PIPE, stderr=PIPE).communicate()
+    else:
+        out, err = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE).communicate()
+
+    for e in err.split(b"\n"):
+        plpy.notice(str(e))
+
+    with open(tmp_out_file) as out:
+        while not re.match("^\$Nodes", out.readline()):
+            pass
+        nb_nodes = int(out.readline())
+        nodes = numpy.zeros((nb_nodes, 3), dtype=numpy.float64)
+        for i in range(nb_nodes):
+            id_, x, y, z = out.readline().split()
+            nodes[int(id_)-1, :] = float(x), float(y), 9999
+        assert re.match("^\$EndNodes", out.readline())
+        assert re.match("^\$Elements", out.readline())
+
+
+        # set node altitude
+        for i in range(len(nodes)):
+            nodes[i,2] = altitudes.get("%.2f %.2f"%(nodes[i,0], nodes[i,1]), 9999)
+            
+
+
+        elements = []
+        neighbors = {}
+        nb_elem = int(out.readline())
+        for i in range(nb_elem):
+            spl = out.readline().split()
+            if spl[1] == '2':
+                elements.append([int(n) - 1 for n in spl[-3:]])
+                neighbors[elements[-1][0]] = (elements[-1][1], elements[-1][2])
+                neighbors[elements[-1][1]] = (elements[-1][2], elements[-1][0])
+                neighbors[elements[-1][2]] = (elements[-1][0], elements[-1][1])
+
+        for i, in numpy.argwhere(nodes[:,2]==9999):
+            nodes[i,2] = numpy.mean([altitudes["%.2f %.2f"%(nodes[n,0], nodes[n,1])] 
+                for n in neighbors[i] if "%.2f %.2f"%(nodes[n,0], nodes[n,1]) in altitudes])
+
+        for element in elements:
+            result.append(Polygon([(coord[0], coord[1], coord[2])
+                    for coord in reversed(nodes[element])]))
+    result = MultiPolygon(result)
+    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(polygons._geom))
+    return result.wkb_hex
+$$
+;
+
+-- multipoly must be a tin
+create or replace function albion.to_obj(multipoly geometry)
+returns varchar
+language plpython3u immutable
+as
+$$
+    from shapely import wkb
+    m = wkb.loads(multipoly, True)
+    res = ""
+    node_map = {}
+    elem = []
+    n = 0
+    for p in m:
+        elem.append([])
+        for c in p.exterior.coords[:-1]:
+            sc = "%f %f %f" % (tuple(c))
+            if sc not in node_map:
+                res += "v {}\n".format(sc)
+                n += 1
+                node_map[sc] = n
+                elem[-1].append(str(n))
+            else:
+                elem[-1].append(str(node_map[sc]))
+    for e in elem:
+        res += "f {}\n".format(" ".join(e))
+    return res
+$$
+;
