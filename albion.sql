@@ -200,23 +200,23 @@ $$
 ;
 
 -- 3D geometry from 2D projected geometry
-create or replace function albion.from_section(linestring geometry, section geometry)
+create or replace function albion.from_section(geom geometry, section geometry)
 returns geometry
-language plpgsql immutable
+language plpython3u immutable
 as
 $$
-    begin
-        return (
-            with point as (
-                select (t.d).path as p, st_lineinterpolatepoint(section, st_x((t.d).geom)/st_length(section)) as geom, st_y((t.d).geom) as z 
-                from (select st_dumppoints(linestring) as d) as t 
-            )
-            select st_setsrid(
-                st_makeline(('POINT('||st_x(p.geom) ||' '||st_y(p.geom)||' '||p.z||')')::geometry order by p),
-                st_srid(linestring))
-            from point as p
-        );
-    end;
+    from shapely.ops import transform 
+    from shapely.geometry import Point
+    from shapely import wkb
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    g = wkb.loads(geom, True)
+    s = wkb.loads(section, True)
+    def tr(x,y):
+        p = s.interpolate(s.project(Point(x, y)))
+        return (p.x, p.y, y)
+    return transform(tr, g)
 $$
 ;
 
@@ -1004,6 +1004,66 @@ $$
             triangles.append(Polygon([wall_.coords[wi], ceil_.coords[ci+1], ceil_.coords[ci]]))
             ci += 1
     return MultiPolygon(triangles)
+$$
+;
+
+
+-- returns polygons 
+create or replace function albion.section_polygons(graph varchar, grid_id varchar)
+returns geometry
+language plpgsql stable
+as
+$$
+    declare
+        res geometry;
+    begin
+        execute (select replace(replace('
+            with section as (
+                select geom from albion.grid where id = ''$grid_id''
+            ),
+            line as (
+                select albion.to_section(c.geom, s.geom) as geom 
+                from section as s, albion.$name_ceil_edge as c
+                where c.grid_id=''$grid_id''
+                union all
+                select albion.to_section(w.geom, s.geom) as geom 
+                from section as s, albion.$name_wall_edge as w
+                where w.grid_id=''$grid_id''
+                union all
+                select albion.to_section(n.geom, s.geom) as geom
+                from section as s,
+                albion.$name_node as n 
+                join albion.hole as h on h.id=n.hole_id
+                join albion.grid as g on st_intersects(st_startpoint(h.geom), g.geom)
+                where g.id = ''$grid_id''
+            )
+            select albion.from_section(st_unaryunion(st_polygonize(l.geom)), s.geom) 
+            from line as l, section as s
+            group by s.geom
+        ', '$name', graph), '$grid_id', grid_id)) into res;
+        return res;
+    end;
+$$
+;
+
+create or replace function albion.export_polygons(graph varchar)
+returns varchar
+language plpgsql stable
+as
+$$
+    begin
+        return (
+            with poly as (
+                select row_number() over() as id, (st_dump(albion.section_polygons(graph, id))).geom as geom
+                from albion.grid
+            ),
+            pt as (
+                select id, (st_dumppoints(geom)).geom as geom from poly
+            )
+            select string_agg(id::varchar||';'||st_x(geom)||';'||st_y(geom)||';'||st_z(geom), E'\n')
+            from pt
+        );
+    end;
 $$
 ;
 
