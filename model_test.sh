@@ -91,7 +91,6 @@ ogr2ogr -a_srs "EPSG:32632" -append -f "PostgreSQL" PG:"dbname=niger port=55432 
 
 #psql -h localhost  -p 55432 niger -c "refresh materialized view albion.cell"
 
-
 psql -h localhost -p 55432 niger -c "drop schema if exists albion cascade;"
 cp albion.sql /tmp/albion.sql
 sed -i "s/{srid}/32632/g" /tmp/albion.sql
@@ -100,9 +99,33 @@ psql -h localhost -p 55432 niger -f /tmp/albion.sql
 psql -p 55432 -h localhost niger << EOF
 \\timing
 
---update albion.metadata set current_section='26e91cb5-e286-4724-8e97-49e9614caa65';
-
 delete from albion.graph cascade;
+
+update albion.metadata set snap_distance=.3;
+
+insert into albion.graph(id) values ('tarat_u2');
+
+insert into albion.node(graph_id, hole_id, geom) select 'tarat_u2', hole_id, geom from albion.formation
+where code=320 and geom is not null;
+
+select count(albion.auto_connect('tarat_u2', id)) from albion.grid;
+
+select count(albion.auto_ceil_and_wall('tarat_u2', id)) from albion.grid;
+
+    select count(albion.fix_column('tarat_u2', geom)) 
+from (
+    select (st_dumppoints(st_force2d(geom))).geom as geom
+    from albion.grid
+) as t
+where not exists (select 1 from albion.collar as c where st_intersects(c.geom, t.geom))
+;
+
+EOF
+
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))) from albion.edge where graph_id='tarat_u2'" >  /tmp/tarat_u2_section.obj
+
+psql -p 55432 -h localhost niger << EOF
+\\timing
 
 insert into albion.graph(id) values ('tarat_u1');
 
@@ -123,17 +146,17 @@ where not exists (select 1 from albion.collar as c where st_intersects(c.geom, t
 
 EOF
 
-psql -p 55432 -h localhost test_project -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge('tarat_u1', ceil_, wall_)))) from albion.edge where graph_id='tarat_u1'" >  /tmp/tarat_u1_section.obj
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))) from albion.edge where graph_id='tarat_u1'" >  /tmp/tarat_u1_section.obj
 
 psql -p 55432 -h localhost niger << EOF
 \\timing
 
-insert into albion.graph(id) values ('tarat_u2');
-insert into albion.node(graph_id, hole_id, geom) select 'tarat_u2', hole_id, geom from albion.formation
-where code=310 and geom is not null;
-select count(albion.auto_connect('tarat_u2', id)) from albion.grid;
-select count(albion.auto_ceil_and_wall('tarat_u2', id)) from albion.grid;
-    select count(albion.fix_column('tarat_u2', geom)) 
+insert into albion.graph(id) values ('tarat_u3');
+insert into albion.node(graph_id, hole_id, geom) select 'tarat_u3', hole_id, geom from albion.formation
+where code=330 and geom is not null;
+select count(albion.auto_connect('tarat_u3', id)) from albion.grid;
+select count(albion.auto_ceil_and_wall('tarat_u3', id)) from albion.grid;
+    select count(albion.fix_column('tarat_u3', geom)) 
 from (
     select (st_dumppoints(st_force2d(geom))).geom as geom
     from albion.grid
@@ -143,7 +166,7 @@ where not exists (select 1 from albion.collar as c where st_intersects(c.geom, t
 
 EOF
 
-psql -p 55432 -h localhost test_project -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge('tarat_u2', ceil_, wall_)))) from albion.edge where graph_id='tarat_u2'" >  /tmp/tarat_u2_section.obj
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))) from albion.edge where graph_id='tarat_u3'" >  /tmp/tarat_u3_section.obj
 
 
 exit 0

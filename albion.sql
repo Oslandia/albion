@@ -598,6 +598,21 @@ $$
 $$
 ;
 
+create or replace function albion.inv(x double precision)
+returns double precision
+language plpgsql immutable
+as
+$$
+    begin
+        if abs(x) > 0 then
+            return 1/x;
+        else
+            return null;
+        end if;
+    end;
+$$
+;
+
 create or replace function albion.auto_ceil_and_wall(graph_id_ varchar, grid_id_ varchar)
 returns boolean
 language plpgsql
@@ -611,18 +626,18 @@ $$
                         where o.hole_id=n2.hole_id 
                         and exists (select 1 from albion.edge where start_=n1.id and end_=o.id) 
                         and st_z(st_3dlineinterpolatepoint(o.geom, .5)) >= st_z(st_3dlineinterpolatepoint(n2.geom, .5)))
-                    /(select sum(st_3dlength(o.geom)) from albion.node as o 
+                    *albion.inv((select sum(st_3dlength(o.geom)) from albion.node as o 
                         where o.hole_id=n2.hole_id 
-                        and exists (select 1 from albion.edge where start_=n1.id and end_=o.id))
+                        and exists (select 1 from albion.edge where start_=n1.id and end_=o.id)))
                 , 1)), 
                 st_3dlineinterpolatepoint(n2.geom, coalesce(
                      (select sum(st_3dlength(o.geom)) from albion.node as o 
                         where o.hole_id=n1.hole_id 
                         and exists (select 1 from albion.edge where start_=o.id and end_=n2.id) 
                         and st_z(st_3dlineinterpolatepoint(o.geom, .5)) >= st_z(st_3dlineinterpolatepoint(n1.geom, .5))) 
-                    /(select sum(st_3dlength(o.geom)) from albion.node as o
+                    *albion.inv((select sum(st_3dlength(o.geom)) from albion.node as o
                         where o.hole_id=n1.hole_id 
-                        and exists (select 1 from albion.edge where start_=o.id and end_=n2.id))
+                        and exists (select 1 from albion.edge where start_=o.id and end_=n2.id)))
                 , 1))
             )
             from albion.node as n1, albion.node as n2
@@ -637,18 +652,18 @@ $$
                         where o.hole_id=n2.hole_id 
                         and exists (select 1 from albion.edge where start_=n1.id and end_=o.id) 
                         and st_z(st_3dlineinterpolatepoint(o.geom, .5)) > st_z(st_3dlineinterpolatepoint(n2.geom, .5)))
-                    /(select sum(st_3dlength(o.geom)) from albion.node as o 
+                    *albion.inv((select sum(st_3dlength(o.geom)) from albion.node as o 
                         where o.hole_id=n2.hole_id 
-                        and exists (select 1 from albion.edge where start_=n1.id and end_=o.id))
+                        and exists (select 1 from albion.edge where start_=n1.id and end_=o.id)))
                 , 0)), 
                 st_3dlineinterpolatepoint(n2.geom, coalesce(
                      (select sum(st_3dlength(o.geom)) from albion.node as o 
                         where o.hole_id=n1.hole_id 
                         and exists (select 1 from albion.edge where start_=o.id and end_=n2.id) 
                         and st_z(st_3dlineinterpolatepoint(o.geom, .5)) > st_z(st_3dlineinterpolatepoint(n1.geom, .5))) 
-                    /(select sum(st_3dlength(o.geom)) from albion.node as o 
+                    *albion.inv((select sum(st_3dlength(o.geom)) from albion.node as o 
                         where o.hole_id=n1.hole_id 
-                        and exists (select 1 from albion.edge where start_=o.id and end_=n2.id))
+                        and exists (select 1 from albion.edge where start_=o.id and end_=n2.id)))
                 , 0))
             )
             from  albion.node as n1, albion.node as n2 
@@ -975,17 +990,17 @@ $$
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
 
-    ceil_ = wkb.loads(ceil_, True)
-    wall_ = wkb.loads(wall_, True)
+    c = wkb.loads(ceil_, True)
+    w = wkb.loads(wall_, True)
     ci, wi = 0, 0
     triangles = []
-    while ci < (len(ceil_.coords)-1) or wi < (len(wall_.coords)-1):
-        if ceil_.project(Point(ceil_.coords[ci])) > wall_.project(Point(wall_.coords[wi])) and wi<(len(wall_.coords)-1): # wall forward
+    while ci < (len(c.coords)-1) or wi < (len(w.coords)-1):
+        if c.project(Point(c.coords[ci])) > w.project(Point(w.coords[wi])) and wi<(len(w.coords)-1): # wall forward
 
-            triangles.append(Polygon([ceil_.coords[ci], wall_.coords[wi], wall_.coords[wi+1]]))
+            triangles.append(Polygon([c.coords[ci], w.coords[wi], w.coords[wi+1]]))
             wi += 1
         else: # ceil forward
-            triangles.append(Polygon([wall_.coords[wi], ceil_.coords[ci+1], ceil_.coords[ci]]))
+            triangles.append(Polygon([w.coords[wi], c.coords[ci+1], c.coords[ci]]))
             ci += 1
     return MultiPolygon(triangles).wkb_hex
 $$
