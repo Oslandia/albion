@@ -1,4 +1,7 @@
--- private schema to store data
+-------------------------------------------------------------------------------
+-- PRIVATE SCHEMA TO STORE DATA
+-------------------------------------------------------------------------------
+
 create schema _albion
 ;
 
@@ -23,17 +26,22 @@ create table _albion.metadata(
     id integer primary key default 1 check (id=1), -- only one entry in table
     srid integer not null references public.spatial_ref_sys(srid),
     current_section varchar references _albion.grid(id) on delete set null on update cascade,
-    snap_distance real not null default 5,
+    snap_distance real not null default 1,
     origin geometry('POINTZ', {srid}) not null default 'SRID={srid}; POINTZ(0 0 0)'::geometry,
     precision real default .01,
     interpolation interpolation_method default 'balanced_tangential',
-    current_graph varchar references _albion.graph(id),
     end_distance real default 25)
+;
+
+insert into _albion.metadata(srid) select {srid}
 ;
 
 create table _albion.collar(
     id varchar primary key default uuid_generate_v4()::varchar,
-    geom geometry('POINTZ', {srid}) not null,
+    x real,
+    y real,
+    z real,
+    geom geometry('POINTZ', {srid}),
     comments varchar)
 ;
 
@@ -43,15 +51,23 @@ create index collar_geom_idx on _albion.collar using gist(geom)
 create table _albion.hole(
     id varchar primary key,
     collar_id varchar unique not null references _albion.collar(id),
+    depth_ real,
     geom geometry('LINESTRINGZ', {srid}))
 ;
 
 create index hole_geom_idx on _albion.hole using gist(geom)
 ;
 
+create index hole_collar_id_idx on _albion.hole(collar_id)
+;
+
+
 alter table _albion.hole alter column id set default uuid_generate_v4()::varchar
 ;
 
+-------------------------------------------------------------------------------
+-- MEASURES
+-------------------------------------------------------------------------------
 
 create table _albion.deviation(
     hole_id varchar not null references _albion.hole(id),
@@ -75,6 +91,9 @@ create table _albion.radiometry(
 create index radiometry_geom_idx on _albion.radiometry using gist(geom)
 ;
 
+create index radiometry_hole_id_idx on _albion.radiometry(hole_id)
+;
+
 alter table _albion.radiometry alter column id set default uuid_generate_v4()::varchar
 ;
 
@@ -88,6 +107,9 @@ create table _albion.resistivity(
 ;
 
 create index resistivity_geom_idx on _albion.resistivity using gist(geom)
+;
+
+create index resistivity_hole_id_idx on _albion.resistivity(hole_id)
 ;
 
 alter table _albion.resistivity alter column id set default uuid_generate_v4()::varchar
@@ -107,6 +129,9 @@ create table _albion.formation(
 create index formation_geom_idx on _albion.formation using gist(geom)
 ;
 
+create index  formation_hole_id_idx on _albion.formation(hole_id)
+;
+
 alter table _albion.formation alter column id set default uuid_generate_v4()::varchar
 ;
 
@@ -123,6 +148,9 @@ create table _albion.lithology(
 create index lithology_geom_idx on _albion.lithology using gist(geom)
 ;
 
+create index  lithology_hole_id_idx on _albion.lithology(hole_id)
+;
+
 alter table _albion.lithology alter column id set default uuid_generate_v4()::varchar
 ;
 
@@ -137,6 +165,9 @@ create table _albion.facies(
 ;
 
 create index facies_geom_idx on _albion.facies using gist(geom)
+;
+
+create index facies_hole_id_idx on _albion.facies(hole_id)
 ;
 
 alter table _albion.facies alter column id set default uuid_generate_v4()::varchar
@@ -156,7 +187,69 @@ create table _albion.mineralization(
 create index mineralization_geom_idx on _albion.mineralization using gist(geom)
 ;
 
+create index mineralization_hole_id_idx on _albion.mineralization(hole_id)
+;
+
+
 alter table _albion.mineralization alter column id set default uuid_generate_v4()::varchar
 ;
 
+-------------------------------------------------------------------------------
+-- GRAPH
+-------------------------------------------------------------------------------
+
+create table _albion.node(
+    id varchar primary key,
+    graph_id varchar references _albion.graph(id) on delete cascade on update cascade,
+        unique(id, graph_id),
+    hole_id varchar references _albion.hole(id),
+    geom geometry('LINESTRINGZ', {srid}) not null check (st_numpoints(geom)=2)
+)
+;
+
+create index node_geom_idx on _albion.node using gist(geom)
+;
+
+create index node_graph_id_idx on _albion.node(graph_id)
+;
+
+create index node_hole_id_idx on _albion.node(hole_id)
+;
+
+alter table _albion.node alter column id set default uuid_generate_v4()::varchar
+;
+
+create table _albion.edge(
+    id varchar primary key,
+    graph_id varchar,
+        unique(id, graph_id),
+    start_ varchar,
+        foreign key (graph_id, start_) references _albion.node(graph_id, id) on delete cascade on update cascade,
+    end_ varchar references _albion.node(id) on delete cascade,
+        foreign key (graph_id, end_) references _albion.node(graph_id, id) on delete cascade on update cascade,
+        unique (start_, end_),
+    grid_id varchar references _albion.grid(id) on delete cascade,
+    geom geometry('LINESTRINGZ', {srid}) not null check (st_isvalid(geom)),
+    ceil_ geometry('LINESTRINGZ', {srid}),
+    wall_ geometry('LINESTRINGZ', {srid})
+)
+;
+
+create index edge_geom_idx on _albion.edge using gist(geom)
+;
+
+create index edge_graph_id_idx on _albion.edge(graph_id)
+;
+
+create index edge_grid_id_idx on _albion.edge(grid_id)
+;
+
+create index edge_start__idx on _albion.edge(start_)
+;
+
+create index edge_end__idx on _albion.edge(end_)
+;
+
+alter table _albion.edge alter column id set default uuid_generate_v4()::varchar
+;
 

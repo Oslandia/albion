@@ -41,7 +41,11 @@ psql -p 55432 -h localhost test_project -tXA -c "select albion.to_obj(st_collect
 
 psql -p 55432 -h localhost test_project -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge('tarat_u1', id)))) from albion.tarat_u1_edge" >  /tmp/tarat_u1_section.obj
 
-#exit 0
+exit 0
+
+
+
+
 
 psql -p 55432 -h localhost test_project << EOF
 delete from albion.tarat_u2_node;
