@@ -1,4 +1,4 @@
--------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
 -- PUBLIC SCHEMA FOR DATABASE INTERFACE
 -------------------------------------------------------------------------------
 
@@ -159,8 +159,8 @@ $$
     g = wkb.loads(geom, True)
     s = wkb.loads(section, True)
     def tr(x, y, z):
-        #plpy.notice(x, y, z)
-        return zip(*((s.project(Point(x_, y_)), z_) for x_, y_, z_ in (zip(x,y,z) if hasattr(x, '__iter__') else zip((x,),(y,),(z,)))))
+        return zip(*((s.project(Point(x_, y_)), z_) 
+                for x_, y_, z_ in (zip(x,y,z) if hasattr(x, '__iter__') else zip((s.project(Point(x_, y_)),),(z,)))))
     result = transform(tr, g)
     geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(g._geom))
     return result.wkb_hex
@@ -176,11 +176,19 @@ $$
     from shapely.ops import transform 
     from shapely import wkb
     from shapely import geos
+    from shapely.geometry import LineString
     geos.WKBWriter.defaults['include_srid'] = True
 
+    if geom is None:
+        return None
     g = wkb.loads(geom, True)
     s = wkb.loads(section, True)
-    result = transform(lambda x, y: tuple(s.interpolate(x).coords)[:2]+(y,), g)
+    l = s.length
+    def tr(x, y):
+        return zip(*((tuple(s.interpolate(min(max(x_,0),l)).coords[0][:2])+(y_,))
+                for x_, y_ in zip(x,y) )) # if hasattr(x, '__iter__') else zip((s.interpolate(x).coords[0],),(s.interpolate(x).coords[1],),(y,)))))
+
+    result = transform(tr, g)
     geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(g._geom))
     return result.wkb_hex
 $$
@@ -253,28 +261,6 @@ len as (
 select row_number() over() as id, geom::geometry('POINT', {srid})
 from len
 where d < 2*albion.snap_distance() and d > 0
-;
-
-create materialized view albion.cell
-as
-with collec as (
-    select
-            (st_dump(
-                coalesce(
-                    st_split(
-                        a.geom,
-                        (select st_collect(geom)
-                            from _albion.grid as b
-                            where a.id!=b.id and st_intersects(a.geom, b.geom)
-                            and st_dimension(st_intersection(a.geom, b.geom))=0)),
-                    a.geom)
-        )).geom as geom
-    from _albion.grid as a
-),
-poly as (
-    select (st_dump(st_polygonize(geom))).geom as geom from collec
-)
-select row_number() over() as id, geom::geometry('POLYGON', {srid}) from poly where geom is not null
 ;
 
 create view albion.hole_grid
@@ -353,7 +339,7 @@ create trigger grid_instead_trig
 create view albion.collar as select id, geom, comments from _albion.collar
 ;
 
-create view albion.metadata as select id, srid, snap_distance, origin, precision, interpolation, current_section, end_distance from _albion.metadata
+create view albion.metadata as select id, srid, snap_distance, precision, interpolation, current_section, end_distance, correlation_distance, correlation_slope from _albion.metadata
 ;
 
 create view albion.hole as select id, collar_id, depth_, geom from _albion.hole
@@ -487,7 +473,65 @@ from albion.edge as f
 where f.grid_id = albion.current_section_id()
 ;
 
--- @todo trigger to update view
+create or replace function albion.edge_section_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    declare
+        edge_geom geometry;
+        wall_geom geometry;
+        ceil_geom geometry;
+    begin
+        if tg_op = 'INSERT' or tg_op = 'UPDATE' then
+            -- find end nodes from geometry
+            select id
+            from albion.node_section as s
+            where st_dwithin(s.geom, st_startpoint(new.geom), albion.snap_distance())
+            into new.start_;
+
+            select id
+            from albion.node_section as s
+            where st_dwithin(s.geom, st_endpoint(new.geom), albion.snap_distance())
+            into new.end_;
+
+            -- find graph_id from nodes
+            select coalesce(new.graph_id, 
+                (select graph_id from albion.node where id in (new.start_, new.end_) limit 1))
+            into new.graph_id;
+
+            select albion.current_section_id() into new.grid_id;
+
+            -- make the 3D edge geometry
+            select st_makeline(
+                coalesce((select st_3dlineinterpolatepoint(geom, .5) from _albion.node where id=new.start_), albion.from_section(st_startpoint(new.geom), albion.current_section_geom())), 
+                coalesce((select st_3dlineinterpolatepoint(geom, .5) from _albion.node where id=new.end_), albion.from_section(st_endpoint(new.geom), albion.current_section_geom()))
+                ) into edge_geom;
+
+            select albion.from_section(new.ceil_, albion.current_section_geom()) into ceil_geom;
+            select albion.from_section(new.wall_, albion.current_section_geom()) into wall_geom;
+        end if;
+
+        -- /!\ insert/update the edge view to trigger line splitting at grid points 
+        if tg_op = 'INSERT' then
+            insert into albion.edge(graph_id, start_, end_, grid_id, geom, ceil_, wall_) values(new.graph_id, new.start_, new.end_, new.grid_id, edge_geom, ceil_geom, wall_geom) returning id into new.id;
+            return new;
+        elsif tg_op = 'UPDATE' then
+            update albion.edge set start_=new.start_, end_=new.end_, grid_id=new.grid_id, geom=edge_geom, ceil_=new.ceil_, wall_=new.wall_ where id=new.id;
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from albion.edge where id=old.id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger edge_section_instead_trig
+    instead of insert or update or delete on albion.edge_section
+       for each row execute procedure albion.edge_section_instead_fct()
+;
+
 
 create or replace view albion.crossing_edge_section as
 with outgoing as (
@@ -571,8 +615,10 @@ $$
                 row_number() over() as id,
                 h.id as right, 
                 lag(h.id) over (order by st_linelocatepoint((select geom from albion.grid where id=grid_id_), st_startpoint(h.geom))) as left
-            from (select distinct hole_id from node) as n
-            join albion.hole as h on h.id=n.hole_id
+            from albion.hole as h, albion.grid as g 
+            where h.geom && g.geom 
+            and st_intersects(st_startpoint(h.geom), g.geom)
+            and g.id=grid_id_
         ),
         possible_edge as (
             select 
@@ -582,14 +628,15 @@ $$
                 abs(st_z(n2.geom) - st_z(n1.geom))/st_distance(n2.geom, n1.geom) angle,
                 count(1) over (partition by n1.id) as c1,  
                 count(1) over (partition by n2.id) as c2, 
-                rank() over (partition by p.id order by abs(st_z(n2.geom) - st_z(n1.geom))/st_distance(n2.geom, n1.geom)) as rk
+                rank() over (partition by p.id order by abs(st_z(n2.geom) - st_z(n1.geom)) asc) as rk
             from hole_pair as p
             join node as n1 on n1.hole_id=p.left
-            join node as n2 on n2.hole_id=p.right
+            join node as n2 on n2.hole_id=p.right, albion.metadata as m
+            where st_distance(n1.geom, n2.geom) <  m.correlation_distance
         )
         insert into albion.edge(graph_id, start_, end_, grid_id, geom)
         select graph_id_, e.start_, e.end_, grid_id_, e.geom /*albion.snap_edge_to_grid(e.geom, e.start_, e.end_, grid_id_)*/ from possible_edge as e
-        where e.rk <= greatest(e.c1, e.c2)
+        where e.rk <= least(e.c1, e.c2)
         and not exists (select 1 from albion.edge where (start_=e.start_ and end_=e.end_) or (start_=e.end_ and end_=e.start_));
 
         return 't'::boolean;
@@ -613,6 +660,8 @@ $$
 $$
 ;
 
+
+
 create or replace function albion.auto_ceil_and_wall(graph_id_ varchar, grid_id_ varchar)
 returns boolean
 language plpgsql
@@ -621,7 +670,7 @@ $$
     begin
         update albion.edge as e set wall_ =  (
             select st_makeline(
-                st_3dlineinterpolatepoint(n1.geom, coalesce(
+                st_3dlineinterpolatepoint(n1.geom, least(
                      (select sum(st_3dlength(o.geom)) from albion.node as o 
                         where o.hole_id=n2.hole_id 
                         and exists (select 1 from albion.edge where start_=n1.id and end_=o.id) 
@@ -630,7 +679,7 @@ $$
                         where o.hole_id=n2.hole_id 
                         and exists (select 1 from albion.edge where start_=n1.id and end_=o.id)))
                 , 1)), 
-                st_3dlineinterpolatepoint(n2.geom, coalesce(
+                st_3dlineinterpolatepoint(n2.geom, least(
                      (select sum(st_3dlength(o.geom)) from albion.node as o 
                         where o.hole_id=n1.hole_id 
                         and exists (select 1 from albion.edge where start_=o.id and end_=n2.id) 
@@ -647,7 +696,7 @@ $$
 
         update albion.edge as e set ceil_ =  (
             select st_makeline(
-                st_3dlineinterpolatepoint(n1.geom, coalesce(
+                st_3dlineinterpolatepoint(n1.geom, greatest(
                      (select sum(st_3dlength(o.geom)) from albion.node as o 
                         where o.hole_id=n2.hole_id 
                         and exists (select 1 from albion.edge where start_=n1.id and end_=o.id) 
@@ -656,7 +705,7 @@ $$
                         where o.hole_id=n2.hole_id 
                         and exists (select 1 from albion.edge where start_=n1.id and end_=o.id)))
                 , 0)), 
-                st_3dlineinterpolatepoint(n2.geom, coalesce(
+                st_3dlineinterpolatepoint(n2.geom, greatest(
                      (select sum(st_3dlength(o.geom)) from albion.node as o 
                         where o.hole_id=n1.hole_id 
                         and exists (select 1 from albion.edge where start_=o.id and end_=n2.id) 
@@ -766,24 +815,29 @@ returns varchar
 language plpython3u
 as
 $$
+    import numpy
     results = plpy.execute("""
         select 
-            id, 
-            st_z(st_lineinterpolatepoint(ceil_, st_linelocatepoint(ceil_, '{point}'::geometry))) as start_, 
-            st_z(st_lineinterpolatepoint(wall_, st_linelocatepoint(wall_, '{point}'::geometry))) as end_ 
-        from albion.edge 
-        where st_intersects(geom, '{point}'::geometry)
-        and graph_id='{graph_id}'
+            e.id, 
+            st_z(st_lineinterpolatepoint(e.ceil_, st_linelocatepoint(e.ceil_, '{point}'::geometry))) as start_, 
+            st_z(st_lineinterpolatepoint(e.wall_, st_linelocatepoint(e.wall_, '{point}'::geometry))) as end_,
+            st_length(e.geom)*m.correlation_slope as snap_distance
+        from albion.edge as e, albion.metadata as m
+        where st_intersects(e.geom, '{point}'::geometry)
+        and e.graph_id='{graph_id}'
         order by start_ desc
         """.format(graph_id=graph_id, point=point))
+
 
     if len(results) < 2:
         return 'noting to do'
 
+    snap_distance = numpy.mean([res['snap_distance'] for res in results])
+
     last_start, last_end = results[0]['start_'], results[0]['end_']
     columns = [[dict(results[0])]]
     for res in results[1:]:
-        if res['start_'] < last_end:
+        if res['start_'] < last_end - snap_distance:
             # save column
             columns.append([dict(res)])
             last_start, last_end = res['start_'], res['end_']
@@ -901,48 +955,48 @@ $$
         assert re.match("^\$Elements", out.readline())
 
 
-        with open('/tmp/debug_alti.txt', 'w') as dbg:
-            for k, v in altitudes.items():
-                dbg.write("{} {}\n".format(k, v))
+        #with open('/tmp/debug_alti.txt', 'w') as dbg:
+        #    for k, v in altitudes.items():
+        #        dbg.write("{} {}\n".format(k, v))
 
-        # set node altitude
-        for i in range(len(nodes)):
-            nodes[i,2] = altitudes.get("%.2f %.2f"%(nodes[i,0], nodes[i,1]), 9999)
+        ## set node altitude
+        #for i in range(len(nodes)):
+        #    nodes[i,2] = altitudes.get("%.2f %.2f"%(nodes[i,0], nodes[i,1]), 9999)
 
         elements = []
-        neighbors = defaultdict(set)
+        #neighbors = defaultdict(set)
         nb_elem = int(out.readline())
         for i in range(nb_elem):
             spl = out.readline().split()
             if spl[1] == '2':
                 elements.append([int(n) - 1 for n in spl[-3:]])
-                neighbors[elements[-1][0]]|= set((elements[-1][1], elements[-1][2]))
-                neighbors[elements[-1][1]]|= set((elements[-1][2], elements[-1][0]))
-                neighbors[elements[-1][2]]|= set((elements[-1][0], elements[-1][1]))
+                #neighbors[elements[-1][0]]|= set((elements[-1][1], elements[-1][2]))
+                #neighbors[elements[-1][1]]|= set((elements[-1][2], elements[-1][0]))
+                #neighbors[elements[-1][2]]|= set((elements[-1][0], elements[-1][1]))
 
-        with open('/tmp/debug_neigh.txt', 'w') as dbg:
-            for k, v in neighbors.items():
-                dbg.write("{} {}\n".format(k, v))
+        #with open('/tmp/debug_neigh.txt', 'w') as dbg:
+        #    for k, v in neighbors.items():
+        #        dbg.write("{} {}\n".format(k, v))
 
 
-        for l in range(4):
-            cont = False
-            #plpy.notice("fixing {} altitudes".format(len([i for i, in numpy.argwhere(nodes[:,2]==9999)])))
-            for i, in numpy.argwhere(nodes[:,2]==9999):
-                z =[nodes[n,2] for n in neighbors[i] if nodes[n,2] != 9999]
-                if len(z):
-                    #plpy.notice("set altitude of node %.2f %.2f"%(nodes[i,0], nodes[i,1]), z)
-                    nodes[i,2] = numpy.mean(z) 
-                else:
-                    cont = True
-                    #plpy.notice("cannot find altitude of node %.2f %.2f"%(nodes[i,0], nodes[i,1]),
-                    #    "with neighbors:", " ".join(["%.2f %.2f"%(nodes[n,0], nodes[n,1]) for n in neighbors[i]]))
-            if not cont:
-                break
+        #for l in range(4):
+        #    cont = False
+        #    #plpy.notice("fixing {} altitudes".format(len([i for i, in numpy.argwhere(nodes[:,2]==9999)])))
+        #    for i, in numpy.argwhere(nodes[:,2]==9999):
+        #        z =[nodes[n,2] for n in neighbors[i] if nodes[n,2] != 9999]
+        #        if len(z):
+        #            #plpy.notice("set altitude of node %.2f %.2f"%(nodes[i,0], nodes[i,1]), z)
+        #            nodes[i,2] = numpy.mean(z) 
+        #        else:
+        #            cont = True
+        #            #plpy.notice("cannot find altitude of node %.2f %.2f"%(nodes[i,0], nodes[i,1]),
+        #            #    "with neighbors:", " ".join(["%.2f %.2f"%(nodes[n,0], nodes[n,1]) for n in neighbors[i]]))
+        #    if not cont:
+        #        break
         #plpy.notice("z in range %.2f %.2f"%(numpy.min(nodes[:,2]), numpy.max(nodes[:,2])))
             
         for element in elements:
-            result.append(Polygon([(coord[0], coord[1], coord[2])
+            result.append(Polygon([(coord[0], coord[1])
                     for coord in reversed(nodes[element])]))
     result = MultiPolygon(result)
     geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(polygons._geom))
@@ -957,6 +1011,8 @@ language plpython3u immutable
 as
 $$
     from shapely import wkb
+    if multipoly is None:
+        return ''
     m = wkb.loads(multipoly, True)
     res = ""
     node_map = {}
@@ -979,7 +1035,7 @@ $$
 $$
 ;
 
--- traingle strip between two linestring
+-- triangle strip between two linestring
 create or replace function albion.triangulate_edge(ceil_ geometry, wall_ geometry)
 returns geometry
 language plpython3u stable
@@ -989,6 +1045,9 @@ $$
     from shapely.geometry import MultiPolygon, Polygon, Point
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
+
+    if ceil_ is None or wall_ is None:
+        return None
 
     c = wkb.loads(ceil_, True)
     w = wkb.loads(wall_, True)
@@ -1015,33 +1074,37 @@ $$
     declare
         res geometry;
     begin
-        return (
-            with section as (
-                select geom from albion.grid where id = grid_id_
-            ),
-            line as (
-                select albion.to_section(e.ceil_, s.geom) as geom 
-                from section as s, albion.edge as e
-                where c.grid_id=grid_id
-                and c.graph_id=graph_id_
-                union all
-                select albion.to_section(e.wall_, s.geom) as geom 
-                from section as s, albion.edge as e
-                where c.grid_id=grid_id
-                and c.graph_id=graph_id_
-                union all
-                select albion.to_section(n.geom, s.geom) as geom
-                from section as s,
-                albion.node as n 
-                join albion.hole as h on h.id=n.hole_id
-                join albion.grid as g on st_intersects(st_startpoint(h.geom), g.geom)
-                where g.id = grid_id_
-                and n.grid_id=grid_id_
-            )
-            select albion.from_section(st_unaryunion(st_polygonize(l.geom)), s.geom) 
-            from line as l, section as s
-            group by s.geom
-        );
+        --raise notice 'section_polygons %', grid_id_;
+        with section as (
+            select geom from albion.grid where id = grid_id_
+        ),
+        line as (
+            select albion.to_section(e.ceil_, s.geom) as geom 
+            from section as s, albion.edge as e
+            where e.grid_id=grid_id_
+            and e.graph_id=graph_id_
+            union all
+            select albion.to_section(e.wall_, s.geom) as geom 
+            from section as s, albion.edge as e
+            where e.grid_id=grid_id_
+            and e.graph_id=graph_id_
+            union all
+            select albion.to_section(n.geom, s.geom) as geom
+            from section as s,
+            albion.node as n 
+            join albion.hole as h on h.id=n.hole_id
+            where st_intersects(st_startpoint(h.geom), s.geom)
+            and n.graph_id=graph_id_
+
+        ),
+        poly as (
+            select st_polygonize(geom) as geom from line
+        )
+        select geom from poly where not st_isempty(geom) into res;
+
+        --raise notice 'union %', (select st_astext(res));
+
+        return (select albion.from_section(st_unaryunion(res), (select geom from albion.grid where id = grid_id_)));
     end;
 $$
 ;
@@ -1054,8 +1117,8 @@ $$
     begin
         return (
             with poly as (
-                select row_number() over() as id, (st_dump(albion.section_polygons(graph, id))).geom as geom
-                from albion.grid
+                select row_number() over() as id, (t.d).geom as geom
+                from (select st_dump(albion.section_polygons(graph, id)) as d from albion.grid) as t
             ),
             pt as (
                 select id, (st_dumppoints(geom)).geom as geom from poly
@@ -1072,4 +1135,314 @@ select f.id, f.graph_id, f.hole_id, albion.to_section(f.geom, g.geom)::geometry(
 from albion.node as f 
 join albion.hole_grid as g on g.hole_id=f.hole_id
 where g.grid_id = albion.current_section_id()
+;
+
+
+
+create or replace function albion.auto_graph(graph_id_ varchar)
+returns boolean
+language plpgsql volatile
+as
+$$
+    begin
+        perform count(albion.auto_connect(graph_id_, id)) from albion.grid;
+
+        perform count(albion.auto_ceil_and_wall(graph_id_, id)) from albion.grid;
+
+        perform count(albion.fix_column(graph_id_, geom)) 
+        from (
+            select (st_dumppoints(st_force2d(geom))).geom as geom
+            from albion.grid
+        ) as t
+        where not exists (select 1 from albion.collar as c where st_intersects(c.geom, t.geom))
+        ;
+
+        return 't';
+
+    end;
+$$
+;
+
+
+create materialized view albion.dense_grid as
+with all_pt as (
+    select id, grid_id, st_dumppoints(ceil_) as d from albion.edge
+),
+all_but_end as (
+    select p.grid_id, st_collect((p.d).geom) as geom from all_pt as p
+    where (p.d).path != (select max((t.d).path) from all_pt as t where t.id=p.id)
+    and (p.d).path != (select min((t.d).path) from all_pt as t where t.id=p.id)
+    group by p.grid_id
+)
+select id, coalesce(st_snap(g.geom, a.geom, albion.precision()), g.geom)::geometry('LINESTRING', {srid}) as geom
+from all_but_end as a right join albion.grid as g on g.id=a.grid_id
+;
+
+create index dense_grid_geom_idx on albion.dense_grid using gist(geom)
+;
+
+create materialized view albion.cell
+as
+with collec as (
+    select
+            (st_dump(
+                coalesce(
+                    st_split(
+                        a.geom,
+                        (select st_collect(geom)
+                            from _albion.grid as b
+                            where a.id!=b.id and st_intersects(a.geom, b.geom)
+                            and st_dimension(st_intersection(a.geom, b.geom))=0)),
+                    a.geom)
+        )).geom as geom
+    from albion.dense_grid as a
+),
+poly as (
+    select (st_dump(st_polygonize(geom))).geom as geom from collec
+)
+select uuid_generate_v4()::varchar as id, geom::geometry('POLYGON', {srid}) from poly where geom is not null
+;
+
+create index cell_geom_idx on albion.cell using gist(geom)
+;
+
+create materialized view albion.triangle
+as
+with mesh as (
+    select albion.triangulate(st_collect(geom)) as geom from albion.cell
+),
+tri as (
+    select (st_dump(st_force2d(geom))).geom from mesh
+)
+select uuid_generate_v4()::varchar as id, cell.id cell_id, st_snap(tri.geom, cell.geom, m.precision)::geometry('POLYGON', {srid}) as geom
+from tri join albion.cell on st_intersects(st_centroid(tri.geom), cell.geom), albion.metadata as m
+;
+
+create index triangle_geom_idx on albion.triangle using gist(geom)
+;
+
+-- edge ends are projected on hole start if any
+-- edge intermediates points are projected vertically
+create or replace function albion.project_edge(edge_id_ varchar)
+returns geometry
+language plpgsql stable
+as
+$$
+    begin
+        return (select st_setpoint(st_setpoint(st_force2d(e.geom), 0, st_force2d(coalesce(st_startpoint(hs.geom), st_startpoint(e.geom)))),  -1, st_force2d(coalesce(st_startpoint(he.geom), st_endpoint(e.geom))))
+            from albion.edge as e left join albion.node as ns on ns.id=e.start_ left join albion.node as ne on ne.id=e.end_
+            left join albion.hole as he on he.id=ne.hole_id left join albion.hole as hs on hs.id=ns.hole_id
+            where e.id=edge_id_
+        );
+    end;
+$$
+;
+
+create or replace function albion.project_ceil(edge_id_ varchar)
+returns geometry
+language plpgsql stable
+as
+$$
+    begin
+        return (select st_setpoint(st_setpoint(st_force2d(e.ceil_), 0, st_force2d(coalesce(st_startpoint(hs.geom), st_startpoint(e.ceil_)))),  -1, st_force2d(coalesce(st_startpoint(he.geom), st_endpoint(e.ceil_))))
+            from albion.edge as e left join albion.node as ns on ns.id=e.start_ left join albion.node as ne on ne.id=e.end_
+            left join albion.hole as he on he.id=ne.hole_id left join albion.hole as hs on hs.id=ns.hole_id
+            where e.id=edge_id_
+        );
+    end;
+$$
+;
+
+create or replace function albion.project_wall(edge_id_ varchar)
+returns geometry
+language plpgsql stable
+as
+$$
+    begin
+        return (select st_setpoint(st_setpoint(st_force2d(e.wall_), 0, st_force2d(coalesce(st_startpoint(hs.geom), st_startpoint(e.wall_)))),  -1, st_force2d(coalesce(st_startpoint(he.geom), st_endpoint(e.wall_))))
+            from albion.edge as e left join albion.node as ns on ns.id=e.start_ left join albion.node as ne on ne.id=e.end_
+            left join albion.hole as he on he.id=ne.hole_id left join albion.hole as hs on hs.id=ns.hole_id
+            where e.id=edge_id_
+        );
+    end;
+$$
+;
+
+
+-- point projection
+-- the point either lies on a grid point or is the end 
+
+-- edge piece in cell
+create or replace function albion.ceil_piece(edge_id_ varchar, cell_id_ varchar)
+returns geometry
+language plpgsql stable
+as
+$$
+    begin
+        return (
+            with p as (
+                select (t.d).path as pth
+                from (select st_dumppoints(albion.project_ceil(edge_id_)) as d) as t, albion.cell as c
+                where st_intersects((t.d).geom, c.geom)
+                and c.id=cell_id_
+            )
+            select st_makeline((t.d).geom)
+            from (select st_dumppoints(ceil_) as d from albion.edge where id=edge_id_) as t
+            where (t.d).path in (select pth from p)
+        );
+    end;
+$$
+;
+
+create or replace function albion.wall_piece(edge_id_ varchar, cell_id_ varchar)
+returns geometry
+language plpgsql stable
+as
+$$
+    begin
+        return (
+            with p as (
+                select (t.d).path as pth
+                from (select st_dumppoints(albion.project_wall(edge_id_)) as d) as t, albion.cell as c
+                where st_intersects((t.d).geom, c.geom)
+                and c.id=cell_id_
+            )
+            select st_makeline((t.d).geom)
+            from (select st_dumppoints(wall_) as d from albion.edge where id=edge_id_) as t
+            where (t.d).path in (select pth from p)
+        );
+    end;
+$$
+;
+
+create materialized view albion.projected_edge
+as
+select id, albion.project_edge(id) as geom, albion.project_ceil(id) as ceil_, albion.project_wall(id) as wall_
+from albion.edge
+;
+
+create index project_edge_geom_idx on albion.projected_edge using gist(geom)
+;
+
+create index project_edge_id_idx on albion.projected_edge(id)
+;
+
+create materialized view albion.cell_edge
+as
+select uuid_generate_v4()::varchar as id, c.id as cell_id, e.graph_id, e.id as edge_id, albion.ceil_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as ceil_, albion.wall_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as wall_,
+st_intersection(p.ceil_, c.geom) as proj_ceil_, st_intersection(p.wall_, c.geom) as proj_wall_
+from albion.cell as c, albion.projected_edge as p join albion.edge as e on e.id=p.id
+where st_intersects(p.geom, c.geom)
+and st_dimension(st_intersection(p.geom, c.geom))=1
+;
+
+create index cell_edge_id_idx on albion.cell_edge(edge_id)
+;
+
+
+create or replace function albion.elementary_volume(graph_id_ varchar, cell_id_ varchar)
+returns geometry
+language plpython3u stable
+as
+$$
+    from shapely import wkb
+    from shapely.ops import linemerge
+    from shapely.geometry import Point, Polygon, MultiPolygon
+    import numpy
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    output = []
+
+    # get triangles
+    precision = plpy.execute("""select albion.precision() as p""")[0]['p']
+    res = plpy.execute("""
+        select id, geom
+        from albion.triangle
+        where cell_id='{cell_id_}'
+        """.format(cell_id_=cell_id_))
+    triangles = [wkb.loads(r['geom'], True) for r in res]
+    nodes = list(set((c for t in triangles for c in t.exterior.coords[:-1] )))
+    node_map = {n:i for i, n in enumerate(nodes)}
+    elements = [(node_map[t.exterior.coords[0]], node_map[t.exterior.coords[1]], node_map[t.exterior.coords[2]])
+        for t in triangles]
+    nodes = numpy.array([(c[0], c[1], 9999) for c in nodes])
+
+    # get edges that are connected to holes that are touching the cell
+    res = plpy.execute("""
+        select edge_id, wall_, ceil_, proj_ceil_, proj_wall_
+        from albion.cell_edge
+        where cell_id='{cell_id_}'
+        and graph_id='{graph_id_}'
+        """.format(cell_id_=cell_id_, graph_id_=graph_id_))
+    if not res:
+        return None
+
+    for side in ['ceil_', 'wall_']:
+        edges = [wkb.loads(r[side], True) for r in res]
+        prj_edges = {r['edge_id']:wkb.loads(r['proj_'+side], True) for r in res}
+        m_edges = {r['edge_id']:wkb.loads(r[side], True) for r in res}
+        edges_id = [r['edge_id'] for r in res]
+
+        # find loops
+        loop_ = []
+        current_ = edges.pop()
+        id_loop = [[edges_id.pop()]]
+        while True:
+            cont = False
+            for i in range(len(edges)):
+                if set((edges[i].coords[0], edges[i].coords[-1])).intersection(set((current_.coords[0], current_.coords[-1]))):
+                    current_ = linemerge([current_, edges.pop(i)])
+                    id_loop[-1].append(edges_id.pop())
+                    cont = True
+                    break
+            if not cont:
+                loop_.append(current_)
+                if len(edges):
+                    current_ = edges.pop()
+                    id_loop.append([edges_id.pop()])
+                else:
+                    break
+
+        # find rings
+        rings = [id_ for l, id_ in zip(loop_, id_loop) if l.is_ring]
+
+        if not rings:
+            return None
+        
+        # set nodes altitudes
+        for ring in rings:
+            new_nodes = numpy.array(nodes)
+            for n in range(len(nodes)):
+                for edge in ring:
+                    if Point(nodes[n][:2]).intersects(prj_edges[edge]):
+                        alpha = prj_edges[edge].project(Point(nodes[n][:2]), normalized=True)
+                        new_nodes[n] = m_edges[edge].interpolate(alpha, normalized=True).coords
+                        break
+            # average z with inverse-squared distance
+            without_alti = numpy.argwhere(new_nodes[:,2]==9999)
+            with_alti = numpy.argwhere(new_nodes[:,2]!=9999)
+            for i, in without_alti:
+                dist = numpy.array([Point(new_nodes[i,:2]).distance(Point(new_nodes[o,:2])) for o, in with_alti])
+                z = numpy.array([new_nodes[o,2] for o, in with_alti])
+                weight = 1/dist
+                new_nodes[i,2] = numpy.sum(z*weight)/numpy.sum(weight)
+
+            if side == 'ceil_':
+                output += [Polygon([new_nodes[e[0]], new_nodes[e[1]], new_nodes[e[2]]]) for e in elements]
+            else:
+                output += [Polygon([new_nodes[e[2]], new_nodes[e[1]], new_nodes[e[0]]]) for e in elements]
+
+    output = MultiPolygon(output)
+    geos.lgeos.GEOSSetSRID(output._geom, {srid})
+
+    return output.wkb_hex
+$$
+;
+
+create view albion.double_edge
+as
+select uuid_generate_v4()::varchar as id, c.geom::geometry('POLYGON', 32632) 
+from albion.cell as c, albion.collar as g 
+where st_intersects(c.geom, g.geom) and not st_intersects(st_exteriorring(c.geom), g.geom)
 ;

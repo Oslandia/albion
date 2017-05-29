@@ -27,10 +27,11 @@ create table _albion.metadata(
     srid integer not null references public.spatial_ref_sys(srid),
     current_section varchar references _albion.grid(id) on delete set null on update cascade,
     snap_distance real not null default 1,
-    origin geometry('POINTZ', {srid}) not null default 'SRID={srid}; POINTZ(0 0 0)'::geometry,
     precision real default .01,
     interpolation interpolation_method default 'balanced_tangential',
-    end_distance real default 25)
+    end_distance real default 25,
+    correlation_distance real default 200,
+    correlation_slope real default 1.0/100)
 ;
 
 insert into _albion.metadata(srid) select {srid}
@@ -221,7 +222,7 @@ alter table _albion.node alter column id set default uuid_generate_v4()::varchar
 
 create table _albion.edge(
     id varchar primary key,
-    graph_id varchar,
+    graph_id varchar not null,
         unique(id, graph_id),
     start_ varchar,
         foreign key (graph_id, start_) references _albion.node(graph_id, id) on delete cascade on update cascade,
