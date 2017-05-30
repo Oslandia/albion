@@ -182,6 +182,7 @@ create table _albion.mineralization(
     oc real,
     accu real,
     grade real,
+    comments varchar,
     geom geometry('LINESTRINGZ', {srid}))
 ;
 

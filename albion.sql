@@ -158,7 +158,8 @@ $$
         return None
     g = wkb.loads(geom, True)
     s = wkb.loads(section, True)
-    def tr(x, y, z):
+    def tr(x, y, z=None):
+        z = z or (0,)*len(x)
         return zip(*((s.project(Point(x_, y_)), z_) 
                 for x_, y_, z_ in (zip(x,y,z) if hasattr(x, '__iter__') else zip((s.project(Point(x_, y_)),),(z,)))))
     result = transform(tr, g)
@@ -209,13 +210,13 @@ $$
             select (t.d).path as p, (t.d).geom as geom from 
                 (select st_dumppoints(
                     st_linesubstring(geom, 
-                        st_linelocatepoint(geom, (select st_startpoint(h.geom) from albion.hole as h join albion.node as n on n.hole_id=h.id where n.id=start_)),
-                        st_linelocatepoint(geom, (select st_startpoint(h.geom) from albion.hole as h join albion.node as n on n.hole_id=h.id where n.id=end_))
+                        st_linelocatepoint(geom, coalesce((select st_startpoint(h.geom) from albion.hole as h join albion.node as n on n.hole_id=h.id where n.id=start_), st_startpoint(new_geom))),
+                        st_linelocatepoint(geom, coalesce((select st_startpoint(h.geom) from albion.hole as h join albion.node as n on n.hole_id=h.id where n.id=end_), st_endpoint(new_geom)))
                     )) as d from albion.grid where id=grid_id) as t
         ),
         snap as (
             select (st_dumppoints(new_geom)).geom as geom
-            union all
+            union
             select st_setsrid(st_makepoint(st_x(pt.geom), st_y(pt.geom), 
                     st_z(st_lineinterpolatepoint(new_geom, st_linelocatepoint(new_geom, pt.geom)))), st_srid(new_geom)) as geom
             from pt
@@ -386,6 +387,15 @@ as
 $$
     begin
         if tg_op = 'INSERT' or tg_op = 'UPDATE' then
+            -- find start_ and end_ if null
+            select coalesce(new.start_, (select id from albion.node where st_dwithin(geom, st_startpoint(new.geom), albion.precision()))) into new.start_;
+            select coalesce(new.end_, (select id from albion.node where st_dwithin(geom, st_endpoint(new.geom), albion.precision()))) into new.end_;
+
+            -- find graph_id from nodes
+            select coalesce(new.graph_id, 
+                (select graph_id from albion.node where id in (new.start_, new.end_) limit 1))
+            into new.graph_id;
+
             -- invert start and end if they are inverted/grid direction
             if (select st_linelocatepoint((select geom from _albion.grid where id=new.grid_id), 
                 (select st_3dlineinterpolatepoint(geom, .5) from _albion.node where id=new.start_))) 
@@ -560,19 +570,19 @@ crossing_edge as (
     and ce.id not in (select id from outgoing union all select id from incomming)
 ),
 pt as (
-    select * from (
+    select distinct * from (
         select ce.id, ce.graph_id, ce.start_, ce.end_, ce.grid_id, (st_dumppoints(ce.geom)).geom as geom
         from crossing_edge as e inner join albion.edge as ce on e.id=ce.id) as t
     where st_intersects(albion.current_section_geom(), geom)
 ),
 pt_wall as (
-    select * from (
+    select distinct * from (
         select ce.id, ce.graph_id, ce.start_, ce.end_, ce.grid_id, (st_dumppoints(ce.wall_)).geom as geom
         from crossing_edge as e inner join albion.edge as ce on e.id=ce.id) as t
     where st_intersects(albion.current_section_geom(), geom)
 ),
 pt_ceil as (
-    select * from (
+    select distinct * from (
         select ce.id, ce.graph_id, ce.start_, ce.end_, ce.grid_id, (st_dumppoints(ce.ceil_)).geom as geom
         from crossing_edge as e inner join albion.edge as ce on e.id=ce.id) as t
     where st_intersects(albion.current_section_geom(), geom)
@@ -584,11 +594,11 @@ crossing as (
         albion.to_section(pt_wall.geom, albion.current_section_geom()) as wall_
     from pt join pt_wall on pt_wall.id=pt.id join pt_ceil on pt_ceil.id=pt.id
 )
-select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', {srid}), ceil_::geometry('POINT', {srid}), wall_::geometry('POINT', {srid}), 'incomming' as connection from incomming
+select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', 32632), ceil_::geometry('POINT', 32632), wall_::geometry('POINT', 32632), 'incomming' as connection from incomming
 union all
-select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', {srid}), ceil_::geometry('POINT', {srid}), wall_::geometry('POINT', {srid}), 'outgoing' as connection from outgoing
+select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', 32632), ceil_::geometry('POINT', 32632), wall_::geometry('POINT', 32632), 'outgoing' as connection from outgoing
 union all
-select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', {srid}), ceil_::geometry('POINT', {srid}), wall_::geometry('POINT', {srid}), 'crossing' as connection from crossing
+select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', 32632), ceil_::geometry('POINT', 32632), wall_::geometry('POINT', 32632), 'crossing' as connection from crossing
 ;
 
 
@@ -1074,7 +1084,6 @@ $$
     declare
         res geometry;
     begin
-        --raise notice 'section_polygons %', grid_id_;
         with section as (
             select geom from albion.grid where id = grid_id_
         ),
@@ -1101,8 +1110,6 @@ $$
             select st_polygonize(geom) as geom from line
         )
         select geom from poly where not st_isempty(geom) into res;
-
-        --raise notice 'union %', (select st_astext(res));
 
         return (select albion.from_section(st_unaryunion(res), (select geom from albion.grid where id = grid_id_)));
     end;
@@ -1446,3 +1453,109 @@ select uuid_generate_v4()::varchar as id, c.geom::geometry('POLYGON', 32632)
 from albion.cell as c, albion.collar as g 
 where st_intersects(c.geom, g.geom) and not st_intersects(st_exteriorring(c.geom), g.geom)
 ;
+
+-- extend the graph to the next interpolated value
+create or replace function albion.extend_to_interpolated(graph_id_ varchar, grid_id_ varchar)
+returns boolean
+language plpgsql volatile
+as
+$$
+    begin
+        with extreme as (
+            select a.id, 
+            not exists (
+                select 1 
+                from albion.edge as b 
+                where st_startpoint(a.geom) in (st_startpoint(b.geom), st_endpoint(b.geom)) 
+                and b.graph_id=a.graph_id 
+                and b.grid_id=a.grid_id
+                and b.id!=a.id) as extreme_start,
+            not exists (
+                select 1 
+                from albion.edge as b 
+                where st_endpoint(a.geom) in (st_startpoint(b.geom), st_endpoint(b.geom)) 
+                and b.graph_id=a.graph_id 
+                and b.grid_id=a.grid_id
+                and b.id!=a.id) as extreme_end,
+            albion.to_section(albion.project_edge(a.id), g.geom) as prj_geom, a.geom, a.ceil_, a.wall_
+            from albion.edge as a, albion.grid as g
+            where a.graph_id=graph_id_
+            and a.grid_id=grid_id_
+            and g.id=grid_id_
+        ),
+        extreme_dir as (
+            select sign(st_x(st_endpoint(prj_geom))-st_x(st_startpoint(prj_geom)))*(case when extreme_start then -1 else 1 end) as dir, 
+            (case when extreme_start then st_startpoint(geom) else st_endpoint(geom) end) as geom,
+            (case when extreme_start then st_startpoint(ceil_) else st_endpoint(ceil_) end) as ceil_,
+            (case when extreme_start then st_startpoint(wall_) else st_endpoint(wall_) end) as wall_,
+            (case when extreme_start then st_startpoint(prj_geom) else st_endpoint(prj_geom) end) as prj_geom,
+            id
+            from extreme
+            where extreme_start or extreme_end
+        ),
+        crossing_grid as (
+            select albion.to_section(st_intersection(g.geom, cs.geom), cs.geom) as prj_geom, 
+            st_intersection(g.geom, cs.geom) as geom
+            from albion.grid as g, albion.grid as cs
+            where g.id!=grid_id_
+            and g.geom && cs.geom
+            and cs.id=grid_id_
+            and st_intersects(g.geom, cs.geom)
+            and st_dimension(st_intersection(g.geom, cs.geom)) = 0
+        ),
+        extension as (
+            select t.* from
+            (
+                select ed.id, ed.dir, ed.geom, ed.ceil_, ed.wall_, cg.geom as next, rank() over (partition by ed.id
+                    order by ed.dir*(st_x(cg.prj_geom) - st_x(ed.prj_geom)) asc) as rk 
+                from extreme_dir as ed, crossing_grid as cg
+                where ed.dir*(st_x(cg.prj_geom) - st_x(ed.prj_geom)) > 0
+            ) as t
+            where t.rk=1
+        ),
+        next as (
+            select 
+            case when ex.dir > 0 then
+                st_makeline(
+                    ex.geom,
+                    st_lineinterpolatepoint(e.geom, st_linelocatepoint(e.geom, st_intersection(e.geom, ex.next)))
+                ) 
+            else
+                st_makeline(
+                    st_lineinterpolatepoint(e.geom, st_linelocatepoint(e.geom, st_intersection(e.geom, ex.next))),
+                    ex.geom
+                ) 
+            end as geom,
+            case when ex.dir > 0 then
+                st_makeline(
+                    ex.ceil_,
+                    st_lineinterpolatepoint(e.ceil_, st_linelocatepoint(e.ceil_, st_intersection(e.ceil_, ex.next)))
+                ) 
+            else
+                st_makeline(
+                    st_lineinterpolatepoint(e.ceil_, st_linelocatepoint(e.ceil_, st_intersection(e.ceil_, ex.next))),
+                    ex.ceil_
+                ) 
+            end as ceil_,
+            case when ex.dir > 0 then
+                st_makeline(
+                    ex.wall_,
+                    st_lineinterpolatepoint(e.wall_, st_linelocatepoint(e.wall_, st_intersection(e.wall_, ex.next)))
+                ) 
+            else
+                st_makeline(
+                    st_lineinterpolatepoint(e.wall_, st_linelocatepoint(e.wall_, st_intersection(e.wall_, ex.next))),
+                    ex.wall_
+                ) 
+            end as wall_
+            from extension as ex, albion.edge as e
+            where st_intersects(e.geom, ex.next)
+            and e.graph_id=graph_id_
+        )
+        insert into albion.edge(geom, ceil_, wall_, graph_id, grid_id) select geom, ceil_, wall_, graph_id_, grid_id_ from next;
+
+        return 't';
+    end;
+$$
+;
+
