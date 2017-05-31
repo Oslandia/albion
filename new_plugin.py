@@ -25,25 +25,6 @@ from PyQt4.QtGui import (QMenu,
 
 import psycopg2 
 
-from .graph import to_volume
-
-from .graph_operations import (
-    refresh_graph_layer_edges,
-    find_generatrices_needing_a_fake_generatrice_in_section,
-    compute_section_polygons_from_graph,
-    compute_segment_geometry,
-    is_fake_feature,
-    does_edge_already_exist)
-from .section_projection import (project_layer_as_linestring,
-                                 project_layer_as_polygon)
-
-from .global_toolbar import GlobalToolbar
-
-from .utils import (icon,
-                    create_projected_layer,
-                    sort_id_along_implicit_centroids_line,
-                    centroids_to_line_wkt,
-                    length)
 
 
 from .axis_layer import AxisLayer, AxisLayerType
@@ -82,6 +63,7 @@ class Plugin(QObject):
         self.__select_current_section_action = None
         self.__current_graph = QComboBox()
         self.__current_graph.setMinimumWidth(150)
+        self.__axis_layer = None
 
         if not check_cluster():
             init_cluster()
@@ -103,6 +85,12 @@ class Plugin(QObject):
         self.__menu.addAction('&Export Project')
         self.__menu.addAction('Import Project')
         self.__menu.addAction('Reset QGIS Project').triggered.connect(self.__reset_qgis_project)
+        self.__menu.addAction('Export sections').triggered.connect(self.__export_sections)
+        self.__menu.addAction('Export volume').triggered.connect(self.__export_volume)
+        self.__menu.addSeparator()
+        self.__menu.addAction('Auto graph').triggered.connect(self.__auto_graph)
+        self.__menu.addAction('Extend all sections').triggered.connect(self.__extend_all_sections)
+        self.__menu.addAction('Toggle axis').triggered.connect(self.__toggle_axis)
         
         self.__iface.mainWindow().menuBar().addMenu(self.__menu)
 
@@ -166,17 +154,14 @@ class Plugin(QObject):
         section_group = root.insertGroup(0, "section")
 
         for layer_name in ['collar_section', 'formation_section', 'resistivity_section',
-                'radiometry_section']:
+                'radiometry_section', 'node_section', 'edge_section']:
             layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
             QgsMapLayerRegistry.instance().addMapLayer(layer, False)
             node = QgsLayerTreeLayer(layer)
             section_group.addChildNode(node)
 
-        con = psycopg2.connect(conn_info)
-        cur = con.cursor()
-        cur.execute("select id from albion.graph")
-        self.__add_graph_layers([id_ for id_, in cur.fetchall()])
-        con.close()
+         #self.__axis_layer = AxisLayer(self.__iface.mapCanvas().mapSettings().destinationCrs())
+         #QgsMapLayerRegistry.instance().addMapLayer(self.__axis_layer)
 
         self.__iface.actionSaveProject().trigger()
 
@@ -240,7 +225,7 @@ class Plugin(QObject):
 
         graph, ok = QInputDialog.getText(self.__iface.mainWindow(),
                 "Graph",
-                 "Graph name (no space, no caps, ascii only):", QLineEdit.Normal,
+                 "Graph name:", QLineEdit.Normal,
                  'test_graph')
 
         if not ok:
@@ -251,15 +236,11 @@ class Plugin(QObject):
 
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
-
-        for file_ in ('_albion_graph.sql', 'albion_graph.sql'):
-            for statement in open(os.path.join(os.path.dirname(__file__), file_)).read().split('\n;\n')[:-1]:
-                cur.execute(statement.format(srid=srid, name=graph))
-
+        cur.execute("delete from albion.graph casacde where id='{}';".format(graph))
+        cur.execute("insert into albion.graph(id) values ('{}');".format(graph))
         con.commit()
         con.close()
 
-        self.__add_graph_layers([graph])
         self.__current_graph.addItem(graph)
         self.__current_graph.setCurrentIndex(self.__current_graph.findText(graph))
 
@@ -284,51 +265,11 @@ class Plugin(QObject):
 
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
-        cur.execute("""
-            select table_name from information_schema.tables 
-            where table_schema = '_albion' 
-            and table_name like '{}%'
-            """.format(graph))
-
-        for table, in cur.fetchall():
-            cur.execute("""
-                drop table if exists _albion.{table} cascade
-                """.format(table=table))
-        cur.execute("""
-            delete from albion.graph where id='{graph}'
-            """.format(graph=graph))
+        cur.execute("delete from albion.graph casacde where id='{}';".format(graph))
         con.commit()
         con.close()
         self.__current_graph.removeItem(self.__current_graph.findText(graph))
-
-    def __add_graph_layers(self, graphs):
-        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
-        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
-        assert(conn_info)
-        root = QgsProject.instance().layerTreeRoot()
-        for graph in graphs:
-
-            for layer_name in [graph+'_edge', graph+'_node']:
-                layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
-                QgsMapLayerRegistry.instance().addMapLayer(layer, False)
-                node = QgsLayerTreeLayer(layer)
-                root.addChildNode(node)
-
-            section_group = root.findGroup("section")
-            for layer_name in [graph+'_node_section', graph+'_edge_section',
-                    graph+'_ceil_edge_section',
-                    graph+'_crossing_ceil_edge_section',
-                    graph+'_incoming_ceil_edge_section', graph+'_outgoing_ceil_edge_section', 
-                    graph+'_wall_edge_section',
-                    graph+'_crossing_wall_edge_section',
-                    graph+'_incoming_wall_edge_section', graph+'_outgoing_wall_edge_section',
-                    ]:
-                layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
-                QgsMapLayerRegistry.instance().addMapLayer(layer, False)
-                node = QgsLayerTreeLayer(layer)
-                section_group.addChildNode(node)
-        
-        self.__iface.actionSaveProject().trigger()
+        self.__refresh_layers()
 
     def __import_data(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
@@ -439,7 +380,8 @@ class Plugin(QObject):
         self.__refresh_layers()
 
     def __auto_connect(self):
-        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
             return
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         con = psycopg2.connect(conn_info)
@@ -452,7 +394,8 @@ class Plugin(QObject):
         self.__refresh_layers()
 
     def __auto_ceil_wall(self):
-        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]\
+                or not self.__current_graph.currentText():
             return
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         con = psycopg2.connect(conn_info)
@@ -464,20 +407,112 @@ class Plugin(QObject):
         con.close()
         self.__refresh_layers()
 
+    def __export_sections(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
 
+        fil = QFileDialog.getSaveFileName(None,
+                u"Export section",
+                "",
+                "Section files (*.obj, *.txt)")
+        if not fil:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
 
+        if fil[-4:] == '.txt':
+            cur.execute("select albion.export_polygons('{}')".format(self.__current_graph.currentText()))
+            open(fil, 'w').write(cur.fetchone()[0])
+        elif fil[-4:] == '.obj':
+            cur.execute("""
+                select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))) 
+                from albion.edge 
+                where graph_id='{}'
+                """.format(self.__current_graph.currentText()))
+            open(fil, 'w').write(cur.fetchone()[0])
+        con.close()
+
+    def __export_volume(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+
+        fil = QFileDialog.getSaveFileName(None,
+                u"Export volume",
+                "",
+                "Surface files(*.obj)")
+        if not fil:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+
+        if fil[-4:] == '.obj':
+            progressMessageBar = self.__iface.messageBar().createMessage("Loading {}...".format(dir_))
+            progress = QProgressBar()
+            progress.setMaximum(7)
+            progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+            progressMessageBar.layout().addWidget(progress)
+            self.__iface.messageBar().pushWidget(progressMessageBar, self.__iface.messageBar().INFO)
+            progress.setValue(0)
+            cur.execute("refresh materialized  view albion.dense_grid")
+            progress.setValue(1)
+            cur.execute("refresh materialized  view albion.cell")
+            progress.setValue(2)
+            cur.execute("refresh materialized  view albion.triangle")
+            progress.setValue(3)
+            cur.execute("refresh materialized  view albion.projected_edge")
+            progress.setValue(4)
+            cur.execute("refresh materialized  view albion.cell_edge")
+            progress.setValue(5)
+            cur.execute("""
+                select albion.to_obj(st_collectionhomogenize(st_collect(albion.elementary_volume('{}', id)))) 
+                from albion.cell
+                """.format(self.__current_graph.currentText()))
+            progress.setValue(6)
+            open(fil, 'w').write(cur.fetchone()[0])
+            progress.setValue(7)
+            self.__iface.messageBar().clearWidgets()
+        con.commit()
+        con.close()
+
+    def __auto_graph(sel):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select albion.auto_graph('{}')".format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __extend_all_sections(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select albion.extend_to_interpolated('{}', id) from albion.grid".format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
 
     def __refresh_layers(self):
         for layer in self.__iface.mapCanvas().layers():
             layer.triggerRepaint()
         
 
-    #def __toggle_axis(self):
-    #    if self.__axis_layer:
-    #        pass
-    #        QgsMapLayerRegistry.instance().removeMapLayer(self.__axis_layer.id())
-    #        self.__axis_layer = None
-    #    else:
-    #        self.__axis_layer = AxisLayer(self.__iface.mapCanvas().mapSettings().destinationCrs())
-    #        QgsMapLayerRegistry.instance().addMapLayer(self.__axis_layer)
+    def __toggle_axis(self):
+        if self.__axis_layer:
+            pass
+            QgsMapLayerRegistry.instance().removeMapLayer(self.__axis_layer.id())
+            self.__axis_layer = None
+        else:
+            self.__axis_layer = AxisLayer(self.__iface.mapCanvas().mapSettings().destinationCrs())
+            QgsMapLayerRegistry.instance().addMapLayer(self.__axis_layer)
 
