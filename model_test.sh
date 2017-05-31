@@ -21,6 +21,7 @@ psql -h localhost -tXA -p 55432 niger << EOF
 select 'load collar';
 copy _albion.collar(id, x, y, z, comments) from '/home/vmo/albion/niger_data/albion_collar.txt' delimiter ';' csv header;
 update _albion.collar set geom=format('SRID=32632;POINTZ(%s %s %s)', x, y, z)::geometry;
+update _albion.collar set geom=st_translate(geom, .5, 0, 0) where id='GART_0622_2';
 
 select 'create hole';
 insert into _albion.hole(id, collar_id) select id, id from _albion.collar;
@@ -115,22 +116,20 @@ psql -h localhost -p 55432 niger -f /tmp/albion.sql
 psql -p 55432 -h localhost niger << EOF
 \\timing
 
-
 update albion.metadata set snap_distance=.3, correlation_distance=300;
 
 insert into albion.graph(id) values ('test');
 
 insert into albion.node(graph_id, hole_id, geom) select 'test', hole_id, geom from albion.formation
-where code=340 and geom is not null;
+where code=310 and geom is not null;
 
 select albion.auto_graph('test');
---select count(albion.extend_to_interpolated('test', id)) from albion.grid;
---
---refresh materialized  view albion.dense_grid;
---refresh materialized  view albion.cell;
---refresh materialized  view albion.triangle;
---refresh materialized  view albion.projected_edge;
---refresh materialized  view albion.cell_edge;
+
+refresh materialized  view albion.dense_grid;
+refresh materialized  view albion.cell;
+refresh materialized  view albion.triangle;
+refresh materialized  view albion.projected_edge;
+refresh materialized  view albion.cell_edge;
 EOF
 
 psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))) from albion.edge where graph_id='test'" >  /tmp/test_section.obj
@@ -144,7 +143,7 @@ exit 0
 # MINERALIZATION GRAPH
 
 psql -h localhost -p 55432 niger -c "delete from albion.graph cascade;"
-psql -h localhost -p 55432 niger -c "vaccuum analyse;"
+psql -h localhost -p 55432 niger -c "vacuum analyse;"
 
 psql -h localhost -p 55432 niger -c "drop schema if exists albion cascade;"
 cp albion.sql /tmp/albion.sql
@@ -154,7 +153,7 @@ psql -h localhost -p 55432 niger -f /tmp/albion.sql
 psql -p 55432 -h localhost niger << EOF
 \\timing
 delete from albion.graph casacde where id='min_u1'; 
-update albion.metadata set snap_distance=.1, correlation_distance=300;
+update albion.metadata set snap_distance=.1, correlation_distance=300, precision=.001;
 insert into albion.graph(id) values ('min_u1');
 insert into albion.node(graph_id, hole_id, geom) 
 select 'min_u1', m.hole_id, m.geom 
@@ -166,6 +165,8 @@ EOF
 psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))) from albion.edge where graph_id='min_u1'" >  /tmp/min_u1_section.obj
 
 psql -p 55432 -h localhost niger -tXA -c "select albion.export_polygons('min_u1')" >  /tmp/min_u1_section.txt
+
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_vtk(st_collect(geom)) from albion.node where graph_id='min_u1'" > /tmp/min_u1_node.vtk
 
 psql -p 55432 -h localhost niger << EOF
 \\timing
@@ -183,6 +184,9 @@ psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomo
 
 psql -p 55432 -h localhost niger -tXA -c "select albion.export_polygons('min_u2')" >  /tmp/min_u2_section.txt
 
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_vtk(st_collect(geom)) from albion.node where graph_id='min_u2'" > /tmp/min_u2_node.vtk
+
+
 psql -p 55432 -h localhost niger << EOF
 \\timing
 delete from albion.graph casacde where id='min_u3'; 
@@ -198,6 +202,8 @@ EOF
 psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))) from albion.edge where graph_id='min_u3'" >  /tmp/min_u3_section.obj
 
 psql -p 55432 -h localhost niger -tXA -c "select albion.export_polygons('min_u3')" >  /tmp/min_u3_section.txt
+
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_vtk(st_collect(geom)) from albion.node where graph_id='min_u3'" > /tmp/min_u3_node.vtk
 
 psql -p 55432 -h localhost niger << EOF
 \\timing
@@ -215,19 +221,9 @@ psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomo
 
 psql -p 55432 -h localhost niger -tXA -c "select albion.export_polygons('min_u4')" >  /tmp/min_u4_section.txt
 
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_vtk(st_collect(geom)) from albion.node where graph_id='min_u4'" > /tmp/min_u4_node.vtk
 
-#exit 0
-
-
-# GRAPHS
-
-
-#psql -h localhost  -p 55432 niger -c "refresh materialized view albion.cell"
-
-psql -h localhost -p 55432 niger -c "drop schema if exists albion cascade;"
-cp albion.sql /tmp/albion.sql
-sed -i "s/{srid}/32632/g" /tmp/albion.sql
-psql -h localhost -p 55432 niger -f /tmp/albion.sql
+# FORMATIONS
 
 psql -p 55432 -h localhost niger << EOF
 \\timing
@@ -242,6 +238,8 @@ psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomo
 
 psql -p 55432 -h localhost niger -tXA -c "select albion.export_polygons('tarat_u1')" >  /tmp/tarat_u1_section.txt
 
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_vtk(st_collect(geom)) from albion.node where graph_id='tarat_u1'" > /tmp/tarat_u1_node.vtk
+
 psql -p 55432 -h localhost niger << EOF
 \\timing
 delete from albion.graph casacde where id='tarat_u1'; 
@@ -254,6 +252,9 @@ EOF
 psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))) from albion.edge where graph_id='tarat_u1'" >  /tmp/tarat_u1_section.obj
 
 psql -p 55432 -h localhost niger -tXA -c "select albion.export_polygons('tarat_u2')" >  /tmp/tarat_u2_section.txt
+
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_vtk(st_collect(geom)) from albion.node where graph_id='tarat_u2'" > /tmp/tarat_u2_node.vtk
+
 
 psql -p 55432 -h localhost niger << EOF
 \\timing
@@ -268,6 +269,8 @@ psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomo
 
 psql -p 55432 -h localhost niger -tXA -c "select albion.export_polygons('tarat_u3')" >  /tmp/tarat_u3_section.txt
 
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_vtk(st_collect(geom)) from albion.node where graph_id='tarat_u3'" > /tmp/tarat_u3_node.vtk
+
 psql -p 55432 -h localhost niger << EOF
 \\timing
 delete from albion.graph casacde where id='tarat_u4'; 
@@ -281,6 +284,8 @@ psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomo
 
 psql -p 55432 -h localhost niger -tXA -c "select albion.export_polygons('tarat_u4')" >  /tmp/tarat_u4_section.txt
 
+psql -p 55432 -h localhost niger -tXA -c "select albion.to_vtk(st_collect(geom)) from albion.node where graph_id='tarat_u4'" > /tmp/tarat_u4_node.vtk
+
 # ceil and wall
 
 psql -p 55432 -h localhost niger << EOF
@@ -290,7 +295,6 @@ refresh materialized  view albion.triangle;
 refresh materialized  view albion.projected_edge;
 refresh materialized  view albion.cell_edge;
 EOF
-
 
 psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.elementary_volume('tarat_u1', id)))) from albion.cell" >  /tmp/tarat_u1_surf.obj
 psql -p 55432 -h localhost niger -tXA -c "select albion.to_obj(st_collectionhomogenize(st_collect(albion.elementary_volume('tarat_u2', id)))) from albion.cell" >  /tmp/tarat_u2_surf.obj

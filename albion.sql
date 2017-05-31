@@ -388,8 +388,13 @@ $$
     begin
         if tg_op = 'INSERT' or tg_op = 'UPDATE' then
             -- find start_ and end_ if null
-            select coalesce(new.start_, (select id from albion.node where st_dwithin(geom, st_startpoint(new.geom), albion.precision()))) into new.start_;
-            select coalesce(new.end_, (select id from albion.node where st_dwithin(geom, st_endpoint(new.geom), albion.precision()))) into new.end_;
+            if new.graph_id is null then
+                select coalesce(new.start_, (select id from albion.node where st_dwithin(geom, st_startpoint(new.geom), albion.precision()) order by st_distance(geom, st_startpoint(new.geom)) limit 1)) into new.start_;
+                select coalesce(new.end_, (select id from albion.node where st_dwithin(geom, st_endpoint(new.geom), albion.precision()) order by st_distance(geom, st_endpoint(new.geom)) limit 1)) into new.end_;
+            else
+                select coalesce(new.start_, (select id from albion.node where st_dwithin(geom, st_startpoint(new.geom), albion.precision()) and graph_id=new.graph_id order by st_distance(geom, st_startpoint(new.geom)) limit 1)) into new.start_;
+                select coalesce(new.end_, (select id from albion.node where st_dwithin(geom, st_endpoint(new.geom), albion.precision()) and graph_id=new.graph_id order by st_distance(geom, st_endpoint(new.geom)) limit 1)) into new.end_;
+            end if;
 
             -- find graph_id from nodes
             select coalesce(new.graph_id, 
@@ -1045,6 +1050,44 @@ $$
 $$
 ;
 
+create or replace function albion.to_vtk(multiline geometry)
+returns varchar
+language plpython3u immutable
+as
+$$
+    from shapely import wkb
+    if multiline is None:
+        return ''
+    m = wkb.loads(multiline, True)
+    res = "# vtk DataFile Version 4.0\nvtk output\nASCII\nDATASET POLYDATA\n"
+    node_map = {}
+    nodes = ""
+    elem = []
+    n = 0
+    for l in m:
+        elem.append([])
+        for c in l.coords:
+            sc = "%f %f %f" % (tuple(c))
+            nodes += sc+"\n"
+            if sc not in node_map:
+                node_map[sc] = n
+                elem[-1].append(str(n))
+                n += 1
+            else:
+                elem[-1].append(str(node_map[sc]))
+
+    res += "POINTS {} float\n".format(len(node_map))
+    res += nodes
+
+    res += "\n"
+    res += "LINES {} {}\n".format(len(elem), sum([len(e)+1 for e in elem]))
+
+    for e in elem:
+        res += "{} {}\n".format(len(e), " ".join(e))
+    return res
+$$
+;
+
 -- triangle strip between two linestring
 create or replace function albion.triangulate_edge(ceil_ geometry, wall_ geometry)
 returns geometry
@@ -1163,6 +1206,9 @@ $$
         ) as t
         where not exists (select 1 from albion.collar as c where st_intersects(c.geom, t.geom))
         ;
+
+        perform count(albion.extend_to_interpolated(graph_id_, id)) from albion.grid;
+        perform count(albion.extend_to_interpolated(graph_id_, id)) from albion.grid;
 
         return 't';
 
@@ -1336,8 +1382,8 @@ create index project_edge_id_idx on albion.projected_edge(id)
 
 create materialized view albion.cell_edge
 as
-select uuid_generate_v4()::varchar as id, c.id as cell_id, e.graph_id, e.id as edge_id, albion.ceil_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as ceil_, albion.wall_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as wall_,
-st_intersection(p.ceil_, c.geom) as proj_ceil_, st_intersection(p.wall_, c.geom) as proj_wall_
+select uuid_generate_v4()::varchar as id, c.id as cell_id, e.graph_id, e.id as edge_id, albion.ceil_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as piece_ceil_, albion.wall_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as piece_wall_,
+p.ceil_ as proj_ceil_, p.wall_ as proj_wall_, e.ceil_, e.wall_
 from albion.cell as c, albion.projected_edge as p join albion.edge as e on e.id=p.id
 where st_intersects(p.geom, c.geom)
 and st_dimension(st_intersection(p.geom, c.geom))=1
@@ -1354,7 +1400,7 @@ as
 $$
     from shapely import wkb
     from shapely.ops import linemerge
-    from shapely.geometry import Point, Polygon, MultiPolygon
+    from shapely.geometry import Point, Polygon, MultiPolygon, MultiLineString
     import numpy
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
@@ -1377,7 +1423,7 @@ $$
 
     # get edges that are connected to holes that are touching the cell
     res = plpy.execute("""
-        select edge_id, wall_, ceil_, proj_ceil_, proj_wall_
+        select edge_id, piece_wall_, piece_ceil_, proj_ceil_, proj_wall_, ceil_, wall_
         from albion.cell_edge
         where cell_id='{cell_id_}'
         and graph_id='{graph_id_}'
@@ -1386,7 +1432,7 @@ $$
         return None
 
     for side in ['ceil_', 'wall_']:
-        edges = [wkb.loads(r[side], True) for r in res]
+        edges = [wkb.loads(r['piece_'+side], True) for r in res]
         prj_edges = {r['edge_id']:wkb.loads(r['proj_'+side], True) for r in res}
         m_edges = {r['edge_id']:wkb.loads(r[side], True) for r in res}
         edges_id = [r['edge_id'] for r in res]
@@ -1400,6 +1446,9 @@ $$
             for i in range(len(edges)):
                 if set((edges[i].coords[0], edges[i].coords[-1])).intersection(set((current_.coords[0], current_.coords[-1]))):
                     current_ = linemerge([current_, edges.pop(i)])
+                    if isinstance(current_, MultiLineString):
+                        plpy.warning('topology issue at {}'.format(current_.wkt))
+                        return None
                     id_loop[-1].append(edges_id.pop())
                     cont = True
                     break
@@ -1422,9 +1471,10 @@ $$
             new_nodes = numpy.array(nodes)
             for n in range(len(nodes)):
                 for edge in ring:
-                    if Point(nodes[n][:2]).intersects(prj_edges[edge]):
-                        alpha = prj_edges[edge].project(Point(nodes[n][:2]), normalized=True)
-                        new_nodes[n] = m_edges[edge].interpolate(alpha, normalized=True).coords
+                    pt = Point(nodes[n][:2])
+                    if pt.intersects(prj_edges[edge]):
+                        idx = [i for i, c in enumerate(prj_edges[edge].coords) if pt.coords[0]==c]
+                        new_nodes[n] = m_edges[edge].coords[idx[0]]
                         break
             # average z with inverse-squared distance
             without_alti = numpy.argwhere(new_nodes[:,2]==9999)
@@ -1552,7 +1602,17 @@ $$
             where st_intersects(e.geom, ex.next)
             and e.graph_id=graph_id_
         )
-        insert into albion.edge(geom, ceil_, wall_, graph_id, grid_id) select geom, ceil_, wall_, graph_id_, grid_id_ from next;
+        insert into albion.edge(geom, ceil_, wall_, graph_id, grid_id) 
+        select distinct geom, ceil_, wall_, graph_id_, grid_id_ from next;
+
+        perform albion.fix_column(graph_id_, geom) 
+        from (
+            select (st_dumppoints(st_force2d(geom))).geom as geom
+            from albion.grid
+            where id=grid_id_
+        ) as t
+        where not exists (select 1 from albion.collar as c where st_intersects(c.geom, t.geom))
+        ;
 
         return 't';
     end;
