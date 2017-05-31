@@ -650,9 +650,65 @@ $$
             where st_distance(n1.geom, n2.geom) <  m.correlation_distance
         )
         insert into albion.edge(graph_id, start_, end_, grid_id, geom)
-        select graph_id_, e.start_, e.end_, grid_id_, e.geom /*albion.snap_edge_to_grid(e.geom, e.start_, e.end_, grid_id_)*/ from possible_edge as e
+        select graph_id_, e.start_, e.end_, grid_id_, e.geom  from possible_edge as e
         where e.rk <= least(e.c1, e.c2)
         and not exists (select 1 from albion.edge where (start_=e.start_ and end_=e.end_) or (start_=e.end_ and end_=e.start_));
+
+        return 't'::boolean;
+
+    end;
+$$
+;
+
+-- create graph edges for the specified grid element
+create or replace function albion.auto_connect(graph_id_ varchar, grid_id_ varchar, support_graph_id_ varchar)
+returns boolean
+language plpgsql
+as
+$$
+    begin
+        with node as ( 
+            select f.id, f.hole_id, st_3dlineinterpolatepoint(f.geom, .5) as geom, st_3dlineinterpolatepoint(s.geom, .5) as s_geom
+            from albion.node as f join albion.hole_grid as g on f.hole_id=g.hole_id
+            join albion.node as s on s.hole_id=f.hole_id 
+            where g.grid_id = grid_id_
+            and f.graph_id=graph_id_
+            and s.graph_id=support_graph_id_
+            and st_z(st_startpoint(s.geom)) >= st_z(st_3dlineinterpolatepoint(f.geom, .5)) 
+            and st_z(st_3dlineinterpolatepoint(f.geom, .5)) >  st_z(st_endpoint(s.geom))
+        ),
+        hole_pair as (
+            select
+                row_number() over() as id,
+                h.id as right, 
+                lag(h.id) over (order by st_linelocatepoint((select geom from albion.grid where id=grid_id_), st_startpoint(h.geom))) as left
+            from albion.hole as h, albion.grid as g 
+            where h.geom && g.geom 
+            and st_intersects(st_startpoint(h.geom), g.geom)
+            and g.id=grid_id_
+        ),
+        possible_edge as (
+            select 
+                n1.id as start_, 
+                n2.id as end_,
+                st_makeline(n1.geom, n2.geom) as geom, 
+                abs(st_z(n2.geom) - st_z(n1.geom))/st_distance(n2.geom, n1.geom) angle,
+                count(1) over (partition by n1.id) as c1,  
+                count(1) over (partition by n2.id) as c2, 
+                rank() over (partition by p.id order by abs((st_z(n2.geom) - st_z(n1.geom))/st_distance(n1.geom, n2.geom) 
+                    - (st_z(n2.s_geom) - st_z(n1.s_geom))/st_distance(n1.s_geom, n2.s_geom)) asc) as rk
+            from hole_pair as p
+            join node as n1 on n1.hole_id=p.left
+            join node as n2 on n2.hole_id=p.right, albion.metadata as m
+            where st_distance(n1.geom, n2.geom) <  m.correlation_distance
+            and (abs((st_z(n2.geom) - st_z(n1.geom))/st_distance(n1.geom, n2.geom) 
+                    - (st_z(n2.s_geom) - st_z(n1.s_geom))/st_distance(n1.s_geom, n2.s_geom)) < m.correlation_slope
+                )
+        )
+        insert into albion.edge(graph_id, start_, end_, grid_id, geom)
+        select graph_id_, e.start_, e.end_, grid_id_, e.geom  from possible_edge as e
+        where /*e.rk <= least(e.c1, e.c2)
+        and*/ not exists (select 1 from albion.edge where (start_=e.start_ and end_=e.end_) or (start_=e.end_ and end_=e.start_));
 
         return 't'::boolean;
 
@@ -1189,17 +1245,25 @@ where g.grid_id = albion.current_section_id()
 
 
 
-create or replace function albion.auto_graph(graph_id_ varchar)
+create or replace function albion.auto_graph(graph_id_ varchar, support_graph_id_ varchar default null)
 returns boolean
 language plpgsql volatile
 as
 $$
     begin
-        perform count(albion.auto_connect(graph_id_, id)) from albion.grid;
+        raise notice 'start auto_connect';
+        if support_graph_id_ is null then
+            perform count(albion.auto_connect(graph_id_, id)) from albion.grid;
+        else
+            perform count(albion.auto_connect(graph_id_, id, support_graph_id_)) from albion.grid;
+        end if;
+
+        raise notice 'start auto_ceil_and_wall';
 
         perform count(albion.auto_ceil_and_wall(graph_id_, id)) from albion.grid;
 
-        perform count(albion.fix_column(graph_id_, geom)) 
+        raise notice 'start fix';
+        perform albion.fix_column(graph_id_, geom)
         from (
             select (st_dumppoints(st_force2d(geom))).geom as geom
             from albion.grid
@@ -1207,11 +1271,7 @@ $$
         where not exists (select 1 from albion.collar as c where st_intersects(c.geom, t.geom))
         ;
 
-        perform count(albion.extend_to_interpolated(graph_id_, id)) from albion.grid;
-        perform count(albion.extend_to_interpolated(graph_id_, id)) from albion.grid;
-
         return 't';
-
     end;
 $$
 ;
@@ -1619,3 +1679,44 @@ $$
 $$
 ;
 
+/*
+with node as ( 
+    select f.id, f.hole_id, st_3dlineinterpolatepoint(f.geom, .5) as geom, st_3dlineinterpolatepoint(s.geom, .5) as s_geom
+    from albion.node as f join albion.hole_grid as g on f.hole_id=g.hole_id
+    join albion.node as s on s.hole_id=f.hole_id 
+    where g.grid_id = albion.current_section_id()
+    and f.graph_id='min_u1'
+    and s.graph_id='tarat_u1'
+    and st_z(st_startpoint(s.geom)) >= st_z(st_3dlineinterpolatepoint(f.geom, .5)) 
+    and st_z(st_3dlineinterpolatepoint(f.geom, .5)) >  st_z(st_endpoint(s.geom))
+    and f.hole_id in ('GART_0845_1', 'GART_0828_1')
+),
+hole_pair as (
+    select
+        row_number() over() as id,
+        h.id as right, 
+        lag(h.id) over (order by st_linelocatepoint((select geom from albion.grid where id=albion.current_section_id()), st_startpoint(h.geom))) as left
+    from albion.hole as h, albion.grid as g 
+    where h.geom && g.geom 
+    and st_intersects(st_startpoint(h.geom), g.geom)
+    and g.id=albion.current_section_id()
+),
+possible_edge as (
+    select 
+        n1.id as start_, 
+        n2.id as end_,
+        st_makeline(n1.geom, n2.geom) as geom, 
+        abs(st_z(n2.geom) - st_z(n1.geom))/st_distance(n2.geom, n1.geom) angle,
+        count(1) over (partition by n1.id) as c1,  
+        count(1) over (partition by n2.id) as c2, 
+        rank() over (partition by p.id order by abs((st_z(n2.geom) - st_z(n1.geom))/st_distance(n1.geom, n2.geom) 
+            - (st_z(n2.s_geom) - st_z(n1.s_geom))/st_distance(n1.s_geom, n2.s_geom)) asc) as rk,
+         abs((st_z(n2.geom) - st_z(n1.geom))/st_distance(n1.geom, n2.geom) 
+            - (st_z(n2.s_geom) - st_z(n1.s_geom))/st_distance(n1.s_geom, n2.s_geom)) as dslope
+    from hole_pair as p
+    join node as n1 on n1.hole_id=p.left
+    join node as n2 on n2.hole_id=p.right, albion.metadata as m
+    where st_distance(n1.geom, n2.geom) <  m.correlation_distance
+)
+select * from possible_edge;
+*/
