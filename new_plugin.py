@@ -9,7 +9,7 @@ from qgis.core import (QgsVectorLayer,
                        QgsMapLayerRegistry,
                        QgsPluginLayerRegistry, 
                        QgsProject,
-                       QgsLayerTreeLayer)
+                       QgsRectangle)
 
 from qgis.gui import QgsMapToolEmitPoint
 
@@ -64,6 +64,7 @@ class Plugin(QObject):
         self.__current_graph = QComboBox()
         self.__current_graph.setMinimumWidth(150)
         self.__axis_layer = None
+        self.__section_extent = (0, 1000)
 
         if not check_cluster():
             init_cluster()
@@ -340,19 +341,58 @@ class Plugin(QObject):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
             return
         
-
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
 
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
-        cur.execute("""update albion.metadata set current_section=(
-                select id from albion.grid where st_dwithin(
-                    geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 5)
-                limit 1
-                )""".format(srid=srid, x=point.x(), y=point.y()))
-        cur.execute("select st_extent(geom) from albion.collar_section")
-        print('section extent ', cur.fetchone())
+
+        cur.execute("""
+            select id from albion.grid 
+            where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 25)
+            order by st_distance('SRID={srid} ;POINT({x} {y})'::geometry, geom)
+            limit 1""".format(srid=srid, x=point.x(), y=point.y()))
+        res = cur.fetchone()
+        if res:
+            # click on map, set current section and set extend to matck visible extend on map
+            cur.execute("update albion.metadata set current_section='{}'".format(res[0]))
+            cur.execute("select st_extent(geom) from albion.collar_section")
+            rect = cur.fetchone()
+            top = float(rect[0].replace('BOX(','').split(',')[0].split()[1])
+            ext = self.__iface.mapCanvas().extent()
+            aspect_ratio = (ext.yMaximum()-ext.yMinimum())/(ext.xMaximum()-ext.xMinimum())
+            cur.execute("""
+                select st_linelocatepoint(albion.current_section_geom(), 'SRID={}; POINT({} {})'::geometry)*st_length(albion.current_section_geom()),
+                       st_linelocatepoint(albion.current_section_geom(), 'SRID={}; POINT({} {})'::geometry)*st_length(albion.current_section_geom())
+                """.format(srid, ext.xMinimum(), ext.yMinimum(), srid, ext.xMaximum(), ext.yMaximum()))
+            xMin, xMax = cur.fetchone()
+            
+            self.__iface.mapCanvas().setExtent(QgsRectangle(xMin, top*1.1-(xMax-xMin)*aspect_ratio, xMax, top+1.1))
+        else:
+            # if click on section, set the current section to the ortogonal on passing through this point
+            # maintain the position of the clicked point on screen and the zoom level
+            cur.execute("""
+                select id, st_linelocatepoint(geom,  albion.from_section('SRID={srid}; POINT({x} {y})'::geometry, albion.current_section_geom()))*st_length(geom)
+                from albion.grid 
+                where st_dwithin(geom, albion.from_section('SRID={srid} ;POINT({x} {y})'::geometry, albion.current_section_geom()), 25)
+                and id!=albion.current_section_id()
+                order by st_distance(albion.from_section('SRID={srid} ;POINT({x} {y})'::geometry, albion.current_section_geom()), geom)
+                limit 1""".format(srid=srid, x=point.x(), y=point.y()))
+            res = cur.fetchone()
+            print "switch to section", res
+            if res:
+                print "swithc to section", res[0]
+                ext = self.__iface.mapCanvas().extent()
+                left = point.x()-ext.xMinimum()
+                right = ext.xMaximum()-point.x()
+                cur.execute("update albion.metadata set current_section='{}'".format(res[0]))
+                # recompute extend
+                self.__iface.mapCanvas().setExtent(QgsRectangle(
+                    res[1]-left, 
+                    ext.yMinimum(), 
+                    res[1]+right, 
+                    ext.yMaximum()))
+                
         con.commit()
         con.close()
         self.__refresh_layers()
@@ -361,9 +401,26 @@ class Plugin(QObject):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
             return
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
+        ext = self.__iface.mapCanvas().extent()
+        cur.execute("""
+            select st_linelocatepoint(geom, st_centroid(albion.current_section_geom()))*st_length(geom),
+                st_linelocatepoint(albion.current_section_geom(), st_centroid(albion.current_section_geom()))*st_length(albion.current_section_geom())
+            from albion.grid
+            where id=albion.next_section()
+            """)
+        res = cur.fetchone()
+        if res:
+            self.__iface.mapCanvas().setExtent(QgsRectangle(
+                ext.xMinimum() + (res[0] - res[1]), 
+                ext.yMinimum(), 
+                ext.xMaximum() + (res[0] - res[1]), 
+                ext.yMaximum()))
+        
         cur.execute("""update albion.metadata set current_section=albion.next_section()""")
+
         con.commit()
         con.close()
         self.__refresh_layers()
@@ -374,6 +431,21 @@ class Plugin(QObject):
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
+        ext = self.__iface.mapCanvas().extent()
+        cur.execute("""
+            select st_linelocatepoint(geom, st_centroid(albion.current_section_geom()))*st_length(geom),
+                st_linelocatepoint(albion.current_section_geom(), st_centroid(albion.current_section_geom()))*st_length(albion.current_section_geom())
+            from albion.grid
+            where id=albion.previous_section()
+            """)
+        res = cur.fetchone()
+        if res:
+            self.__iface.mapCanvas().setExtent(QgsRectangle(
+                ext.xMinimum() + (res[0] - res[1]), 
+                ext.yMinimum(), 
+                ext.xMaximum() + (res[0] - res[1]), 
+                ext.yMaximum()))
+        
         cur.execute("""update albion.metadata set current_section=albion.previous_section()""")
         con.commit()
         con.close()
@@ -414,10 +486,12 @@ class Plugin(QObject):
 
         fil = QFileDialog.getSaveFileName(None,
                 u"Export section",
-                "",
-                "Section files (*.obj, *.txt)")
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "Section files (*.obj *.txt)")
         if not fil:
             return
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
@@ -441,10 +515,12 @@ class Plugin(QObject):
 
         fil = QFileDialog.getSaveFileName(None,
                 u"Export volume",
-                "",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
                 "Surface files(*.obj)")
         if not fil:
             return
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
