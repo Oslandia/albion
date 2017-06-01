@@ -554,7 +554,7 @@ class Plugin(QObject):
         con.commit()
         con.close()
 
-    def __auto_graph(sel):
+    def __auto_graph(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
                 or not self.__current_graph.currentText():
             return
