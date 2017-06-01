@@ -212,7 +212,7 @@ class Plugin(QObject):
         #cur.execute("create extension \"uuid-ossp\"")
         for file_ in ('_albion.sql', 'albion.sql'):
             for statement in open(os.path.join(os.path.dirname(__file__), file_)).read().split('\n;\n')[:-1]:
-                cur.execute(statement.format(srid=srid))
+                cur.execute(statement.replace('$SRID', str(srid)))
         cur.execute("insert into albion.metadata(srid, snap_distance) select 32632, 2")
         con.commit()
         con.close()

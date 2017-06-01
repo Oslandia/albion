@@ -20,7 +20,7 @@ create type interpolation_method as enum ('balanced_tangential');
 
 create table _albion.grid(
     id varchar primary key default uuid_generate_v4()::varchar,
-    geom geometry('LINESTRING', {srid}))
+    geom geometry('LINESTRING', $SRID))
 ;
 
 create table _albion.graph(
@@ -45,7 +45,7 @@ create table _albion.metadata(
     correlation_slope real default 1.0/100)
 ;
 
-insert into _albion.metadata(srid) select {srid}
+insert into _albion.metadata(srid) select $SRID
 ;
 
 create table _albion.collar(
@@ -53,7 +53,7 @@ create table _albion.collar(
     x real,
     y real,
     z real,
-    geom geometry('POINTZ', {srid}),
+    geom geometry('POINTZ', $SRID),
     comments varchar)
 ;
 
@@ -64,7 +64,7 @@ create table _albion.hole(
     id varchar primary key,
     collar_id varchar unique not null references _albion.collar(id),
     depth_ real,
-    geom geometry('LINESTRINGZ', {srid}))
+    geom geometry('LINESTRINGZ', $SRID))
 ;
 
 create index hole_geom_idx on _albion.hole using gist(geom)
@@ -97,7 +97,7 @@ create table _albion.radiometry(
     from_ real,
     to_ real,
     gamma real,
-    geom geometry('LINESTRINGZ', {srid}))
+    geom geometry('LINESTRINGZ', $SRID))
 ;
 
 create index radiometry_geom_idx on _albion.radiometry using gist(geom)
@@ -115,7 +115,7 @@ create table _albion.resistivity(
     from_ real,
     to_ real,
     rho real,
-    geom geometry('LINESTRINGZ', {srid}))
+    geom geometry('LINESTRINGZ', $SRID))
 ;
 
 create index resistivity_geom_idx on _albion.resistivity using gist(geom)
@@ -135,7 +135,7 @@ create table _albion.formation(
     to_ real,
     code integer,
     comments varchar,
-    geom geometry('LINESTRINGZ', {srid}))
+    geom geometry('LINESTRINGZ', $SRID))
 ;
 
 create index formation_geom_idx on _albion.formation using gist(geom)
@@ -154,7 +154,7 @@ create table _albion.lithology(
     to_ real,
     code integer,
     comments varchar,
-    geom geometry('LINESTRINGZ', {srid}))
+    geom geometry('LINESTRINGZ', $SRID))
 ;
 
 create index lithology_geom_idx on _albion.lithology using gist(geom)
@@ -173,7 +173,7 @@ create table _albion.facies(
     to_ real,
     code integer,
     comments varchar,
-    geom geometry('LINESTRINGZ', {srid}))
+    geom geometry('LINESTRINGZ', $SRID))
 ;
 
 create index facies_geom_idx on _albion.facies using gist(geom)
@@ -194,7 +194,7 @@ create table _albion.mineralization(
     accu real,
     grade real,
     comments varchar,
-    geom geometry('LINESTRINGZ', {srid}))
+    geom geometry('LINESTRINGZ', $SRID))
 ;
 
 create index mineralization_geom_idx on _albion.mineralization using gist(geom)
@@ -216,7 +216,7 @@ create table _albion.node(
     graph_id varchar references _albion.graph(id) on delete cascade on update cascade,
         unique(id, graph_id),
     hole_id varchar references _albion.hole(id),
-    geom geometry('LINESTRINGZ', {srid}) not null check (st_numpoints(geom)=2)
+    geom geometry('LINESTRINGZ', $SRID) not null check (st_numpoints(geom)=2)
 )
 ;
 
@@ -242,9 +242,9 @@ create table _albion.edge(
         foreign key (graph_id, end_) references _albion.node(graph_id, id) on delete cascade on update cascade,
         unique (start_, end_),
     grid_id varchar references _albion.grid(id) on delete cascade,
-    geom geometry('LINESTRINGZ', {srid}) not null check (st_isvalid(geom)),
-    ceil_ geometry('LINESTRINGZ', {srid}),
-    wall_ geometry('LINESTRINGZ', {srid})
+    geom geometry('LINESTRINGZ', $SRID) not null check (st_isvalid(geom)),
+    ceil_ geometry('LINESTRINGZ', $SRID),
+    wall_ geometry('LINESTRINGZ', $SRID)
 )
 ;
 

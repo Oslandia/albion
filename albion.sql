@@ -88,7 +88,7 @@ $$
             window w AS (order by md1)
         ),
         line as (
-            select st_makeline(('SRID={srid}; POINTZ('||x||' '||y||' '||z||')')::geometry order by md2 asc) as geom
+            select st_makeline(('SRID=$SRID; POINTZ('||x||' '||y||' '||z||')')::geometry order by md2 asc) as geom
             from pt
         )
         select st_addpoint(geom, collar_geom_, 0)
@@ -241,7 +241,7 @@ with ends as (
     union
     select id, st_endpoint(geom) as geom from _albion.grid
 )
-select row_number() over() as id, e.geom::geometry('POINT', {srid}) 
+select row_number() over() as id, e.geom::geometry('POINT', $SRID) 
 from ends as e
 where exists (
     select 1 
@@ -259,7 +259,7 @@ len as (
     select id, geom, st_distance(lag(geom) over (partition by id order by pth), geom ) as d
     from all_points
 )
-select row_number() over() as id, geom::geometry('POINT', {srid})
+select row_number() over() as id, geom::geometry('POINT', $SRID)
 from len
 where d < 2*albion.snap_distance() and d > 0
 ;
@@ -440,40 +440,40 @@ create trigger edge_instead_trig
 --------------------------------------------------------------------------------
 
 create or replace view albion.formation_section as
-select f.id, f.hole_id, f.from_, f.to_, f.code, f.comments, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
+select f.id, f.hole_id, f.from_, f.to_, f.code, f.comments, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', $SRID) as geom
 from albion.formation as f 
 join albion.hole_grid as g on g.hole_id=f.hole_id
 where g.grid_id = albion.current_section_id()
 ;
 
 create or replace view albion.resistivity_section as
-select f.id, f.hole_id, f.from_, f.to_, f.rho, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
+select f.id, f.hole_id, f.from_, f.to_, f.rho, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', $SRID) as geom
 from albion.resistivity as f 
 join albion.hole_grid as g on g.hole_id=f.hole_id
 where g.grid_id = albion.current_section_id()
 ;
 
 create or replace view albion.radiometry_section as
-select f.id, f.hole_id, f.from_, f.to_, f.gamma, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
+select f.id, f.hole_id, f.from_, f.to_, f.gamma, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', $SRID) as geom
 from albion.radiometry as f 
 join albion.hole_grid as g on g.hole_id=f.hole_id
 where g.grid_id = albion.current_section_id()
 ;
 
 create or replace view albion.collar_section as
-select f.id, f.comments, albion.to_section(f.geom, albion.current_section_geom())::geometry('POINT', {srid}) as geom
+select f.id, f.comments, albion.to_section(f.geom, albion.current_section_geom())::geometry('POINT', $SRID) as geom
 from albion.collar as f 
 where st_intersects(f.geom, albion.current_section_geom())
 ;
 
 create or replace view albion.hole_section as
-select f.id, f.collar_id, albion.to_section(f.geom, albion.current_section_geom())::geometry('LINESTRING', {srid}) as geom
+select f.id, f.collar_id, albion.to_section(f.geom, albion.current_section_geom())::geometry('LINESTRING', $SRID) as geom
 from albion.hole as f 
 where st_intersects(st_startpoint(f.geom), albion.current_section_geom())
 ;
 
 create or replace view albion.node_section as
-select f.id, f.graph_id, f.hole_id, albion.to_section(f.geom, albion.current_section_geom())::geometry('LINESTRING', {srid}) as geom
+select f.id, f.graph_id, f.hole_id, albion.to_section(f.geom, albion.current_section_geom())::geometry('LINESTRING', $SRID) as geom
 from albion.node as f
 join albion.hole_grid as g on g.hole_id=f.hole_id
 where g.grid_id = albion.current_section_id()
@@ -481,9 +481,9 @@ where g.grid_id = albion.current_section_id()
 
 create or replace view albion.edge_section as
 select f.id, f.graph_id, f.start_, f.end_, f.grid_id,
-    albion.to_section(f.geom, albion.current_section_geom())::geometry('LINESTRING', {srid}) as geom,
-    albion.to_section(f.ceil_, albion.current_section_geom())::geometry('LINESTRING', {srid}) as ceil_,
-    albion.to_section(f.wall_, albion.current_section_geom())::geometry('LINESTRING', {srid}) as wall_
+    albion.to_section(f.geom, albion.current_section_geom())::geometry('LINESTRING', $SRID) as geom,
+    albion.to_section(f.ceil_, albion.current_section_geom())::geometry('LINESTRING', $SRID) as ceil_,
+    albion.to_section(f.wall_, albion.current_section_geom())::geometry('LINESTRING', $SRID) as wall_
 from albion.edge as f
 where f.grid_id = albion.current_section_id()
 ;
@@ -873,7 +873,7 @@ $$
                         st_x(point),
                         st_y(point),
                         z
-                    ), {srid}) as geom, st_linelocatepoint(line, point) as alpha
+                    ), $SRID) as geom, st_linelocatepoint(line, point) as alpha
             )
             select st_makeline(geom order by alpha) from pt
         );
@@ -1237,7 +1237,7 @@ $$
 ;
 
 create or replace view albion.node_section as
-select f.id, f.graph_id, f.hole_id, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', {srid}) as geom
+select f.id, f.graph_id, f.hole_id, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', $SRID) as geom
 from albion.node as f 
 join albion.hole_grid as g on g.hole_id=f.hole_id
 where g.grid_id = albion.current_section_id()
@@ -1287,7 +1287,7 @@ all_but_end as (
     and (p.d).path != (select min((t.d).path) from all_pt as t where t.id=p.id)
     group by p.grid_id
 )
-select id, coalesce(st_snap(g.geom, a.geom, albion.precision()), g.geom)::geometry('LINESTRING', {srid}) as geom
+select id, coalesce(st_snap(g.geom, a.geom, albion.precision()), g.geom)::geometry('LINESTRING', $SRID) as geom
 from all_but_end as a right join albion.grid as g on g.id=a.grid_id
 ;
 
@@ -1313,7 +1313,7 @@ with collec as (
 poly as (
     select (st_dump(st_polygonize(geom))).geom as geom from collec
 )
-select uuid_generate_v4()::varchar as id, geom::geometry('POLYGON', {srid}) from poly where geom is not null
+select uuid_generate_v4()::varchar as id, geom::geometry('POLYGON', $SRID) from poly where geom is not null
 ;
 
 create index cell_geom_idx on albion.cell using gist(geom)
@@ -1327,7 +1327,7 @@ with mesh as (
 tri as (
     select (st_dump(st_force2d(geom))).geom from mesh
 )
-select uuid_generate_v4()::varchar as id, cell.id cell_id, st_snap(tri.geom, cell.geom, m.precision)::geometry('POLYGON', {srid}) as geom
+select uuid_generate_v4()::varchar as id, cell.id cell_id, st_snap(tri.geom, cell.geom, m.precision)::geometry('POLYGON', $SRID) as geom
 from tri join albion.cell on st_intersects(st_centroid(tri.geom), cell.geom), albion.metadata as m
 ;
 
@@ -1551,7 +1551,7 @@ $$
                 output += [Polygon([new_nodes[e[2]], new_nodes[e[1]], new_nodes[e[0]]]) for e in elements]
 
     output = MultiPolygon(output)
-    geos.lgeos.GEOSSetSRID(output._geom, {srid})
+    geos.lgeos.GEOSSetSRID(output._geom, $SRID)
 
     return output.wkb_hex
 $$
