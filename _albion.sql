@@ -2,6 +2,17 @@
 -- PRIVATE SCHEMA TO STORE DATA
 -------------------------------------------------------------------------------
 
+create or replace function uuid_generate_v4()
+returns varchar
+language plpgsql
+as
+$$
+    begin
+        return uuid_in(md5(random()::text || now()::text)::cstring);
+    end
+$$
+;
+
 create schema _albion
 ;
 
