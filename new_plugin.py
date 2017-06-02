@@ -140,14 +140,21 @@ class Plugin(QObject):
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
         
-        for layer_name in reversed(['cell', 'formation', 'grid', 'hole', 
-                'intersection_without_hole', 'collar', 'small_edge', 'close_point']):
-            layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
+        for layer_name in reversed(['cell', 'formation', 'grid', 'hole', 'collar', 'small_edge', 'close_point']):
+            layer = QgsVectorLayer(
+                    '{conn_info} sslmode=disable srid={srid} key="id" table="albion"."{layer_name}" (geom)'.format(
+                        conn_info=conn_info, 
+                        srid=srid, 
+                        layer_name=layer_name
+                        ), layer_name, 'postgres')
             QgsMapLayerRegistry.instance().addMapLayer(layer, False)
             node = QgsLayerTreeLayer(layer)
             root.addChildNode(node)
         
-        layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="(SELECT albion.current_section_id() as id, albion.current_section_geom() as geom)" (geom) sql='.format(conn_info, srid), 'current_section', 'postgres')
+        layer = QgsVectorLayer(
+                '{conn_info} sslmode=disable srid={srid} key="id" table="(SELECT albion.current_section_id() as id, albion.current_section_geom()::geometry(\'LINESTRING\', {srid}) as geom)" (geom) sql='.format(
+                    conn_info=conn_info, 
+                    srid=srid), 'current_section', 'postgres')
         QgsMapLayerRegistry.instance().addMapLayer(layer, False)
         node = QgsLayerTreeLayer(layer)
         root.addChildNode(node)
