@@ -1,6 +1,11 @@
 -------------------------------------------------------------------------------
 -- PRIVATE SCHEMA TO STORE DATA
 -------------------------------------------------------------------------------
+create schema _albion
+;
+
+create sequence _albion.unique_name_seq
+;
 
 create or replace function uuid_generate_v4()
 returns varchar
@@ -8,12 +13,9 @@ language plpgsql
 as
 $$
     begin
-        return uuid_in(md5(random()::text || now()::text)::cstring);
+        return nextval('_albion.unique_name_seq')::varchar;
     end
 $$
-;
-
-create schema _albion
 ;
 
 create type interpolation_method as enum ('balanced_tangential');

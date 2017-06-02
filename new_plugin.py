@@ -280,12 +280,19 @@ class Plugin(QObject):
         self.__current_graph.removeItem(self.__current_graph.findText(graph))
         self.__refresh_layers()
 
+    def __find_in_dir(self, dir_, name):
+        for filename in os.listdir(dir_):
+            if filename.find(name) != -1:
+                return os.path.join(dir_, filename)
+        return ""
+
+
     def __import_data(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
             return
         dir_ = QFileDialog.getExistingDirectory(None,
                         u"Data directory",
-                        "" )
+                        QgsProject.instance().readEntry("albion", "last_dir", "")[0])
         if not dir_:
             return
 
@@ -297,26 +304,99 @@ class Plugin(QObject):
 
         progressMessageBar = self.__iface.messageBar().createMessage("Loading {}...".format(dir_))
         progress = QProgressBar()
-        progress.setMaximum(5)
         progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
         progressMessageBar.layout().addWidget(progress)
         self.__iface.messageBar().pushWidget(progressMessageBar, self.__iface.messageBar().INFO)
+        progress.setMaximum(9)
+
         progress.setValue(0)
-        for filename in os.listdir(dir_):
-            if filename.find('collar') != -1:
-                load_file(cur, os.path.join(dir_, filename))
-                progress.setValue(1)
 
-        for filename in os.listdir(dir_):
-            if filename.find('devia') != -1:
-                load_file(cur, os.path.join(dir_, filename))
-                progress.setValue(2)
+        cur.execute("""
+            copy _albion.collar(id, x, y, z, comments) from '{}' delimiter ';' csv header 
+            """.format(self.__find_in_dir(dir_, 'collar')))
+        
+        progress.setValue(1)
+        
+        cur.execute("""
+            update _albion.collar set geom=format('SRID=32632;POINTZ(%s %s %s)', x, y, z)::geometry
+            """)
 
-        for filename in os.listdir(dir_):
-            if filename.find('formation') != -1 or filename.find('resi') != -1 or filename.find('avp') != -1:
-                load_file(cur, os.path.join(dir_, filename))
-                progress.setValue(progress.value() + 1)
+        cur.execute("""
+            insert into _albion.hole(id, collar_id) select id, id from _albion.collar;
+            """)
+
+        con.commit()
+
+        progress.setValue(2)
+
+        self.__refresh_layers()
+        self.__iface.zoomFull()
+
+        cur.execute("""
+            copy _albion.deviation(hole_id, from_, deep, azimuth) from '{}' delimiter ';' csv header
+            """.format(self.__find_in_dir(dir_, 'devia')))
+
+        progress.setValue(3)
+
+        if self.__find_in_dir(dir_, 'avp'):
+            cur.execute("""
+                copy _albion.radiometry(hole_id, from_, to_, gamma) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'avp')))
+
+        progress.setValue(4)
+
+        if self.__find_in_dir(dir_, 'formation'):
+            cur.execute("""
+                copy _albion.formation(hole_id, from_, to_, code, comments) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'formation')))
+
+        progress.setValue(5)
+
+        if self.__find_in_dir(dir_, 'lithology'):
+            cur.execute("""
+                copy _albion.lithology(hole_id, from_, to_, code, comments) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'lithology')))
+
         progress.setValue(6)
+
+        if self.__find_in_dir(dir_, 'facies'):
+            cur.execute("""
+                copy _albion.facies(hole_id, from_, to_, code, comments) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'facies')))
+
+        progress.setValue(7)
+
+        if self.__find_in_dir(dir_, 'resi'):
+            cur.execute("""
+                copy _albion.resistivity(hole_id, from_, to_, rho) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'resi')))
+
+        progress.setValue(8)
+
+        cur.execute("""
+            with dep as (
+                select hole_id, max(to_) as mx
+                    from (
+                        select hole_id, max(to_) as to_ from _albion.radiometry group by hole_id
+                        union all
+                        select hole_id, max(to_) as to_ from _albion.resistivity group by hole_id
+                        union all
+                        select hole_id, max(to_) as to_ from _albion.formation group by hole_id
+                        union all
+                        select hole_id, max(to_) as to_ from _albion.lithology group by hole_id
+                        union all
+                        select hole_id, max(to_) as to_ from _albion.facies group by hole_id
+                        union all
+                        select hole_id, max(to_) as to_ from _albion.mineralization group by hole_id
+                            ) as t
+                group by hole_id
+            )
+            update _albion.hole as h set depth_=d.mx
+            from dep as d where h.id=d.hole_id
+            """)
+
+
+        progress.setValue(9)
         self.__iface.messageBar().clearWidgets()
 
         con.commit()
