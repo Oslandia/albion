@@ -38,7 +38,7 @@ create table _albion.grid(
 
 create table _albion.graph(
     id varchar primary key default _albion.unique_id()::varchar,
-    parent varchar references _albion.grid(id) on delete set null on update cascade)
+    parent varchar references _albion.graph(id) on delete set null on update cascade)
 ;
 
 create index grid_geom_idx on _albion.grid using gist(geom)

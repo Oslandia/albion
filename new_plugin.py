@@ -231,7 +231,7 @@ class Plugin(QObject):
         cur = con.cursor()
         cur.execute("delete from albion.graph casacde where id='{}';".format(graph))
         if parent:
-            cur.execute("insert into albion.graph(id, parent) values ('{}', '{}');".format(graph))
+            cur.execute("insert into albion.graph(id, parent) values ('{}', '{}');".format(graph, parent))
         else:
             cur.execute("insert into albion.graph(id) values ('{}');".format(graph))
         con.commit()

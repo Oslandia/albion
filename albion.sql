@@ -343,29 +343,29 @@ create view albion.collar as select id, geom, date_, comments from _albion.colla
 create view albion.metadata as select id, srid, snap_distance, precision, interpolation, current_section, current_graph, end_distance, correlation_distance, correlation_slope from _albion.metadata
 ;
 
-create view albion.hole as select id, collar_id, depth_, geom from _albion.hole
+create view albion.hole as select id, collar_id, depth_, geom::geometry('LINESTRINGZ', $SRID) from _albion.hole
 ;
 
 create view albion.deviation as select hole_id, from_, dip, azimuth from _albion.deviation
 ;
 
-create view albion.formation as select id, hole_id, from_, to_, code, comments, geom from _albion.formation
+create view albion.formation as select id, hole_id, from_, to_, code, comments, geom::geometry('LINESTRINGZ', $SRID) from _albion.formation
 ;
 
-create view albion.resistivity as select id, hole_id, from_, to_, rho, geom from _albion.resistivity
+create view albion.resistivity as select id, hole_id, from_, to_, rho, geom::geometry('LINESTRINGZ', $SRID) from _albion.resistivity
 ;
 
-create view albion.radiometry as select id, hole_id, from_, to_, gamma, geom from _albion.radiometry
+create view albion.radiometry as select id, hole_id, from_, to_, gamma, geom::geometry('LINESTRINGZ', $SRID) from _albion.radiometry
 ;
 
-create view albion.lithology as select id, hole_id, from_, to_, code, comments, geom from _albion.lithology
+create view albion.lithology as select id, hole_id, from_, to_, code, comments, geom::geometry('LINESTRINGZ', $SRID) from _albion.lithology
 ;
 
-create view albion.facies as select id, hole_id, from_, to_, code, comments, geom from _albion.facies
+create view albion.facies as select id, hole_id, from_, to_, code, comments, geom::geometry('LINESTRINGZ', $SRID) from _albion.facies
 ;
 
 
-create view albion.mineralization as select id, hole_id, from_, to_, oc, accu, grade, geom from _albion.mineralization
+create view albion.mineralization as select id, hole_id, from_, to_, oc, accu, grade, geom::geometry('LINESTRINGZ', $SRID) from _albion.mineralization
 ;
 
 create or replace view albion.graph as
