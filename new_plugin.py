@@ -307,7 +307,7 @@ class Plugin(QObject):
         progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
         progressMessageBar.layout().addWidget(progress)
         self.__iface.messageBar().pushWidget(progressMessageBar, self.__iface.messageBar().INFO)
-        progress.setMaximum(9)
+        progress.setMaximum(16)
 
         progress.setValue(0)
 
@@ -329,8 +329,15 @@ class Plugin(QObject):
 
         progress.setValue(2)
 
-        self.__refresh_layers()
+        collar = QgsMapLayerRegistry.instance().mapLayersByName('collar')[0]
+        collar.reload()
+        collar.updateExtents()
+        self.__iface.setActiveLayer(collar)
+        QApplication.instance().processEvents()
+        while self.__iface.mapCanvas().isDrawing():
+            QApplication.instance().processEvents()
         self.__iface.zoomFull()
+
 
         cur.execute("""
             copy _albion.deviation(hole_id, from_, deep, azimuth) from '{}' delimiter ';' csv header
@@ -373,6 +380,14 @@ class Plugin(QObject):
 
         progress.setValue(8)
 
+        if self.__find_in_dir(dir_, 'mineralization'):
+            cur.execute("""
+                copy _albion.mineralization(hole_id, from_, oc, accu, grade, comments) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'mineralization')))
+
+        progress.setValue(9)
+
+
         cur.execute("""
             with dep as (
                 select hole_id, max(to_) as mx
@@ -395,21 +410,36 @@ class Plugin(QObject):
             from dep as d where h.id=d.hole_id
             """)
 
+        progress.setValue(10)
 
-        progress.setValue(9)
+        cur.execute("update albion.hole set geom=albion.hole_geom(id)")
+
+        progress.setValue(11)
+
+        cur.execute("update albion.resistivity set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(12)
+
+        cur.execute("update albion.formation set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(13)
+
+        cur.execute("update albion.radiometry set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(14)
+
+        cur.execute("update albion.lithology set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(15)
+
+        cur.execute("update albion.facies set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(16)
+
         self.__iface.messageBar().clearWidgets()
 
         con.commit()
         con.close()
-
-        collar = QgsMapLayerRegistry.instance().mapLayersByName('collar')[0]
-        collar.reload()
-        collar.updateExtents()
-        self.__iface.setActiveLayer(collar)
-        QApplication.instance().processEvents()
-        while self.__iface.mapCanvas().isDrawing():
-            QApplication.instance().processEvents()
-        self.__iface.zoomFull()
 
         self.__iface.actionSaveProject().trigger()
 
