@@ -62,7 +62,7 @@ def zip_(zip_filename):
         for root, dirs, files in os.walk(base_dir):
             if not re.match(r".*(test_data|docs|tests).*", root):
                 for file_ in files:
-                    if re.match(r".*\.(w15|py|txt|ui|json|sql|png|svg|qml)$", file_) \
+                    if re.match(r".*\.(py|txt|ui|json|sql|png|svg|qml|qgs)$", file_) \
                             and not re.match(r".*(_test|_demo)\.py", file_) \
                             and not re.match(r"(package.py|test.py)", file_):
                         fake_root = root.replace(base_dir, "albion")

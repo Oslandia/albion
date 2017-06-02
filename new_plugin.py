@@ -3,6 +3,7 @@
 import sys
 import logging
 import traceback
+import codecs
 
 from qgis.core import (QgsVectorLayer,
                        QgsLayerTreeLayer,
@@ -13,7 +14,7 @@ from qgis.core import (QgsVectorLayer,
 
 from qgis.gui import QgsMapToolEmitPoint
 
-from PyQt4.QtCore import (Qt, QObject)
+from PyQt4.QtCore import (Qt, QObject, QFileInfo)
 from PyQt4.QtGui import (QMenu, 
                          QToolBar, 
                          QInputDialog, 
@@ -24,8 +25,9 @@ from PyQt4.QtGui import (QMenu,
                          QApplication)
 
 import psycopg2 
-
-
+import tempfile
+import zipfile
+from subprocess import Popen
 
 from .axis_layer import AxisLayer, AxisLayerType
 from .action_state_helper import ActionStateHelper
@@ -73,19 +75,14 @@ class Plugin(QObject):
     def initGui(self):
         self.__menu = QMenu("Albion")
         self.__menu.addAction('New &Project').triggered.connect(self.__new_project)
-        self.__menu.addSeparator()
-        self.__menu.addAction('Refresh Grid Cells')
-        self.__menu.addSeparator()
         self.__menu.addAction('&Import Data').triggered.connect(self.__import_data)
         self.__menu.addAction('Compute &Mineralization')
         self.__menu.addSeparator()
         self.__menu.addAction('New &Graph').triggered.connect(self.__new_graph)
-        self.__menu.addAction('&Fix Current Graph')
         self.__menu.addAction('Delete Graph').triggered.connect(self.__delete_graph)
         self.__menu.addSeparator()
-        self.__menu.addAction('&Export Project')
-        self.__menu.addAction('Import Project')
-        self.__menu.addAction('Reset QGIS Project').triggered.connect(self.__reset_qgis_project)
+        self.__menu.addAction('&Export Project').triggered.connect(self.__export_project)
+        self.__menu.addAction('Import Project').triggered.connect(self.__import_project)
         self.__menu.addAction('Export sections').triggered.connect(self.__export_sections)
         self.__menu.addAction('Export volume').triggered.connect(self.__export_volume)
         self.__menu.addSeparator()
@@ -106,15 +103,30 @@ class Plugin(QObject):
         self.__toolbar.addWidget(self.__current_graph)
         self.__toolbar.addAction(icon('auto_connect.svg'), 'auto connect').triggered.connect(self.__auto_connect)
         self.__toolbar.addAction(icon('auto_ceil_wall.svg'), 'auto ceil and wall').triggered.connect(self.__auto_ceil_wall)
+        self.__toolbar.addAction(icon('extend_graph.svg'), 'extend to interpolated sections').triggered.connect(self.__extend_to_interpolated)
 
         QgsProject.instance().readProject.connect(self.__qgis__project__loaded)
         self.__qgis__project__loaded() # case of reload
+        self.__current_graph.currentIndexChanged.connect(self.__current_graph_changed)
 
     def unload(self):
         self.__menu and self.__menu.setParent(None)
         self.__toolbar and self.__toolbar.setParent(None)
         stop_cluster()
         QgsProject.instance().readProject.disconnect(self.__qgis__project__loaded)
+
+    def __current_graph_changed(self, idx):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        if self.__current_graph.currentText():
+            cur.execute("update albion.metadata set current_graph='{}'".format(self.__current_graph.currentText()))
+        else:
+            cur.execute("update albion.metadata set current_graph=null")
+        con.commit()
+        con.close()
 
     def __qgis__project__loaded(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
@@ -127,80 +139,36 @@ class Plugin(QObject):
         self.__current_graph.addItems([id_ for id_, in cur.fetchall()])
         con.close()
 
-    def __reset_qgis_project(self):
-
-        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
-            return
-
-        QgsMapLayerRegistry.instance().removeAllMapLayers()
-   
-        root = QgsProject.instance().layerTreeRoot()
-        root.removeAllChildren()
-
-        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
-        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
-        
-        for layer_name in reversed(['cell', 'formation', 'grid', 'hole', 'collar', 'small_edge', 'close_point']):
-            layer = QgsVectorLayer(
-                    '{conn_info} sslmode=disable srid={srid} key="id" table="albion"."{layer_name}" (geom)'.format(
-                        conn_info=conn_info, 
-                        srid=srid, 
-                        layer_name=layer_name
-                        ), layer_name, 'postgres')
-            QgsMapLayerRegistry.instance().addMapLayer(layer, False)
-            node = QgsLayerTreeLayer(layer)
-            root.addChildNode(node)
-        
-        layer = QgsVectorLayer(
-                '{conn_info} sslmode=disable srid={srid} key="id" table="(SELECT albion.current_section_id() as id, albion.current_section_geom()::geometry(\'LINESTRING\', {srid}) as geom)" (geom) sql='.format(
-                    conn_info=conn_info, 
-                    srid=srid), 'current_section', 'postgres')
-        QgsMapLayerRegistry.instance().addMapLayer(layer, False)
-        node = QgsLayerTreeLayer(layer)
-        root.addChildNode(node)
-
-        section_group = root.insertGroup(0, "section")
-
-        for layer_name in ['collar_section', 'formation_section', 'resistivity_section',
-                'radiometry_section', 'node_section', 'edge_section']:
-            layer = QgsVectorLayer('{} sslmode=disable srid={} key="id" table="albion"."{}" (geom)'.format(conn_info, srid, layer_name), layer_name, 'postgres')
-            QgsMapLayerRegistry.instance().addMapLayer(layer, False)
-            node = QgsLayerTreeLayer(layer)
-            section_group.addChildNode(node)
-
-         #self.__axis_layer = AxisLayer(self.__iface.mapCanvas().mapSettings().destinationCrs())
-         #QgsMapLayerRegistry.instance().addMapLayer(self.__axis_layer)
-
-        self.__iface.actionSaveProject().trigger()
-
     def __new_project(self):
 
         # @todo open dialog to configure project name and srid
-        project_name, ok = QInputDialog.getText(self.__iface.mainWindow(),
-                "Project name",
-                 "Project name (no space, no caps, ascii only):", QLineEdit.Normal,
-                 'test_project')
-        if not ok:
+        fil = QFileDialog.getSaveFileName(None,
+                u"New project name (no space, plai ascii)",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "QGIS poject file (*.qgs)")
+        if not fil:
+            return
+        fil = fil if len(fil)>4 and fil[-4:]=='.qgs' else fil+'.qgs'
+        fil = fil.replace(' ','_')
+        try:
+            fil.decode('ascii')
+        except UnicodeDecodeError:
+            self.__iface.messageBar().pushError('Albion:', "project name may only contain asci character (no accent)")
             return
 
         srid, ok = QInputDialog.getText(self.__iface.mainWindow(),
                 "Project SRID",
                  "Project SRID EPSG:", QLineEdit.Normal,
                  '32632')
-
         if not ok:
             return
-
-        self.__iface.newProject()
-
         srid = int(srid)
+
+        project_name = str(os.path.split(fil)[1][:-4])
 
         self.__iface.messageBar().pushInfo('Albion:', "creating project...")
        
-        QgsProject.instance().writeEntry("albion", "project_name", project_name)
-        QgsProject.instance().writeEntry("albion", "srid", srid)
         conn_info = "dbname={} {}".format(project_name, cluster_params())
-        QgsProject.instance().writeEntry("albion", "conn_info", conn_info)
 
         con = psycopg2.connect("dbname=postgres {}".format(cluster_params()))
         cur = con.cursor()
@@ -216,16 +184,24 @@ class Plugin(QObject):
         cur = con.cursor()
         cur.execute("create extension postgis")
         cur.execute("create extension plpython3u")
-        #cur.execute("create extension \"uuid-ossp\"")
         for file_ in ('_albion.sql', 'albion.sql'):
             for statement in open(os.path.join(os.path.dirname(__file__), file_)).read().split('\n;\n')[:-1]:
                 cur.execute(statement.replace('$SRID', str(srid)))
-        #cur.execute("insert into albion.metadata(srid, snap_distance) select 32632, 2")
         con.commit()
         con.close()
 
-        self.__reset_qgis_project()
-
+        # load template
+        open(fil, 'w').write(
+            open(os.path.join(os.path.dirname(__file__), 'template_project.qgs')).read().replace('template_project', project_name)
+            )
+        self.__iface.newProject()
+        QgsProject.instance().setFileName(fil)
+        QgsProject.instance().read()
+        QgsProject.instance().writeEntry("albion", "project_name", project_name)
+        QgsProject.instance().writeEntry("albion", "srid", srid)
+        QgsProject.instance().writeEntry("albion", "conn_info", conn_info)
+        QgsProject.instance().write()
+        self.__qgis__project__loaded()
 
     def __new_graph(self):
 
@@ -239,6 +215,14 @@ class Plugin(QObject):
 
         if not ok:
             return
+        
+        parent, ok = QInputDialog.getText(self.__iface.mainWindow(),
+                "Parent Graph",
+                 "Parent Graph name:", QLineEdit.Normal,
+                 '')
+
+        if not ok:
+            return
 
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
@@ -246,7 +230,10 @@ class Plugin(QObject):
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
         cur.execute("delete from albion.graph casacde where id='{}';".format(graph))
-        cur.execute("insert into albion.graph(id) values ('{}');".format(graph))
+        if parent:
+            cur.execute("insert into albion.graph(id, parent) values ('{}', '{}');".format(graph))
+        else:
+            cur.execute("insert into albion.graph(id) values ('{}');".format(graph))
         con.commit()
         con.close()
 
@@ -295,6 +282,7 @@ class Plugin(QObject):
                         QgsProject.instance().readEntry("albion", "last_dir", "")[0])
         if not dir_:
             return
+        QgsProject.instance().writeEntry("albion", "last_dir", dir_),
 
         #@todo run the collar import, and then subprocess the rest to allow the user
         #      to edit the grid without waiting
@@ -312,7 +300,7 @@ class Plugin(QObject):
         progress.setValue(0)
 
         cur.execute("""
-            copy _albion.collar(id, x, y, z, comments) from '{}' delimiter ';' csv header 
+            copy _albion.collar(id, x, y, z, date_, comments) from '{}' delimiter ';' csv header 
             """.format(self.__find_in_dir(dir_, 'collar')))
         
         progress.setValue(1)
@@ -325,22 +313,10 @@ class Plugin(QObject):
             insert into _albion.hole(id, collar_id) select id, id from _albion.collar;
             """)
 
-        con.commit()
-
         progress.setValue(2)
 
-        collar = QgsMapLayerRegistry.instance().mapLayersByName('collar')[0]
-        collar.reload()
-        collar.updateExtents()
-        self.__iface.setActiveLayer(collar)
-        QApplication.instance().processEvents()
-        while self.__iface.mapCanvas().isDrawing():
-            QApplication.instance().processEvents()
-        self.__iface.zoomFull()
-
-
         cur.execute("""
-            copy _albion.deviation(hole_id, from_, deep, azimuth) from '{}' delimiter ';' csv header
+            copy _albion.deviation(hole_id, from_, dip, azimuth) from '{}' delimiter ';' csv header
             """.format(self.__find_in_dir(dir_, 'devia')))
 
         progress.setValue(3)
@@ -440,6 +416,16 @@ class Plugin(QObject):
 
         con.commit()
         con.close()
+
+        collar = QgsMapLayerRegistry.instance().mapLayersByName('collar')[0]
+        collar.reload()
+        collar.updateExtents()
+        self.__iface.setActiveLayer(collar)
+        QApplication.instance().processEvents()
+        while self.__iface.mapCanvas().isDrawing():
+            QApplication.instance().processEvents()
+        self.__iface.zoomFull()
+
 
         self.__iface.actionSaveProject().trigger()
 
@@ -644,7 +630,7 @@ class Plugin(QObject):
         cur = con.cursor()
 
         if fil[-4:] == '.obj':
-            progressMessageBar = self.__iface.messageBar().createMessage("Loading {}...".format(dir_))
+            progressMessageBar = self.__iface.messageBar().createMessage("Computing volume {}...".format(fil))
             progress = QProgressBar()
             progress.setMaximum(7)
             progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
@@ -696,6 +682,18 @@ class Plugin(QObject):
         con.close()
         self.__refresh_layers()
 
+    def __extend_to_interpolated(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select albion.extend_to_interpolated('{}', albion.current_section_id())".format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
     def __refresh_layers(self):
         for layer in self.__iface.mapCanvas().layers():
             layer.triggerRepaint()
@@ -709,4 +707,66 @@ class Plugin(QObject):
         else:
             self.__axis_layer = AxisLayer(self.__iface.mapCanvas().mapSettings().destinationCrs())
             QgsMapLayerRegistry.instance().addMapLayer(self.__axis_layer)
+
+
+    def __export_project(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+
+        fil = QFileDialog.getSaveFileName(None,
+                u"Export project",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "Data files(*.zip)")
+        if not fil:
+            return
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+
+        if os.path.exists(fil):
+            os.remove(fil)
+        with zipfile.ZipFile(fil, 'w') as project:
+            conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+            param = dict([p.split('=') for p in conn_info.split()])
+        
+            dump = tempfile.mkstemp()[1]
+            cmd = ['pg_dump', '-h', param['host'], '-p', param['port'], '-d', param['dbname']]
+            print ' '.join(cmd)
+            p = Popen(cmd, stdout=open(dump,'w')).communicate()
+            project.write(dump, param['dbname']+'.dump')
+            project.write(QgsProject.instance().fileName())
+            
+    def __import_project(self):
+        fil = QFileDialog.getOpenFileName(None,
+                u"Import project",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "Data files(*.zip)")
+        if not fil:
+            return
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+        dir_ = tempfile.mkdtemp()
+        with zipfile.ZipFile(fil, "r") as z:
+            z.extractall(dir_)
+            
+        dump = self.__find_in_dir(dir_, '.dump')
+        project_name = os.path.split(dump)[1][:-5]
+
+        con = psycopg2.connect("dbname=postgres {}".format(cluster_params()))
+        cur = con.cursor()
+        con.set_isolation_level(0)
+        cur.execute("select pg_terminate_backend(pg_stat_activity.pid) \
+                    from pg_stat_activity \
+                    where pg_stat_activity.datname = '{}'".format(project_name))
+        cur.execute("drop database if exists {}".format(project_name))
+        con.commit()
+        con.close()
+
+        param = dict([p.split('=') for p in cluster_params().split()])
+        cmd = ['createdb', '-h', param['host'], '-p', param['port'], '-d', project_name]
+        print ' '.join(cmd)
+        p = Popen(cmd ).communicate()
+        cmd = ['psql', '-h', param['host'], '-p', param['port'], '-d', project_name, '-f', dump]
+        print ' '.join(cmd)
+        p = Popen(cmd ).communicate()
+
+        QgsProject.instance().read(QFileInfo(self.__find_in_dir(dir_, '.qgs')))
+
 

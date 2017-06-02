@@ -36,11 +36,13 @@ pytest
 Process
 =======
 
-- Create project (no caps, no space, no accents)
+- Create project (no caps, no space, no accents in project name)
 - Import data directory
-- Create the grid
+- Create the grid (e.g. open an existing shapefile, select all features with Ctrl+a then cpy/paste in the grid layer that has been switched to edition mode)
 - Create a graph
-- Set graph nodes (cpy/paste features)
+- Set graph nodes (e.g. open formation attribute table, select feature by code, cpy/paste into node layer and set the graph_id field of pasted features, use field calculator for that)
+- Launch Auto Graph from the Albion menu
+- Check graph, you can extend sections to interpolated either section by section of globaly with the Albion menu entry
 
 
 Interface

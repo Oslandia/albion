@@ -72,10 +72,10 @@ $$
         with dz as (
             select 
                 from_ as md2, coalesce(lag(from_) over w, 0) as md1,
-                (deep + 90)*pi()/180 as wd2,  coalesce(lag((deep+90)*pi()/180) over w, 0) as wd1,
+                (dip + 90)*pi()/180 as wd2,  coalesce(lag((dip+90)*pi()/180) over w, 0) as wd1,
                 azimuth*pi()/180 as haz2,  coalesce(lag(azimuth*pi()/180) over w, 0) as haz1
             from _albion.deviation 
-            where azimuth >= 0 and azimuth <=360 and deep < 0 and deep > -180
+            where azimuth >= 0 and azimuth <=360 and dip < 0 and dip > -180
             and hole_id=hole_id_
             window w AS (order by from_)
         ),
@@ -337,16 +337,16 @@ create trigger grid_instead_trig
        for each row execute procedure albion.grid_instead_fct()
 ;
 
-create view albion.collar as select id, geom, comments from _albion.collar
+create view albion.collar as select id, geom, date_, comments from _albion.collar
 ;
 
-create view albion.metadata as select id, srid, snap_distance, precision, interpolation, current_section, end_distance, correlation_distance, correlation_slope from _albion.metadata
+create view albion.metadata as select id, srid, snap_distance, precision, interpolation, current_section, current_graph, end_distance, correlation_distance, correlation_slope from _albion.metadata
 ;
 
 create view albion.hole as select id, collar_id, depth_, geom from _albion.hole
 ;
 
-create view albion.deviation as select hole_id, from_, deep, azimuth from _albion.deviation
+create view albion.deviation as select hole_id, from_, dip, azimuth from _albion.deviation
 ;
 
 create view albion.formation as select id, hole_id, from_, to_, code, comments, geom from _albion.formation
@@ -369,15 +369,17 @@ create view albion.mineralization as select id, hole_id, from_, to_, oc, accu, g
 ;
 
 create or replace view albion.graph as
-select id from _albion.graph
+select id, parent from _albion.graph
 ;
 
 create or replace view albion.node as 
-select id, graph_id, hole_id, geom from _albion.node
+select id, graph_id, hole_id, geom::geometry('LINESTRINGZ', $SRID) 
+from _albion.node
 ;
 
 create or replace view albion.edge as 
-select id, graph_id, start_, end_, grid_id, geom, ceil_, wall_ from _albion.edge
+select id, graph_id, start_, end_, grid_id, geom::geometry('LINESTRINGZ', $SRID), ceil_::geometry('LINESTRINGZ', $SRID), wall_::geometry('LINESTRINGZ', $SRID) 
+from _albion.edge
 ;
 
 create or replace function albion.edge_instead_fct()
@@ -461,9 +463,36 @@ where g.grid_id = albion.current_section_id()
 ;
 
 create or replace view albion.collar_section as
-select f.id, f.comments, albion.to_section(f.geom, albion.current_section_geom())::geometry('POINT', $SRID) as geom
+select f.id, f.comments, f.date_, albion.to_section(f.geom, albion.current_section_geom())::geometry('POINT', $SRID) as geom
 from albion.collar as f 
 where st_intersects(f.geom, albion.current_section_geom())
+;
+
+create or replace function albion.collar_section_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    begin
+
+        -- /!\ insert/update the edge view to trigger line splitting at grid points 
+        if tg_op = 'INSERT' then
+            raise notice 'collar cannot be inserted from section';
+            return new;
+        elsif tg_op = 'UPDATE' then
+            raise notice 'collar cannot be updated from section';
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from albion.collar where id=old.id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger collar_section_instead_trig
+    instead of insert or update or delete on albion.collar_section
+       for each row execute procedure albion.collar_section_instead_fct()
 ;
 
 create or replace view albion.hole_section as
@@ -478,6 +507,8 @@ from albion.node as f
 join albion.hole_grid as g on g.hole_id=f.hole_id
 where g.grid_id = albion.current_section_id()
 ;
+
+
 
 create or replace view albion.edge_section as
 select f.id, f.graph_id, f.start_, f.end_, f.grid_id,
@@ -963,7 +994,7 @@ $$
         polygons = MultiPolygon([polygons])
     node_map = {}
     current_id = 0
-    tempdir = '/tmp' #tempfile.mkdtemp()
+    tempdir = tempfile.mkdtemp()
     tmp_in_file = os.path.join(tempdir, 'tmp_mesh.geo')
     result = []
     altitudes={}
@@ -1313,7 +1344,7 @@ with collec as (
 poly as (
     select (st_dump(st_polygonize(geom))).geom as geom from collec
 )
-select uuid_generate_v4()::varchar as id, geom::geometry('POLYGON', $SRID) from poly where geom is not null
+select _albion.unique_id()::varchar as id, geom::geometry('POLYGON', $SRID) from poly where geom is not null
 ;
 
 create index cell_geom_idx on albion.cell using gist(geom)
@@ -1327,7 +1358,7 @@ with mesh as (
 tri as (
     select (st_dump(st_force2d(geom))).geom from mesh
 )
-select uuid_generate_v4()::varchar as id, cell.id cell_id, st_snap(tri.geom, cell.geom, m.precision)::geometry('POLYGON', $SRID) as geom
+select _albion.unique_id()::varchar as id, cell.id cell_id, st_snap(tri.geom, cell.geom, m.precision)::geometry('POLYGON', $SRID) as geom
 from tri join albion.cell on st_intersects(st_centroid(tri.geom), cell.geom), albion.metadata as m
 ;
 
@@ -1442,7 +1473,7 @@ create index project_edge_id_idx on albion.projected_edge(id)
 
 create materialized view albion.cell_edge
 as
-select uuid_generate_v4()::varchar as id, c.id as cell_id, e.graph_id, e.id as edge_id, albion.ceil_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as piece_ceil_, albion.wall_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as piece_wall_,
+select _albion.unique_id()::varchar as id, c.id as cell_id, e.graph_id, e.id as edge_id, albion.ceil_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as piece_ceil_, albion.wall_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as piece_wall_,
 p.ceil_ as proj_ceil_, p.wall_ as proj_wall_, e.ceil_, e.wall_
 from albion.cell as c, albion.projected_edge as p join albion.edge as e on e.id=p.id
 where st_intersects(p.geom, c.geom)
@@ -1559,7 +1590,7 @@ $$
 
 create view albion.double_edge
 as
-select uuid_generate_v4()::varchar as id, c.geom::geometry('POLYGON', 32632) 
+select _albion.unique_id()::varchar as id, c.geom::geometry('POLYGON', 32632) 
 from albion.cell as c, albion.collar as g 
 where st_intersects(c.geom, g.geom) and not st_intersects(st_exteriorring(c.geom), g.geom)
 ;
