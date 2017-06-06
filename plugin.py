@@ -3,100 +3,52 @@
 import sys
 import logging
 import traceback
+import codecs
 
 from qgis.core import (QgsVectorLayer,
                        QgsLayerTreeLayer,
-                       QgsMapLayerRegistry)
+                       QgsMapLayerRegistry,
+                       QgsPluginLayerRegistry, 
+                       QgsProject,
+                       QgsRectangle)
 
-from PyQt4.QtCore import Qt, QObject
-from PyQt4.QtGui import (QDockWidget,
-                         QToolBar,
-                         QMainWindow,
-                         QLineEdit,
-                         QLabel)
+from qgis.gui import QgsMapToolEmitPoint
 
-import numpy as np
-import math
+from PyQt4.QtCore import (Qt, QObject, QFileInfo)
+from PyQt4.QtGui import (QMenu, 
+                         QToolBar, 
+                         QInputDialog, 
+                         QLineEdit, 
+                         QFileDialog, 
+                         QProgressBar,
+                         QComboBox,
+                         QApplication)
 
-from .main_window import MainWindow
-from shapely.wkt import loads
-from shapely.geometry import Point
+import psycopg2 
+import tempfile
+import zipfile
+from subprocess import Popen
 
-from .graph_edit_tool import GraphEditTool
-from .viewer_3d.viewer_3d import Viewer3D
+from .axis_layer import AxisLayer, AxisLayerType
 
-from .fake_generatrice import create as fg_create
-from .fake_generatrice import insert as fg_insert
-from .fake_generatrice import connect as fg_connect
+from pglite import start_cluster, stop_cluster, init_cluster, check_cluster, cluster_params
+import atexit
+import os
+import time
 
-from .qgis_hal import (get_feature_by_id,
-                       get_layer_selected_ids,
-                       get_layer_by_id,
-                       get_id,
-                       get_name,
-                       get_all_layers,
-                       get_all_layer_features,
-                       feature_to_shapely_wkt,
-                       get_feature_attribute_values,
-                       projected_layer_to_original,
-                       projected_feature_to_original,
-                       get_layers_with_properties,
-                       root_layer_group_from_iface,
-                       is_a_projected_layer,
-                       get_feature_centroid,
-                       create_new_feature,
-                       insert_features_in_layer,
-                       get_layer_max_feature_attribute,
-                       remove_features_from_layer,
-                       is_3d_layer,
-                       qgeom_from_wkt,
-                       wkt_from_qgeom)
-
-from .graph import to_volume
-
-from .graph_operations import (
-    refresh_graph_layer_edges,
-    find_generatrices_needing_a_fake_generatrice_in_section,
-    compute_section_polygons_from_graph,
-    compute_segment_geometry,
-    is_fake_feature,
-    does_edge_already_exist)
-from .section_projection import (project_layer_as_linestring,
-                                 project_layer_as_polygon)
-
-from .global_toolbar import GlobalToolbar
-
-from .utils import (icon,
-                    create_projected_layer,
-                    sort_id_along_implicit_centroids_line,
-                    centroids_to_line_wkt,
-                    length)
+AXIS_LAYER_TYPE = AxisLayerType()
+QgsPluginLayerRegistry.instance().addPluginLayerType(AXIS_LAYER_TYPE)
 
 
-def compute_sections_polygons_from_graph(graph_layer,
-                                         sections_layer,
-                                         section_width):
-    result = []
+@atexit.register
+def unload_axi_layer_type():
+    QgsPluginLayerRegistry.instance().removePluginLayerType(
+        AxisLayer.LAYER_TYPE)
 
-    for feature in get_all_layer_features(sections_layer):
-        try:
-            logging.info('   - {}: {}'.format(
-                get_name(sections_layer), get_id(feature)))
-            line = loads(feature_to_shapely_wkt(feature))
-
-            # build a temporary layer to hold graph_layer features projections
-            graph_projection = create_projected_layer(graph_layer, 'dummy')
-            project_layer_as_linestring(line, 1.0, section_width,
-                                        graph_layer, graph_projection)
-
-            result += compute_section_polygons_from_graph(
-                graph_layer, graph_projection, line, section_width)
-        except Exception as e:
-            logging.error('err {}. Feature: {}/{}'.format(
-                e, get_id(sections_layer), get_id(feature)))
-            traceback.print_exc()
-
-    return result
+def icon(name):
+    """Return a QIcon instance from the `res` directory
+    """
+    return QIcon(os.path.join(os.path.dirname(__file__), 'res', name))
 
 
 class Plugin(QObject):
@@ -107,873 +59,716 @@ class Plugin(QObject):
         logging.basicConfig(format=FORMAT, level=lvl)
 
         self.__iface = iface
-        self.rendering_3d_intialized = False
-
-
-    # Signal Handling
-    #################
-    #   - user selected a new active graph layer
-    def __current_graph_layer_changed(self, graph):
-        self.edit_graph_tool.set_graph_layer(graph)
-
-    #   - layer visibility was changed (in treeview)
-    def __layer_visibility_changed(self, node):
-        if isinstance(node, QgsLayerTreeLayer):
-            lid = get_id(node.layer())
-            self.viewer3d.set_generatrices_visibility(
-                lid, self.__iface.legendInterface().isLayerVisible(
-                    get_layer_by_id(lid)))
-
-        self.viewer3d.updateGL()
-
-    #   - graph layer was mofified (e.g: user added a feature)
-    def __on_graph_modified(self):
-        logging.info('__on_graph_modified')
-        self.viewer3d.polygons_vertices = []
-        # update 3d view
-        self.display_polygons_volumes_3d(False)
-        self.__section_main.canvas.refresh()
-        self.__iface.mapCanvas().refresh()
-
-    #   - new layers were loaded or added
-    def __layers_added(self, layers):
-        all_layers = get_all_layers()
-        self.toolbar.graphLayerHelper.update_layers(all_layers)
-        self.toolbar.sections_layers_combo.update_layers()
-        for layer in layers:
-            if is_a_projected_layer(layer):
-                continue
-            if isinstance(layer, QgsVectorLayer):
-                layer.editCommandEnded.connect(
-                    self.__update_projection_if_needed)
-                layer.featuresDeleted.connect(
-                    self.__update_projection_if_needed)
-
-    #   - layers were removed
-    def __layers_will_be_removed(self, layer_ids):
-        for layer_id in layer_ids:
-            layer = get_layer_by_id(layer_id)
-            if is_a_projected_layer(layer):
-                continue
-            if isinstance(layer, QgsVectorLayer):
-                layer.editCommandEnded.\
-                    disconnect(self.__update_projection_if_needed)
-                layer.featuresDeleted.\
-                    disconnect(self.__update_projection_if_needed)
-
-    def __update_projection_if_needed(self):
-        layer = self.sender()
-        logging.info('__update_projection_if_needed {}'.format(get_id(layer)))
-
-        matching = get_layers_with_properties(
-            {'section_id': self.__section_main.section.id,
-             'projected_layer':  get_id(layer)})
-
-        for l in matching:
-            project_layer_as_linestring(
-                self.__section_main.section.line,
-                self.__section_main.section.z_scale,
-                self.__section_main.section.width,
-                layer, l)
-
-        matching = get_layers_with_properties(
-            {'section_id': self.__section_main.section.id,
-             'polygon_projected_layer': get_id(layer)})
-
-        for l in matching:
-            project_layer_as_polygon(
-                self.__section_main.section.line,
-                self.__section_main.section.z_scale,
-                self.__section_main.section.width,
-                layer, l)
-
-        self.__section_main.section.request_canvas_redraw()
-
-    def __redraw_3d_view(self):
-        self.viewer3d.scale_z = float(self.viewer3d_scale_z.text())
-        self.viewer3d.updateGL()
-
-    # Buttons (actions) handling
-    ############################
-    #   - refresh graph geometries
-    def cleanup_data(self):
-        refresh_graph_layer_edges(self.toolbar.graphLayerHelper.active_layer())
-
-    #   - create a section line from active selection
-    def __create_line_from_selection(self):
-        layer = self.__iface.mapCanvas().currentLayer()
-        if layer is None:
-            return
-
-        # browse layers, and stop at the first one with selected features
-        for l in get_all_layers():
-
-            if is_a_projected_layer(l):
-                continue
-
-            selection = get_layer_selected_ids(l)
-            if len(selection) == 0:
-                continue
-
-            logging.info('{} {}'.format(get_name(l), selection))
-            if len(selection) < 2:
-                continue
-
-            # get centroids of each
-            features = {}
-            for i in selection:
-                feature = get_feature_by_id(l, i)
-                centroid = get_feature_centroid(feature)
-
-                features[i] = centroid
-
-            sorted_ids = sort_id_along_implicit_centroids_line(features)
-
-            centroids = [features[i] for i in sorted_ids]
-            # Appends centroids to extend section line: we need some room for
-            # fake generatrices
-            distance = float(self.generatrice_distance.text()) * 2
-
-            start_shift = Plugin._compute_fake_generatrice_translation_vec(
-                centroids[0],
-                centroids[1],
-                distance)
-
-            end_shift = Plugin._compute_fake_generatrice_translation_vec(
-                centroids[-1],
-                centroids[-2],
-                distance)
-
-            centroids.insert(
-                0,
-                [centroids[0][i] + start_shift[i] for i in range(0, 2)])
-            centroids += [
-                [centroids[-1][i] + end_shift[i] for i in range(0, 2)]]
-
-            wkt = centroids_to_line_wkt(centroids)
-
-            feat = create_new_feature(layer, wkt, {'r': 1})
-            insert_features_in_layer([feat], layer)
-
-            if self.__iface.mapCanvas().isCachingEnabled():
-                layer.setCacheImage(None)
-            else:
-                self.__iface.mapCanvas().refresh()
-
-            break
-
-    def __auto_connect_generatrices(self):
-        layer = self.__iface.mapCanvas().currentLayer()
-        if layer is None:
-            return
-
-        source_layer = projected_layer_to_original(layer)
-        if source_layer is None:
-            return
-
-        graph_layer = self.toolbar.graphLayerHelper.active_layer()
-        if graph_layer is None:
-            return
-
-        max_angle = float(self.alpha.text())
-
-        features = [f for f in get_all_layer_features(layer)]
-        centroids = [get_feature_centroid(f) for f in features]
-        hole_ids = [get_feature_attribute_values(layer, f, 'HoleId')
-                    for f in features]
-
-        # logging.info(hole_ids)
-        # logging.info(centroids)
-        # TODO filter out already connected features
-
-        new_edges = []
-        my_id = get_layer_max_feature_attribute(graph_layer, 'link') + 1
-
-        z_scale = self.__section_main.section.z_scale
-
-        # for each feature, find nearest feature to the right that has a different HoleID
-        # then loop over each feature with matching HoleID and try to connect is alpha < threshold
-        for i in range(0, len(features)):
-            feature = features[i]
-            centroid = centroids[i]
-            min_dx = float('inf')
-            nearest = None
-
-            # logging.info('PROCESSING {}'.format(get_id(feature)))
-
-            for j in range(0, len(features)):
-                if i == j:
-                    continue
-                # same hole_id => filtered
-                if hole_ids[i] == hole_ids[j]:
-                    continue
-
-                dx = centroids[j][0] - centroid[0]
-
-                if dx > 0 and dx < min_dx:
-                    nearest = hole_ids[j]
-                    min_dx = dx
-
-            # logging.info('NEAREST = {}'.format(nearest))
-
-            if nearest is not None:
-                source_feature = projected_feature_to_original(
-                    source_layer, features[i])
-
-                for j in range(0, len(features)):
-                    if hole_ids[j] == nearest:
-                        c = centroids[j]
-                        delta = [c[i] - centroid[i] for i in [0, 1]]
-                        if delta[0] == 0:
-                            continue
-                        angle = 180.0 * math.atan(delta[1] / (z_scale * delta[0])) / math.pi
-
-                        if abs(angle) <= max_angle:
-                            source_feature2 = projected_feature_to_original(
-                                source_layer, features[j])
-
-                            if does_edge_already_exist(
-                                    graph_layer,
-                                    get_id(source_layer),
-                                    get_id(source_feature),
-                                    get_id(source_feature2)):
-                                continue
-
-                            logging.info('CONNECT {} - {}'.format(get_id(feature), get_id(features[j])))
-
-                            segment = compute_segment_geometry(
-                                feature_to_shapely_wkt(source_feature),
-                                feature_to_shapely_wkt(source_feature2))
-
-                            new_edges += [create_new_feature(
-                                graph_layer,
-                                segment.wkt,
-                                {
-                                    'layer': get_id(source_layer),
-                                    'start': get_id(source_feature),
-                                    'end': get_id(source_feature2),
-                                    'link': my_id,
-                                })]
-                            my_id += 1
-
-        if len(new_edges) > 0:
-            insert_features_in_layer(new_edges, graph_layer)
-
-
-
-
-    #   - export volume to dxf
-    def export_volume(self):
-        pass
-        # section_layers = []
-        # for combo in self.viewer3d_combo:
-        #    lid = combo.itemData(combo.currentIndex())
-        #    section_layers += [QgsMapLayerRegistry.instance().mapLayer(lid)]
-        # if len(section_layers) < 2:
-        #    return
-        # volumes, vertices = self.toolbar.build_volume(
-        #    self.graphLayerHelper.active_layer(), section_layers)
-        # drawing = dxf.drawing('/tmp/test.dxf')
-        # for vol in volumes:
-        #    for tri in vol:
-        #        v = [ vertices[tri[i]] for i in range(0, 3) ]
-        #        drawing.add(
-        #            dxf.face3d(
-        #                [tuple(v[0]), tuple(v[1]), tuple(v[2])], flags=1))
-        # drawing.save()
-
-    #   - reset subgraph. TODO: modify to clean active graph
-    def __reset_subgraph_precondition_check(self):
-        if not self.__section_main.section.is_valid:
-            return (False, "No active section")
-        return (True, "")
-
-    def _remove_features_from_projected_layer(self, projected_layer, condition=None):
-        ''' Remove all features in a projected layer that matches a given
-            condition (features are actually removed from source layer) '''
-        source_layer = projected_layer_to_original(projected_layer)
-
-        to_remove = []
-        for feature in get_all_layer_features(projected_layer):
-            if condition is not None:
-                if not condition(source_layer, feature):
-                    continue
-            to_remove += [
-                get_id(projected_feature_to_original(source_layer, feature))]
-
-        logging.info('REMOVE: {}'.format(to_remove))
-        if len(to_remove) > 0:
-            remove_features_from_layer(source_layer, to_remove)
-
-    def _remove_all_edges_from_projected_graph(self):
-        graph_layer = self.toolbar.graphLayerHelper.active_layer()
-        if graph_layer is None:
-            return
-        projected_graph = get_layers_with_properties(
-            {'projected_layer': get_id(graph_layer)})[0]
-
-        # remove inconditionnaly all edges from proejcted graph
-        self._remove_features_from_projected_layer(projected_graph)
-
-    def _remove_all_fake_generatrices_from_projected_layer(self):
-        layer = self.__iface.mapCanvas().currentLayer()
-        if layer is None:
-            return
-
-        projected = layer if is_a_projected_layer(layer) else \
-            get_layers_with_properties({'projected_layer': get_id(layer)})[0]
-
-        self._remove_features_from_projected_layer(projected, is_fake_feature)
-
-    def __reset_graph(self):
-        self._remove_all_edges_from_projected_graph()
-        self._remove_all_fake_generatrices_from_projected_layer()
-
-    def draw_active_section_3d(self):
-        if self.__section_main.section.is_valid:
-            # draw section line
-            section_vertices = []
-            for c in self.__section_main.section.line.coords:
-                section_vertices += [[c[0], c[1], 250], [c[0], c[1], 500]]
-            self.viewer3d.define_section_vertices(section_vertices)
-
-    def build_volume(self, polygons):
-        def same_vertex(v1, v2):
-            return v1[0] == v2[0] and v1[1] == v2[1] and v1[2] == v2[2]
-
-        def index_of(generatrice):
-            for i in range(0, len(nodes)):
-                if same_vertex(generatrice[0], nodes[i][0]) and \
-                   same_vertex(generatrice[1], nodes[i][1]):
-                    return i
-            return -1
-
-        nodes = []
-        edges = []
-
-        total = 0
-
-        for polygon in polygons:
-            previous_idx = -1
-            for i in range(0, len(polygon), 2):
-                total += 1
-                generatrice = [polygon[i], polygon[i + 1]]
-
-                idx = index_of(generatrice)
-                if idx < 0:
-                    nodes += [generatrice]
-                    idx = len(nodes) - 1
-
-                # connect to previous node
-                if previous_idx >= 0:
-                    edges += [(idx, previous_idx)]
-                previous_idx = idx
-
-        return to_volume(np.array(nodes), edges)
-
-    def update_polygons_3d(self, section_layers, scale_z=1.0):
-        graph_layer = self.toolbar.graphLayerHelper.active_layer()
-
-        if graph_layer is None:
-            return []
-
-        def centroid(l):
-            return [0.5*(l.coords[0][i]+l.coords[1][i]) for i in range(0, 3)]
-
-        if True: # len(self.viewer3d.polygons_vertices) == 0:
-            logging.info('Rebuild polygons!')
-            self.polygons = []
-
-            section_width = float(
-                self.__section_main.toolbar.buffer_width.text())
-
-            for layer in section_layers:
-                if layer is not None:
-                    v = compute_sections_polygons_from_graph(
-                        graph_layer,
-                        layer,
-                        section_width)
-
-                    self.viewer3d.set_section_polygons(
-                        section_layers.index(layer), v)
-
-                    self.polygons += v
-                else:
-                    self.viewer3d.set_section_polygons(
-                        section_layers.index(layer), None)
-
-        return self.polygons
-
-    def display_polygons_volumes_3d_full(self, update_active_section_only=True):
-        self.display_polygons_volumes_3d(False)
-
-    def display_polygons_volumes_3d(self, update_active_section_only=True):
-        logging.info('display_polygons_volumes_3d!!!')
-        if self.initialize_3d_rendering():
-            update_active_section_only = False
-
-        section_layers = []
-        for lid in self.toolbar.sections_layers_combo.active_layers_id():
-            if lid is None:
-                return
-            section_layers += [get_layer_by_id(lid)]
-
-        self.draw_active_section_3d()
-
-        if not update_active_section_only:
-            polygons = self.update_polygons_3d(section_layers)
-            volumes, vertices = self.build_volume(polygons)
-
-            self.viewer3d.updateVolume(vertices, volumes)
-            self.viewer3d.updateGL()
-
-        self.__redraw_3d_view()
-
-    def initialize_3d_rendering(self):
-        section_layers_id = \
-            self.toolbar.sections_layers_combo.active_layers_id()
-        if section_layers_id[0] == None:
-            return
-
-        if self.rendering_3d_intialized:
-            return False
-
-        ext = self.__iface.mapCanvas().extent()
-        center = [ext.center().x(), ext.center().y(), ext.height()]
-        self.viewer3d.enable(center)
-
-        section_layers_id = \
-            self.toolbar.sections_layers_combo.active_layers_id()
-        self.rendering_3d_intialized = True
-
-        for layer in get_all_layers():
-            # only draw projected layers
-            if not is_3d_layer(layer, section_layers_id):
-                continue
-
-            layer_vertices = []
-            for feature in layer.getFeatures():
-                wkt = feature.geometry().exportToWkt()
-                if wkt.find('Z') < 0:
-                    break
-                v = loads(wkt.replace('Z', ' Z'))
-
-                layer_vertices += [list(v.coords[0]), list(v.coords[1])]
-
-            if len(layer_vertices) > 0:
-                self.viewer3d.define_generatrices_vertices(get_id(layer), layer_vertices)
-                self.viewer3d.set_generatrices_visibility(get_id(layer), self.__iface.legendInterface().isLayerVisible(
-                            layer))
-                self.viewer3d.set_generatrices_color(get_id(layer), list(layer.rendererV2().symbol().color().getRgbF()))
-
-        self.display_polygons_volumes_3d(False)
-        return True
+        self.__project = None
+        self.__menu = None
+        self.__toolbar = None
+        self.__click_tool = None
+        self.__previous_tool = None
+        self.__select_current_section_action = None
+        self.__current_graph = QComboBox()
+        self.__current_graph.setMinimumWidth(150)
+        self.__axis_layer = None
+        self.__section_extent = (0, 1000)
+
+        if not check_cluster():
+            init_cluster()
+        start_cluster()
 
     def initGui(self):
-        self.__section_main = MainWindow(self.__iface, 'section')
-        self.__dock = QDockWidget('Section')
-        self.__dock.setWidget(self.__section_main)
-        self.edit_graph_tool = GraphEditTool(self.__iface, self.__section_main.canvas)
+        self.__menu = QMenu("Albion")
+        self.__menu.addAction('New &Project').triggered.connect(self.__new_project)
+        self.__menu.addAction('&Import Data').triggered.connect(self.__import_data)
+        self.__menu.addAction('Compute &Mineralization')
+        self.__menu.addSeparator()
+        self.__menu.addAction('New &Graph').triggered.connect(self.__new_graph)
+        self.__menu.addAction('Delete Graph').triggered.connect(self.__delete_graph)
+        self.__menu.addSeparator()
+        self.__menu.addAction('&Export Project').triggered.connect(self.__export_project)
+        self.__menu.addAction('Import Project').triggered.connect(self.__import_project)
+        self.__menu.addAction('Export sections').triggered.connect(self.__export_sections)
+        self.__menu.addAction('Export volume').triggered.connect(self.__export_volume)
+        self.__menu.addSeparator()
+        self.__menu.addAction('Auto graph').triggered.connect(self.__auto_graph)
+        self.__menu.addAction('Extend all sections').triggered.connect(self.__extend_all_sections)
+        self.__menu.addAction('Toggle axis').triggered.connect(self.__toggle_axis)
+        
+        self.__iface.mainWindow().menuBar().addMenu(self.__menu)
 
-        # Plugin-wide options
-        self.toolbar = GlobalToolbar(self.__iface, self.__section_main, compute_sections_polygons_from_graph)
-        self.__export_volume_action = self.toolbar.addAction(icon('6_export_volume.svg'), 'Export volume (graph)')
-        self.__iface.addToolBar(self.toolbar)
+        self.__toolbar = QToolBar('Albion')
+        self.__iface.mainWindow().addToolBar(self.__toolbar)
+        self.__select_current_section_action = self.__toolbar.addAction(icon('select_line.svg'), 'select section')
+        self.__select_current_section_action.setCheckable(True)
+        self.__select_current_section_action.triggered.connect(self.__select_current_section)
 
-        # 3D viewer widget
-        self.viewer3d = Viewer3D()
-        self.viewer3d_dock = QDockWidget('3d View')
-        self.viewer3d_window = QMainWindow(None)
-        self.viewer3d_window.setWindowFlags(Qt.Widget)
-        self.viewer3d_toolbar = QToolBar()
-        self.viewer3d_window.addToolBar(Qt.TopToolBarArea,
-                                        self.viewer3d_toolbar)
-        self.viewer3d_window.setCentralWidget(self.viewer3d)
-        self.viewer3d_dock.setWidget(self.viewer3d_window)
-        self.viewer3d_scale_z = QLineEdit("3.0")
-        self.viewer3d_scale_z.setMaximumWidth(50)
-        self.viewer3d_toolbar.addWidget(self.viewer3d_scale_z)
-        self.__iface.addDockWidget(Qt.BottomDockWidgetArea, self.viewer3d_dock)
+        self.__toolbar.addAction(icon('previous_line.svg'), 'previous section').triggered.connect(self.__select_previous_section)
+        self.__toolbar.addAction(icon('next_line.svg'), 'next section').triggered.connect(self.__select_next_section)
+        self.__toolbar.addWidget(self.__current_graph)
+        self.__toolbar.addAction(icon('auto_connect.svg'), 'auto connect').triggered.connect(self.__auto_connect)
+        self.__toolbar.addAction(icon('auto_ceil_wall.svg'), 'auto ceil and wall').triggered.connect(self.__auto_ceil_wall)
+        self.__toolbar.addAction(icon('extend_graph.svg'), 'extend to interpolated sections').triggered.connect(self.__extend_to_interpolated)
 
-        # Add buttons to section toolbar
-        section_actions = self.__section_main.canvas.build_default_section_actions()
-        section_actions += [
-            None,
-            { 'icon': icon('10_edit_graph.svg'), 'label': 'edit graph layer', 'tool': self.edit_graph_tool, 'precondition': lambda action: self.__toggle_edit_graph_precondition_check() },
-            # { 'icon': icon('12_add_graph.svg'), 'label': 'create subgraph', 'clicked': self.__create_subgraph, 'precondition': lambda action: self.__create_subgraph_precondition_check() },
-            { 'icon': icon('11_add_generatrices.svg'), 'label': 'add generatrices', 'clicked': self.__add_generatrices, 'precondition': lambda action: self.__add_generatrices_precondition_check() },
-            { 'icon': icon('13_maj_graph.svg'), 'label': 'update graphs geom', 'clicked': self.__update_graphs_geometry, 'precondition': lambda action: self.__update_graphs_geometry_precondition_check() },
-            None,
-            { 'label': 'Clear graph/fake gen.', 'clicked': self.__reset_graph, 'precondition': lambda action: self.__reset_subgraph_precondition_check() },
-
-        ]
-        self.generatrice_distance = QLineEdit("25")
-        self.generatrice_distance.setMaximumWidth(50)
-        self.__section_main.toolbar.addWidget(QLabel("Generatrice dist.:"))
-        self.__section_main.toolbar.addWidget(self.generatrice_distance)
-
-        self.alpha = QLineEdit("5")
-        self.alpha.setMaximumWidth(50)
-        self.__section_main.toolbar.addWidget(QLabel("Angle max (α):".decode('utf-8')))
-        self.__section_main.toolbar.addWidget(self.alpha)
-        self.__auto_connect_generatrices_action = self.__section_main.toolbar.addAction(
-            'Auto-connect')
-
-        self.__section_main.toolbar.addAction('<').triggered.\
-            connect(self.__select_previous_section_line)
-        self.__section_main.toolbar.addAction('>').triggered.\
-            connect(self.__select_next_section_line)
-
-
-        self.__section_main.canvas.add_section_actions_to_toolbar(
-            section_actions, self.__section_main.toolbar)
-        self.__clean_graph_action = self.toolbar.addAction('Clean graph')
-        self.__create_line_from_selection_action = self.toolbar.addAction(
-            'Create line from selection')
-        self.__iface.addDockWidget(Qt.BottomDockWidgetArea, self.__dock)
-
-        # Signal connections
-        self.__section_main.toolbar.line_clicked.\
-            connect(self.edit_graph_tool._reset)
-        self.__section_main.toolbar.line_clicked.\
-            connect(self.display_polygons_volumes_3d)
-        self.edit_graph_tool.graph_modified.\
-            connect(self.__on_graph_modified)
-        self.toolbar.graphLayerHelper.current_graph_layer_changed.\
-            connect(self.__current_graph_layer_changed)
-        root_layer_group_from_iface(self.__iface).visibilityChanged.\
-            connect(self.__layer_visibility_changed)
-        self.__clean_graph_action.triggered.\
-            connect(self.cleanup_data)
-        self.__export_volume_action.triggered.\
-            connect(self.export_volume)
-        self.viewer3d_scale_z.editingFinished.\
-            connect(self.__redraw_3d_view)
-        self.toolbar.sections_layers_combo.combo.currentIndexChanged.\
-            connect(self.display_polygons_volumes_3d_full)
-        self.__create_line_from_selection_action.triggered.\
-            connect(self.__create_line_from_selection)
-        self.__auto_connect_generatrices_action.triggered.\
-            connect(self.__auto_connect_generatrices)
-
-        QgsMapLayerRegistry.instance().layersAdded.connect(self.__layers_added)
-        QgsMapLayerRegistry.instance().layersWillBeRemoved.connect(self.__layers_will_be_removed)
-
-        # In case we're reloading
-        self.__layers_added(get_all_layers())
+        QgsProject.instance().readProject.connect(self.__qgis__project__loaded)
+        self.__qgis__project__loaded() # case of reload
+        self.__current_graph.currentIndexChanged.connect(self.__current_graph_changed)
 
     def unload(self):
-        self.__layers_will_be_removed([get_id(l) for l in get_all_layers()])
+        self.__menu and self.__menu.setParent(None)
+        self.__toolbar and self.__toolbar.setParent(None)
+        stop_cluster()
+        QgsProject.instance().readProject.disconnect(self.__qgis__project__loaded)
 
-        self.__section_main.toolbar.line_clicked.disconnect(self.edit_graph_tool._reset)
-        self.__section_main.toolbar.line_clicked.disconnect(self.display_polygons_volumes_3d)
-        self.edit_graph_tool.graph_modified.disconnect(self.__on_graph_modified)
-        self.toolbar.graphLayerHelper.current_graph_layer_changed.disconnect(self.__current_graph_layer_changed)
-        root_layer_group_from_iface(self.__iface).visibilityChanged.disconnect(self.__layer_visibility_changed)
-        self.__clean_graph_action.triggered.disconnect(self.cleanup_data)
-        self.__export_volume_action.triggered.disconnect(self.export_volume)
-        self.viewer3d_scale_z.editingFinished.disconnect(self.__redraw_3d_view)
-        QgsMapLayerRegistry.instance().layersAdded.disconnect(self.__layers_added)
-        QgsMapLayerRegistry.instance().layersWillBeRemoved.disconnect(self.__layers_will_be_removed)
+    def __current_graph_changed(self, idx):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        if self.__current_graph.currentText():
+            cur.execute("update albion.metadata set current_graph='{}'".format(self.__current_graph.currentText()))
+        else:
+            cur.execute("update albion.metadata set current_graph=null")
+        con.commit()
+        con.close()
 
-        self.__dock.setWidget(None)
-        self.__iface.removeDockWidget(self.__dock)
-        self.__section_main.unload()
-        self.toolbar.setParent(None)
-        self.toolbar.cleanup()
-        self.toolbar = None
-        self.viewer3d_dock.setParent(None)
-        self.__section_main = None
+    def __qgis__project__loaded(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        self.__current_graph.clear()
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select id from albion.graph")
+        self.__current_graph.addItems([id_ for id_, in cur.fetchall()])
+        con.close()
 
-    def __update_graphs_geometry_precondition_check(self):
-        if not self.__section_main.section.is_valid:
-            return (False, "No active section")
-        return (True, "")
+    def __new_project(self):
 
-    def __update_graphs_geometry(self):
-        targets = [self.graphLayerHelper.layer(), self.subGraphLayerHelper.layer()]
-
-        for target in targets:
-            if target is None:
-                continue
-
-            attr = ['start', 'end'] if target.fields().fieldNameIndex('start') >= 0 else ['start:Integer64(10,0)', 'end:Integer64(10,0)']
-
-            target.beginEditCommand('update segment geom')
-
-            for segment in target.getFeatures():
-                layer_id, featA_id, featB_id = get_feature_attribute_values(
-                    target, segment, 'layer', *attr)
-                layer = get_layer_by_id(layer_id)
-                featA = get_feature_by_id(layer, featA_id)
-                featB = get_feature_by_id(layer, featB_id)
-                target.dataProvider().changeGeometryValues({segment.id(): qgeom_from_wkt(GraphEditTool.segmentGeometry(featA, featB).wkt)})
-
-            target.endEditCommand()
-            target.updateExtents()
-
-    # def __update_graphs_geometry(self, layer):
-    #     if not self.__section_main.section.is_valid:
-    #         return
-    #     edit = layer.projected_layer.editBuffer()
-    #     if edit is None:
-    #         return
-    #     print ">>>>>>> {} will commit changes".format(layer.projected_layer.id())
-
-    #     targets = [self.graphLayerHelper.layer(), self.subGraphLayerHelper.layer()]
-
-    #     for id_ in edit.changedGeometries():
-    #         f = layer.projected_layer.getFeatures(QgsFeatureRequest(id_)).next()
-    #         print f, f.id()
-    #         print f.attributes()
-    #         f.setFields(layer.projected_layer.fields(), False)
-    #         print layer.projected_layer.fields().allAttributesList()
-    #         print f.attributes()
-    #         my_id = f.attribute('link') if layer.projected_layer.fields().fieldNameIndex('link') >= 0 else f.attribute('link:Integer64(10,0)')
-    #         query = u"attribute($currentfeature, 'start') = {} OR attribute($currentfeature, 'end') = {}".format(my_id, my_id)
-
-    #         for target in targets:
-    #             if target is None:
-    #                 continue
-    #             target.beginEditCommand('update segment geom')
-
-    #             # lookup every segment with start|end == i
-    #             segments = target.getFeatures(QgsFeatureRequest().setFilterExpression(query))
-
-    #             print 'ICI >'
-    #             print 'query', query
-    #             for segment in segments:
-    #                 print target.id(), segment
-    #                 featA = layer.getFeatures(QgsFeatureRequest(segment.attribute('start'))).next()
-    #                 featB = layer.getFeatures(QgsFeatureRequest(segment.attribute('end'))).next()
-
-    #                 layer.changeGeometry(segment.id(), qgeom_from_wkt(GraphEditTool.segmentGeometry(featA, featB).wkt))
-    #             print 'ICI <'
-
-    #             target.endEditCommand()
-    #             target.updateExtents()
-
-    def __toggle_edit_graph_precondition_check(self):
-        if not self.__section_main.section.is_valid:
-            return (False, "No active section line")
-        if self.toolbar.graphLayerHelper.active_layer() is None:
-            return (False, "No graph layer")
-        layer = self.__iface.mapCanvas().currentLayer()
-        if layer is None:
-            self.edit_graph_tool._reset()
-            return (False, "No active layer")
-        if layer.customProperty("section_id") is None:
-            self.edit_graph_tool._reset()
-            return (False, "Active layer must be a projection")
-
-        return (True, "")
-
-    def __add_generatrices_precondition_check(self):
-        layer = self.__iface.mapCanvas().currentLayer()
-
-        if layer is None:
-            return (False, "No active layer")
-        if not self.__section_main.section.is_valid:
-            return (False, "No active section line")
-        source_layer = projected_layer_to_original(layer)
-        if source_layer is None:
-            return (False, "Active layer must be a projection")
-        if self.toolbar.graphLayerHelper.active_layer() is None:
-            return (False, "No graph layer")
-        return (True, "")
-
-    def __create_subgraph_precondition_check(self):
-        return
-
-        if not self.__section_main.section.is_valid:
-            return (False, "No active section line")
-        graph_layer = self.toolbar.graphLayerHelper.active_layer()
-        if graph_layer is None:
-            return (False, "No graph layer")
-        if self.subGraphLayerHelper.layer() is None:
-            return (False, "No subgraph layer")
-        proj = self.__iface.mapCanvas().currentLayer()
-        if proj is None:
-            return (False, "No active layer")
-        if proj.customProperty("section_id") != self.__section_main.section.id:
-            return (False, "Active layer isn't a projection of section")
-
-        projected_graph = filter(lambda l: (not isinstance(l, PolygonLayerProjection)), self.__section_main.section.projections_of(graph_layer.id()))[0]
-        if projected_graph is None:
-            return (False, "Missing graph projection")
-
-        # current layer = mineralised
-        source_layer = projected_layer_to_original(proj)
-        if source_layer is None:
-            return (False, "Active layer isn't a projection of section")
-        return (True, "")
-
-    def __add_generatrices(self):
+        # @todo open dialog to configure project name and srid
+        fil = QFileDialog.getSaveFileName(None,
+                u"New project name (no space, plai ascii)",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "QGIS poject file (*.qgs)")
+        if not fil:
+            return
+        fil = fil if len(fil)>4 and fil[-4:]=='.qgs' else fil+'.qgs'
+        fil = fil.replace(' ','_')
         try:
-            # disable updates for 2 reasons:
-            #  - perf
-            #  - projected layer content won't change during update
-            self.__section_main.section.disable()
-
-            self.__add_generatrices_impl(self.toolbar.graphLayerHelper.active_layer())
-        finally:
-            self.__section_main.section.enable()
-            #self.__section_main.section.update_projections(
-            #    get_id(self.toolbar.graphLayerHelper.active_layer()))
-
-            # layer = self.__iface.mapCanvas().currentLayer()
-            # source_layer = projected_layer_to_original(layer)
-            # self.__section_main.section.update_projections(source_layer.id())
-
-            self.__on_graph_modified()
-
-    def __cycle_through_section_lines(self, direction, farthest=False):
-        ''' Select the nearest line to the current one, assuming they are all
-            roughly parallel. The selection is performed by selecting
-            the line whose centroid projected on the normal of the current line
-            is the closest.
-            If farthest is True, then we select the farthest away (useful for
-            looping)
-        '''
-        if not self.__section_main.section.is_valid:
-            return
-        layer = self.__section_main.section.layer
-        if layer is None:
+            fil.decode('ascii')
+        except UnicodeDecodeError:
+            self.__iface.messageBar().pushError('Albion:', "project name may only contain asci character (no accent)")
             return
 
-        current_id = get_id(self.__section_main.section.feature)
-        line = self.__section_main.section.line
-        delta = [
-            line.coords[-1][0] - line.coords[0][0],
-            line.coords[-1][1] - line.coords[0][1]
-        ]
-        # normal to current line
-        normal = [-delta[1], delta[0]]
-        normal_wkt = 'LINESTRING({} {}, {} {})'.format(
-            line.centroid.x, line.centroid.y,
-            line.centroid.x + direction * normal[0],
-            line.centroid.y + direction * normal[1])
-        normal_shapely = loads(normal_wkt)
+        srid, ok = QInputDialog.getText(self.__iface.mainWindow(),
+                "Project SRID",
+                 "Project SRID EPSG:", QLineEdit.Normal,
+                 '32632')
+        if not ok:
+            return
+        srid = int(srid)
 
-        selected = None
-        best_distance = float('inf') if not farthest else 0
-        cmp_reference = -1 if not farthest else 1
+        project_name = str(os.path.split(fil)[1][:-4])
 
-        # project all centroids on normal and select nearest
-        for f in get_all_layer_features(layer):
-            if get_id(f) == current_id:
-                continue
-            c = get_feature_centroid(f)
-            d = normal_shapely.project(Point(c[0], c[1]))
-            if d > 0 and cmp(d, best_distance) == cmp_reference:
-                best_distance = d
-                selected = f
+        self.__iface.messageBar().pushInfo('Albion:', "creating project...")
+       
+        conn_info = "dbname={} {}".format(project_name, cluster_params())
 
-        if selected is not None:
-            section_width = float(
-                self.__section_main.toolbar.buffer_width.text())
-            self.__section_main.section.update(
-                wkt_from_qgeom(selected.geometry()),
-                layer,
-                selected,
-                section_width)
+        con = psycopg2.connect("dbname=postgres {}".format(cluster_params()))
+        cur = con.cursor()
+        con.set_isolation_level(0)
+        cur.execute("select pg_terminate_backend(pg_stat_activity.pid) \
+                    from pg_stat_activity \
+                    where pg_stat_activity.datname = '{}'".format(project_name))
+        cur.execute("drop database if exists {}".format(project_name))
+        cur.execute("create database {}".format(project_name))
+        con.commit()
+        con.close()
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("create extension postgis")
+        cur.execute("create extension plpython3u")
+        for file_ in ('_albion.sql', 'albion.sql'):
+            for statement in open(os.path.join(os.path.dirname(__file__), file_)).read().split('\n;\n')[:-1]:
+                cur.execute(statement.replace('$SRID', str(srid)))
+        con.commit()
+        con.close()
 
-            self.__dock.setWindowTitle('Section (id={})'.format(get_id(selected)))
-            return True
+        # load template
+        open(fil, 'w').write(
+            open(os.path.join(os.path.dirname(__file__), 'template_project.qgs')).read().replace('template_project', project_name)
+            )
+        self.__iface.newProject()
+        QgsProject.instance().setFileName(fil)
+        QgsProject.instance().read()
+        QgsProject.instance().writeEntry("albion", "project_name", project_name)
+        QgsProject.instance().writeEntry("albion", "srid", srid)
+        QgsProject.instance().writeEntry("albion", "conn_info", conn_info)
+        QgsProject.instance().write()
+        self.__qgis__project__loaded()
 
-        return False
+    def __new_graph(self):
 
-    def __select_previous_section_line(self):
-        if not self.__cycle_through_section_lines(-1):
-            self.__cycle_through_section_lines(+1, True)
-
-    def __select_next_section_line(self):
-        if not self.__cycle_through_section_lines(+1):
-            self.__cycle_through_section_lines(-1, True)
-
-    @staticmethod
-    def _compute_fake_generatrice_translation_vec(centroid, centroid2, dist):
-        delta = [centroid[i] - centroid2[i]
-                 for i in range(0, len(centroid))]
-        lxy = length(delta[0:2])
-        # l = length(delta)
-        if lxy == 0:
-            return [0 for i in range(0, len(centroid))]
-        return [x * dist / lxy for x in delta]
-
-    def __add_generatrices_impl(self, graph):
-        layer = self.__iface.mapCanvas().currentLayer()
-
-        if layer is None or not self.__section_main.section.is_valid:
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
             return
 
-        source_layer = projected_layer_to_original(layer)
-        if source_layer is None:
+        graph, ok = QInputDialog.getText(self.__iface.mainWindow(),
+                "Graph",
+                 "Graph name:", QLineEdit.Normal,
+                 'test_graph')
+
+        if not ok:
+            return
+        
+        parent, ok = QInputDialog.getText(self.__iface.mainWindow(),
+                "Parent Graph",
+                 "Parent Graph name:", QLineEdit.Normal,
+                 '')
+
+        if not ok:
             return
 
-        missing_left, missing_right = \
-            find_generatrices_needing_a_fake_generatrice_in_section(
-                self.__section_main.section.line,
-                graph,
-                source_layer,
-                layer)
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
 
-        logging.info('MISSING {} {}'.format(missing_left, missing_right))
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("delete from albion.graph casacde where id='{}';".format(graph))
+        if parent:
+            cur.execute("insert into albion.graph(id, parent) values ('{}', '{}');".format(graph, parent))
+        else:
+            cur.execute("insert into albion.graph(id) values ('{}');".format(graph))
+        con.commit()
+        con.close()
 
-        if len(missing_left) is 0 and len(missing_right) is 0:
+        self.__current_graph.addItem(graph)
+        self.__current_graph.setCurrentIndex(self.__current_graph.findText(graph))
+
+    def __delete_graph(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
             return
 
-        next_generatrice_link = get_layer_max_feature_attribute(
-            source_layer, 'link') + 1
+        graph, ok = QInputDialog.getText(self.__iface.mainWindow(),
+                "Graph",
+                 "Graph name:", QLineEdit.Normal,
+                 '')
 
-        distance = float(self.generatrice_distance.text())
+        if not ok:
+            return
 
-        missing_left_stripped = [feat_id for feat_id, edges in missing_left]
-        missing_right_stripped = [feat_id for feat_id, edges in missing_right]
+        for id_ in QgsMapLayerRegistry.instance().mapLayers():
+            if id_.find(graph) != -1:
+                QgsMapLayerRegistry.instance().removeMapLayer(id_)
 
-        graph_connections = []
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
 
-        for feat_id, edges in missing_left + missing_right:
-            sides = []
-            if feat_id in missing_left_stripped:
-                sides += [-1]
-            if feat_id in missing_right_stripped:
-                sides += [+1]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("delete from albion.graph casacde where id='{}';".format(graph))
+        con.commit()
+        con.close()
+        self.__current_graph.removeItem(self.__current_graph.findText(graph))
+        self.__refresh_layers()
 
-            if len(sides) == 2:
-                # this is a non-connected generatrices
-                # only add fakes if selected
-                if feat_id not in get_layer_selected_ids(source_layer):
-                    continue
+    def __find_in_dir(self, dir_, name):
+        for filename in os.listdir(dir_):
+            if filename.find(name) != -1:
+                return os.path.join(dir_, filename)
+        return ""
 
-            logging.info("CONSIDERING {} -> {}".format(feat_id, sides))
-            feature = get_feature_by_id(source_layer, feat_id)
-            centroid = get_feature_centroid(feature)
 
-            for side in sides:
-                # Compute fake generatrice translation
-                connected_to = get_feature_centroid(
-                    get_feature_by_id(source_layer, edges[0]))
+    def __import_data(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        dir_ = QFileDialog.getExistingDirectory(None,
+                        u"Data directory",
+                        QgsProject.instance().readEntry("albion", "last_dir", "")[0])
+        if not dir_:
+            return
+        QgsProject.instance().writeEntry("albion", "last_dir", dir_),
 
-                translation_vec = Plugin._compute_fake_generatrice_translation_vec(
-                    centroid, connected_to, distance)
+        #@todo run the collar import, and then subprocess the rest to allow the user
+        #      to edit the grid without waiting
 
-                generatrice = fg_create(
-                    self.__section_main.section,
-                    source_layer,
-                    feature,
-                    next_generatrice_link,
-                    translation_vec)
+        con = psycopg2.connect(QgsProject.instance().readEntry("albion", "conn_info", "")[0])
+        cur = con.cursor()
 
-                # logging.info('INSERT')
-                # Read back feature to get proper id()
-                fake_feature = fg_insert(source_layer, generatrice)
+        progressMessageBar = self.__iface.messageBar().createMessage("Loading {}...".format(dir_))
+        progress = QProgressBar()
+        progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+        progressMessageBar.layout().addWidget(progress)
+        self.__iface.messageBar().pushWidget(progressMessageBar, self.__iface.messageBar().INFO)
+        progress.setMaximum(16)
 
-                graph_connections += [(feature, fake_feature)]
+        progress.setValue(0)
 
-                next_generatrice_link = next_generatrice_link + 1
+        cur.execute("""
+            copy _albion.collar(id, x, y, z, date_, comments) from '{}' delimiter ';' csv header 
+            """.format(self.__find_in_dir(dir_, 'collar')))
+        
+        progress.setValue(1)
+        
+        cur.execute("""
+            update _albion.collar set geom=format('SRID=32632;POINTZ(%s %s %s)', x, y, z)::geometry
+            """)
 
-        first_edge_link = get_layer_max_feature_attribute(graph, 'link') + 1
-        fg_connect(graph, graph_connections, first_edge_link, source_layer)
+        cur.execute("""
+            insert into _albion.hole(id, collar_id) select id, id from _albion.collar;
+            """)
 
-        logging.debug('End __add_generatrices_impl')
+        progress.setValue(2)
+
+        cur.execute("""
+            copy _albion.deviation(hole_id, from_, dip, azimuth) from '{}' delimiter ';' csv header
+            """.format(self.__find_in_dir(dir_, 'devia')))
+
+        progress.setValue(3)
+
+        if self.__find_in_dir(dir_, 'avp'):
+            cur.execute("""
+                copy _albion.radiometry(hole_id, from_, to_, gamma) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'avp')))
+
+        progress.setValue(4)
+
+        if self.__find_in_dir(dir_, 'formation'):
+            cur.execute("""
+                copy _albion.formation(hole_id, from_, to_, code, comments) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'formation')))
+
+        progress.setValue(5)
+
+        if self.__find_in_dir(dir_, 'lithology'):
+            cur.execute("""
+                copy _albion.lithology(hole_id, from_, to_, code, comments) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'lithology')))
+
+        progress.setValue(6)
+
+        if self.__find_in_dir(dir_, 'facies'):
+            cur.execute("""
+                copy _albion.facies(hole_id, from_, to_, code, comments) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'facies')))
+
+        progress.setValue(7)
+
+        if self.__find_in_dir(dir_, 'resi'):
+            cur.execute("""
+                copy _albion.resistivity(hole_id, from_, to_, rho) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'resi')))
+
+        progress.setValue(8)
+
+        if self.__find_in_dir(dir_, 'mineralization'):
+            cur.execute("""
+                copy _albion.mineralization(hole_id, from_, oc, accu, grade, comments) from '{}' delimiter ';' csv header
+                """.format(self.__find_in_dir(dir_, 'mineralization')))
+
+        progress.setValue(9)
+
+
+        cur.execute("""
+            with dep as (
+                select hole_id, max(to_) as mx
+                    from (
+                        select hole_id, max(to_) as to_ from _albion.radiometry group by hole_id
+                        union all
+                        select hole_id, max(to_) as to_ from _albion.resistivity group by hole_id
+                        union all
+                        select hole_id, max(to_) as to_ from _albion.formation group by hole_id
+                        union all
+                        select hole_id, max(to_) as to_ from _albion.lithology group by hole_id
+                        union all
+                        select hole_id, max(to_) as to_ from _albion.facies group by hole_id
+                        union all
+                        select hole_id, max(to_) as to_ from _albion.mineralization group by hole_id
+                            ) as t
+                group by hole_id
+            )
+            update _albion.hole as h set depth_=d.mx
+            from dep as d where h.id=d.hole_id
+            """)
+
+        progress.setValue(10)
+
+        cur.execute("update albion.hole set geom=albion.hole_geom(id)")
+
+        progress.setValue(11)
+
+        cur.execute("update albion.resistivity set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(12)
+
+        cur.execute("update albion.formation set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(13)
+
+        cur.execute("update albion.radiometry set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(14)
+
+        cur.execute("update albion.lithology set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(15)
+
+        cur.execute("update albion.facies set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(16)
+
+        self.__iface.messageBar().clearWidgets()
+
+        con.commit()
+        con.close()
+
+        collar = QgsMapLayerRegistry.instance().mapLayersByName('collar')[0]
+        collar.reload()
+        collar.updateExtents()
+        self.__iface.setActiveLayer(collar)
+        QApplication.instance().processEvents()
+        while self.__iface.mapCanvas().isDrawing():
+            QApplication.instance().processEvents()
+        self.__iface.zoomFull()
+
+
+        self.__iface.actionSaveProject().trigger()
+
+    def __select_current_section(self):
+        #@todo switch behavior when in section view -> ortho
+        self.__click_tool = QgsMapToolEmitPoint(self.__iface.mapCanvas())
+        self.__iface.mapCanvas().setMapTool(self.__click_tool)
+        self.__click_tool.canvasClicked.connect(self.__map_clicked)
+        self.__select_current_section_action.setChecked(True)
+
+    def __map_clicked(self, point, button):
+        print(point, button)
+        self.__select_current_section_action.setChecked(False)
+        self.__click_tool.setParent(None)
+        self.__click_tool = None
+
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+
+        cur.execute("""
+            select id from albion.grid 
+            where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 25)
+            order by st_distance('SRID={srid} ;POINT({x} {y})'::geometry, geom)
+            limit 1""".format(srid=srid, x=point.x(), y=point.y()))
+        res = cur.fetchone()
+        if res:
+            # click on map, set current section and set extend to matck visible extend on map
+            cur.execute("update albion.metadata set current_section='{}'".format(res[0]))
+            cur.execute("select st_extent(geom) from albion.collar_section")
+            rect = cur.fetchone()
+            top = float(rect[0].replace('BOX(','').split(',')[0].split()[1])
+            ext = self.__iface.mapCanvas().extent()
+            aspect_ratio = (ext.yMaximum()-ext.yMinimum())/(ext.xMaximum()-ext.xMinimum())
+            cur.execute("""
+                select st_linelocatepoint(albion.current_section_geom(), 'SRID={}; POINT({} {})'::geometry)*st_length(albion.current_section_geom()),
+                       st_linelocatepoint(albion.current_section_geom(), 'SRID={}; POINT({} {})'::geometry)*st_length(albion.current_section_geom())
+                """.format(srid, ext.xMinimum(), ext.yMinimum(), srid, ext.xMaximum(), ext.yMaximum()))
+            xMin, xMax = cur.fetchone()
+            
+            self.__iface.mapCanvas().setExtent(QgsRectangle(xMin, top*1.1-(xMax-xMin)*aspect_ratio, xMax, top+1.1))
+        else:
+            # if click on section, set the current section to the ortogonal on passing through this point
+            # maintain the position of the clicked point on screen and the zoom level
+            cur.execute("""
+                select id, st_linelocatepoint(geom,  albion.from_section('SRID={srid}; POINT({x} {y})'::geometry, albion.current_section_geom()))*st_length(geom)
+                from albion.grid 
+                where st_dwithin(geom, albion.from_section('SRID={srid} ;POINT({x} {y})'::geometry, albion.current_section_geom()), 25)
+                and id!=albion.current_section_id()
+                order by st_distance(albion.from_section('SRID={srid} ;POINT({x} {y})'::geometry, albion.current_section_geom()), geom)
+                limit 1""".format(srid=srid, x=point.x(), y=point.y()))
+            res = cur.fetchone()
+            print "switch to section", res
+            if res:
+                print "swithc to section", res[0]
+                ext = self.__iface.mapCanvas().extent()
+                left = point.x()-ext.xMinimum()
+                right = ext.xMaximum()-point.x()
+                cur.execute("update albion.metadata set current_section='{}'".format(res[0]))
+                # recompute extend
+                self.__iface.mapCanvas().setExtent(QgsRectangle(
+                    res[1]-left, 
+                    ext.yMinimum(), 
+                    res[1]+right, 
+                    ext.yMaximum()))
+                
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __select_next_section(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        ext = self.__iface.mapCanvas().extent()
+        cur.execute("""
+            select st_linelocatepoint(geom, st_centroid(albion.current_section_geom()))*st_length(geom),
+                st_linelocatepoint(albion.current_section_geom(), st_centroid(albion.current_section_geom()))*st_length(albion.current_section_geom())
+            from albion.grid
+            where id=albion.next_section()
+            """)
+        res = cur.fetchone()
+        if res:
+            self.__iface.mapCanvas().setExtent(QgsRectangle(
+                ext.xMinimum() + (res[0] - res[1]), 
+                ext.yMinimum(), 
+                ext.xMaximum() + (res[0] - res[1]), 
+                ext.yMaximum()))
+        
+        cur.execute("""update albion.metadata set current_section=albion.next_section()""")
+
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __select_previous_section(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        ext = self.__iface.mapCanvas().extent()
+        cur.execute("""
+            select st_linelocatepoint(geom, st_centroid(albion.current_section_geom()))*st_length(geom),
+                st_linelocatepoint(albion.current_section_geom(), st_centroid(albion.current_section_geom()))*st_length(albion.current_section_geom())
+            from albion.grid
+            where id=albion.previous_section()
+            """)
+        res = cur.fetchone()
+        if res:
+            self.__iface.mapCanvas().setExtent(QgsRectangle(
+                ext.xMinimum() + (res[0] - res[1]), 
+                ext.yMinimum(), 
+                ext.xMaximum() + (res[0] - res[1]), 
+                ext.yMaximum()))
+        
+        cur.execute("""update albion.metadata set current_section=albion.previous_section()""")
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __auto_connect(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""
+                select albion.auto_connect('{}', albion.current_section_id())
+                """.format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __auto_ceil_wall(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]\
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""
+                select albion.auto_ceil_and_wall('{}', albion.current_section_id())
+                """.format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __export_sections(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+
+        fil = QFileDialog.getSaveFileName(None,
+                u"Export section",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "Section files (*.obj *.txt)")
+        if not fil:
+            return
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+
+        if fil[-4:] == '.txt':
+            cur.execute("select albion.export_polygons('{}')".format(self.__current_graph.currentText()))
+            open(fil, 'w').write(cur.fetchone()[0])
+        elif fil[-4:] == '.obj':
+            cur.execute("""
+                select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))) 
+                from albion.edge 
+                where graph_id='{}'
+                """.format(self.__current_graph.currentText()))
+            open(fil, 'w').write(cur.fetchone()[0])
+        con.close()
+
+    def __export_volume(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+
+        fil = QFileDialog.getSaveFileName(None,
+                u"Export volume",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "Surface files(*.obj)")
+        if not fil:
+            return
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+
+        if fil[-4:] == '.obj':
+            progressMessageBar = self.__iface.messageBar().createMessage("Computing volume {}...".format(fil))
+            progress = QProgressBar()
+            progress.setMaximum(7)
+            progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+            progressMessageBar.layout().addWidget(progress)
+            self.__iface.messageBar().pushWidget(progressMessageBar, self.__iface.messageBar().INFO)
+            progress.setValue(0)
+            cur.execute("refresh materialized  view albion.dense_grid")
+            progress.setValue(1)
+            cur.execute("refresh materialized  view albion.cell")
+            progress.setValue(2)
+            cur.execute("refresh materialized  view albion.triangle")
+            progress.setValue(3)
+            cur.execute("refresh materialized  view albion.projected_edge")
+            progress.setValue(4)
+            cur.execute("refresh materialized  view albion.cell_edge")
+            progress.setValue(5)
+            cur.execute("""
+                select albion.to_obj(st_collectionhomogenize(st_collect(albion.elementary_volume('{}', id)))) 
+                from albion.cell
+                """.format(self.__current_graph.currentText()))
+            progress.setValue(6)
+            open(fil, 'w').write(cur.fetchone()[0])
+            progress.setValue(7)
+            self.__iface.messageBar().clearWidgets()
+        con.commit()
+        con.close()
+
+    def __auto_graph(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select albion.auto_graph('{}')".format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __extend_all_sections(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select albion.extend_to_interpolated('{}', id) from albion.grid".format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __extend_to_interpolated(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select albion.extend_to_interpolated('{}', albion.current_section_id())".format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __refresh_layers(self):
+        for layer in self.__iface.mapCanvas().layers():
+            layer.triggerRepaint()
+        
+
+    def __toggle_axis(self):
+        if self.__axis_layer:
+            pass
+            QgsMapLayerRegistry.instance().removeMapLayer(self.__axis_layer.id())
+            self.__axis_layer = None
+        else:
+            self.__axis_layer = AxisLayer(self.__iface.mapCanvas().mapSettings().destinationCrs())
+            QgsMapLayerRegistry.instance().addMapLayer(self.__axis_layer)
+
+
+    def __export_project(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+
+        fil = QFileDialog.getSaveFileName(None,
+                u"Export project",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "Data files(*.zip)")
+        if not fil:
+            return
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+
+        if os.path.exists(fil):
+            os.remove(fil)
+        with zipfile.ZipFile(fil, 'w') as project:
+            conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+            param = dict([p.split('=') for p in conn_info.split()])
+        
+            dump = tempfile.mkstemp()[1]
+            cmd = ['pg_dump', '-h', param['host'], '-p', param['port'], '-d', param['dbname']]
+            print ' '.join(cmd)
+            p = Popen(cmd, stdout=open(dump,'w')).communicate()
+            project.write(dump, param['dbname']+'.dump')
+            project.write(QgsProject.instance().fileName())
+            
+    def __import_project(self):
+        fil = QFileDialog.getOpenFileName(None,
+                u"Import project",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "Data files(*.zip)")
+        if not fil:
+            return
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+        dir_ = tempfile.mkdtemp()
+        with zipfile.ZipFile(fil, "r") as z:
+            z.extractall(dir_)
+            
+        dump = self.__find_in_dir(dir_, '.dump')
+        project_name = os.path.split(dump)[1][:-5]
+
+        con = psycopg2.connect("dbname=postgres {}".format(cluster_params()))
+        cur = con.cursor()
+        con.set_isolation_level(0)
+        cur.execute("select pg_terminate_backend(pg_stat_activity.pid) \
+                    from pg_stat_activity \
+                    where pg_stat_activity.datname = '{}'".format(project_name))
+        cur.execute("drop database if exists {}".format(project_name))
+        con.commit()
+        con.close()
+
+        param = dict([p.split('=') for p in cluster_params().split()])
+        cmd = ['createdb', '-h', param['host'], '-p', param['port'], '-d', project_name]
+        print ' '.join(cmd)
+        p = Popen(cmd ).communicate()
+        cmd = ['psql', '-h', param['host'], '-p', param['port'], '-d', project_name, '-f', dump]
+        print ' '.join(cmd)
+        p = Popen(cmd ).communicate()
+
+        QgsProject.instance().read(QFileInfo(self.__find_in_dir(dir_, '.qgs')))
+
+
