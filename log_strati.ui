@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>431</width>
+    <height>563</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QGridLayout" name="gridLayout">
+    <property name="margin">
+     <number>0</number>
+    </property>
+    <item row="0" column="0">
+     <widget class="QGraphicsView" name="graphicsView"/>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionL_gende">
+   <property name="text">
+    <string>légende</string>
+   </property>
+  </action>
+  <action name="legendAction">
+   <property name="text">
+    <string>Légende</string>
+   </property>
+  </action>
+  <action name="leftAction">
+   <property name="text">
+    <string>Gauche</string>
+   </property>
+  </action>
+  <action name="rightAction">
+   <property name="text">
+    <string>Droite</string>
+   </property>
+  </action>
+  <action name="bottomAction">
+   <property name="text">
+    <string>Dessous</string>
+   </property>
+  </action>
+  <action name="autoAdjustAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>false</bool>
+   </property>
+   <property name="text">
+    <string>Mise à jour automatique de l'échelle</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

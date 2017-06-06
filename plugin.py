@@ -22,7 +22,10 @@ from PyQt4.QtGui import (QMenu,
                          QFileDialog, 
                          QProgressBar,
                          QComboBox,
-                         QApplication)
+                         QApplication,
+                         QIcon,
+                         QDockWidget)
+
 
 import psycopg2 
 import tempfile
@@ -30,7 +33,7 @@ import zipfile
 from subprocess import Popen
 
 from .axis_layer import AxisLayer, AxisLayerType
-
+from log_strati import BoreHoleWindow
 from pglite import start_cluster, stop_cluster, init_cluster, check_cluster, cluster_params
 import atexit
 import os
@@ -69,6 +72,7 @@ class Plugin(QObject):
         self.__current_graph.setMinimumWidth(150)
         self.__axis_layer = None
         self.__section_extent = (0, 1000)
+        self.__log_strati = None
 
         if not check_cluster():
             init_cluster()
@@ -106,6 +110,7 @@ class Plugin(QObject):
         self.__toolbar.addAction(icon('auto_connect.svg'), 'auto connect').triggered.connect(self.__auto_connect)
         self.__toolbar.addAction(icon('auto_ceil_wall.svg'), 'auto ceil and wall').triggered.connect(self.__auto_ceil_wall)
         self.__toolbar.addAction(icon('extend_graph.svg'), 'extend to interpolated sections').triggered.connect(self.__extend_to_interpolated)
+        self.__toolbar.addAction(icon('log_strati.svg'), 'stratigraphic log').triggered.connect(self.__log_strati_clicked)
 
         QgsProject.instance().readProject.connect(self.__qgis__project__loaded)
         self.__qgis__project__loaded() # case of reload
@@ -297,7 +302,7 @@ class Plugin(QObject):
         progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
         progressMessageBar.layout().addWidget(progress)
         self.__iface.messageBar().pushWidget(progressMessageBar, self.__iface.messageBar().INFO)
-        progress.setMaximum(16)
+        progress.setMaximum(17)
 
         progress.setValue(0)
 
@@ -360,7 +365,7 @@ class Plugin(QObject):
 
         if self.__find_in_dir(dir_, 'mineralization'):
             cur.execute("""
-                copy _albion.mineralization(hole_id, from_, oc, accu, grade, comments) from '{}' delimiter ';' csv header
+                copy _albion.mineralization(hole_id, from_, to_, oc, accu, grade, comments) from '{}' delimiter ';' csv header
                 """.format(self.__find_in_dir(dir_, 'mineralization')))
 
         progress.setValue(9)
@@ -414,6 +419,11 @@ class Plugin(QObject):
 
         progress.setValue(16)
 
+        cur.execute("update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)")
+
+        progress.setValue(17)
+
+
         self.__iface.messageBar().clearWidgets()
 
         con.commit()
@@ -430,6 +440,58 @@ class Plugin(QObject):
 
 
         self.__iface.actionSaveProject().trigger()
+
+    def __log_strati_clicked(self):
+        #@todo switch behavior when in section view -> ortho
+        self.__click_tool = QgsMapToolEmitPoint(self.__iface.mapCanvas())
+        self.__iface.mapCanvas().setMapTool(self.__click_tool)
+        self.__click_tool.canvasClicked.connect(self.__map_log_clicked)
+        self.__select_current_section_action.setChecked(True)
+
+    def __map_log_clicked(self, point, button):
+        self.__select_current_section_action.setChecked(False)
+        self.__click_tool.setParent(None)
+        self.__click_tool = None
+
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            self.__log_strati and self.__log_strati.setParent(None)
+            self.__log_strati = None
+            return
+
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+
+        if self.__log_strati is None:
+            self.__log_strati = QDockWidget('Stratigraphic Log')
+            self.__log_strati.setWidget(BoreHoleWindow(conn_info))
+            self.__iface.addDockWidget(Qt.LeftDockWidgetArea, self.__log_strati)
+            self.__iface.mainWindow().tabifyDockWidget(
+                    self.__iface.mainWindow().findChild(QDockWidget, "Layers"),
+                    self.__log_strati)
+
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+
+        cur.execute("""
+            select id from albion.hole
+            where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 25)
+            order by st_distance('SRID={srid} ;POINT({x} {y})'::geometry, geom)
+            limit 1""".format(srid=srid, x=point.x(), y=point.y()))
+        res = cur.fetchone()
+        if not res:
+            cur.execute("""
+                select id from albion.hole_section
+                where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 25)
+                order by st_distance('SRID={srid} ;POINT({x} {y})'::geometry, geom)
+                limit 1""".format(srid=srid, x=point.x(), y=point.y()))
+            res = cur.fetchone()
+
+        if res:
+            self.__log_strati.widget().scene.set_current_id(res[0])
+            self.__log_strati.show()
+            self.__log_strati.raise_()
+
+        con.close()
 
     def __select_current_section(self):
         #@todo switch behavior when in section view -> ortho
