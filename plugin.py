@@ -31,13 +31,16 @@ import psycopg2
 import tempfile
 import zipfile
 from subprocess import Popen
-
-from .axis_layer import AxisLayer, AxisLayerType
-from log_strati import BoreHoleWindow
 from pglite import start_cluster, stop_cluster, init_cluster, check_cluster, cluster_params
 import atexit
 import os
 import time
+
+from .axis_layer import AxisLayer, AxisLayerType
+from .log_strati import BoreHoleWindow
+from .viewer_3d.viewer_3d import Viewer3d
+from .viewer_3d.viewer_controls import ViewerControls
+
 
 AXIS_LAYER_TYPE = AxisLayerType()
 QgsPluginLayerRegistry.instance().addPluginLayerType(AXIS_LAYER_TYPE)
@@ -112,13 +115,29 @@ class Plugin(QObject):
         self.__toolbar.addAction(icon('extend_graph.svg'), 'extend to interpolated sections').triggered.connect(self.__extend_to_interpolated)
         self.__toolbar.addAction(icon('log_strati.svg'), 'stratigraphic log').triggered.connect(self.__log_strati_clicked)
 
+        self.__current_graph.currentIndexChanged.connect(self.__current_graph_changed)
+
+        self.__viewer3d = QDockWidget('3D')
+        self.__viewer3d.setWidget(Viewer3d())
+        self.__iface.addDockWidget(Qt.LeftDockWidgetArea, self.__viewer3d)
+        self.__iface.mainWindow().tabifyDockWidget(
+                self.__iface.mainWindow().findChild(QDockWidget, "Layers"),
+                self.__viewer3d)
+
+        self.__viewer3d_ctrl = QDockWidget('3D controls')
+        self.__viewer3d_ctrl.setWidget(ViewerControls(self.__viewer3d.widget()))
+        self.__iface.addDockWidget(Qt.LeftDockWidgetArea, self.__viewer3d_ctrl)
+        self.__iface.mainWindow().tabifyDockWidget(
+                self.__iface.mainWindow().findChild(QDockWidget, "Layers"),
+                self.__viewer3d_ctrl)
+        
         QgsProject.instance().readProject.connect(self.__qgis__project__loaded)
         self.__qgis__project__loaded() # case of reload
-        self.__current_graph.currentIndexChanged.connect(self.__current_graph_changed)
 
     def unload(self):
         self.__menu and self.__menu.setParent(None)
         self.__toolbar and self.__toolbar.setParent(None)
+        self.__viewer3d and self.__viewer3d.setParent(None)
         stop_cluster()
         QgsProject.instance().readProject.disconnect(self.__qgis__project__loaded)
 
@@ -135,6 +154,9 @@ class Plugin(QObject):
         con.commit()
         con.close()
 
+        if self.__current_graph.currentText():
+            self.__viewer3d.widget().scene.update_data(self.__current_graph.currentText())
+
     def __qgis__project__loaded(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
             return
@@ -145,6 +167,11 @@ class Plugin(QObject):
         cur.execute("select id from albion.graph")
         self.__current_graph.addItems([id_ for id_, in cur.fetchall()])
         con.close()
+
+        self.__viewer3d.widget().resetScene(conn_info)
+        if self.__current_graph.currentText():
+            self.__viewer3d.widget().scene.update_data(self.__current_graph.currentText())
+
 
     def __new_project(self):
 

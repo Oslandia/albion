@@ -563,7 +563,7 @@ $$
             insert into albion.edge(graph_id, start_, end_, grid_id, geom, ceil_, wall_) values(new.graph_id, new.start_, new.end_, new.grid_id, edge_geom, ceil_geom, wall_geom) returning id into new.id;
             return new;
         elsif tg_op = 'UPDATE' then
-            update albion.edge set start_=new.start_, end_=new.end_, grid_id=new.grid_id, geom=edge_geom, ceil_=new.ceil_, wall_=new.wall_ where id=new.id;
+            update albion.edge set start_=new.start_, end_=new.end_, grid_id=new.grid_id, geom=edge_geom, ceil_=ceil_geom, wall_=wall_geom where id=new.id;
             return new;
         elsif tg_op = 'DELETE' then
             delete from albion.edge where id=old.id;
