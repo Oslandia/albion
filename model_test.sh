@@ -12,14 +12,14 @@ create extension plpython3u;
 EOF
 
 cp _albion.sql /tmp/_albion.sql
-sed -i "s/{srid}/32632/g" /tmp/_albion.sql
+sed -i "s/\$SRID/32632/g" /tmp/_albion.sql
 psql -h localhost -p 55432 -tXA niger -f /tmp/_albion.sql
 
 psql -h localhost -tXA -p 55432 niger << EOF
 \\timing
 
 select 'load collar';
-copy _albion.collar(id, x, y, z, comments) from '/home/vmo/albion/niger_data/albion_collar.txt' delimiter ';' csv header;
+copy _albion.collar(id, x, y, z, date_, comments) from '/home/vmo/albion/test_data/NE_AMN_GRAT_Albion_input_collar_FLX_2017-06-02.txt' delimiter ';' csv header;
 update _albion.collar set geom=format('SRID=32632;POINTZ(%s %s %s)', x, y, z)::geometry;
 update _albion.collar set geom=st_translate(geom, .5, 0, 0) where id='GART_0622_2';
 
@@ -27,16 +27,20 @@ select 'create hole';
 insert into _albion.hole(id, collar_id) select id, id from _albion.collar;
 
 select 'load devia';
-copy _albion.deviation(hole_id, from_, deep, azimuth) from '/home/vmo/albion/niger_data/albion_devia.txt' delimiter ';' csv header;
+copy _albion.deviation(hole_id, from_, dip, azimuth) from '/home/vmo/albion/test_data/NE_AMN_GRAT_Albion_input_deviation_FLX_2017-06-02.txt' delimiter ';' csv header;
 
 select 'load avp';
-copy _albion.radiometry(hole_id, from_, to_, gamma) from '/home/vmo/albion/niger_data/albion_avp.txt' delimiter ';' csv header;
+copy _albion.radiometry(hole_id, from_, to_, gamma) from '/home/vmo/albion/test_data/albion_avp.txt' delimiter ';' csv header;
 
 select 'load formation';
-copy _albion.formation(hole_id, from_, to_, code, comments) from '/home/vmo/albion/niger_data/albion_formation_3.txt' delimiter ';' csv header;
+copy _albion.formation(hole_id, from_, to_, code, comments) from '/home/vmo/albion/test_data/albion_formation_3.txt' delimiter ';' csv header;
 
 select 'load resi';
-copy _albion.resistivity(hole_id, from_, to_, rho) from '/home/vmo/albion/niger_data/albion_resi.txt' delimiter ';' csv header;
+copy _albion.resistivity(hole_id, from_, to_, rho) from '/home/vmo/albion/test_data/albion_resi.txt' delimiter ';' csv header;
+
+select 'load min';
+copy _albion.mineralization(hole_id, from_, to_, oc, accu, grade, comments) from '/home/vmo/albion/test_data/mineralization.txt' delimiter ';' csv header;
+
 
 select 'set hole depth';
 with dep as (
@@ -62,6 +66,7 @@ from dep as d where h.id=d.hole_id
 
 EOF
 
+exit 0
 # MINERALIZATION
 
 psql -p 55432 -h localhost niger << EOF
@@ -69,7 +74,7 @@ psql -p 55432 -h localhost niger << EOF
 create temporary table mineralization(hole_id varchar, from_ real, from_x real, from_y real, from_z real, to_ real, to_x real, to_y real, to_z real, oc real, accu real, grade real);
 
 select 'load devia';
-copy mineralization(hole_id, from_, from_x, from_y, from_z, to_, to_x, to_y, to_z, oc, accu, grade) from '/home/vmo/albion/niger_data/mineralisation_tc300_OC1_Ic1_dev.txt' delimiter ';' csv header;
+copy mineralization(hole_id, from_, from_x, from_y, from_z, to_, to_x, to_y, to_z, oc, accu, grade) from '/home/vmo/albion/test_data/mineralization.txt' delimiter ';' csv header;
 
 insert into _albion.mineralization(hole_id, from_, to_, oc, accu, grade) select hole_id, from_, to_, oc, accu, grade from mineralization;
 
@@ -81,7 +86,7 @@ exit 0
 
 psql -h localhost -p 55432 niger -c "drop schema if exists albion cascade;"
 cp albion.sql /tmp/albion.sql
-sed -i "s/{srid}/32632/g" /tmp/albion.sql
+sed -i "s/\$SRID/32632/g" /tmp/albion.sql
 psql -h localhost -p 55432 niger -f /tmp/albion.sql
 
 psql -h localhost -p 55432 niger << EOF
@@ -94,6 +99,8 @@ select 'compute formation geom';
 update albion.formation set geom=albion.hole_piece(from_, to_, hole_id);
 select 'compute radiometry geom';
 update albion.radiometry set geom=albion.hole_piece(from_, to_, hole_id);
+select 'compute min geom';
+update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id);
 EOF
 
 exit 0
@@ -102,7 +109,7 @@ psql -h localhost -p 55432 niger << EOF
 delete from albion.grid;
 update albion.metadata set snap_distance=.3;
 EOF
-ogr2ogr -a_srs "EPSG:32632" -append -f "PostgreSQL" PG:"dbname=niger port=55432 host=localhost" -nln albion.grid niger_data/grid.shp
+ogr2ogr -a_srs "EPSG:32632" -append -f "PostgreSQL" PG:"dbname=niger port=55432 host=localhost" -nln albion.grid test_data/grid.shp
 
 # GRAPH TEST
 
@@ -111,7 +118,7 @@ psql -h localhost -p 55432 niger -c "delete from albion.edge cascade;"
 psql -h localhost -p 55432 niger -c "vaccuum analyse;"
 psql -h localhost -p 55432 niger -c "drop schema if exists albion cascade;"
 cp albion.sql /tmp/albion.sql
-sed -i "s/{srid}/32632/g" /tmp/albion.sql
+sed -i "s/\$SRID/32632/g" /tmp/albion.sql
 psql -h localhost -p 55432 niger -f /tmp/albion.sql
 
 psql -p 55432 -h localhost niger << EOF
@@ -149,7 +156,7 @@ psql -h localhost -p 55432 niger -c "vacuum analyse;"
 
 psql -h localhost -p 55432 niger -c "drop schema if exists albion cascade;"
 cp albion.sql /tmp/albion.sql
-sed -i "s/{srid}/32632/g" /tmp/albion.sql
+sed -i "s/\$SRID/32632/g" /tmp/albion.sql
 psql -h localhost -p 55432 niger -f /tmp/albion.sql
 
 psql -h localhost -p 55432 niger -c "update albion.metadata set snap_distance=.1, correlation_distance=300, correlation_slope=.1;"
@@ -343,7 +350,7 @@ psql -h localhost -p 55432 niger -c "vacuum analyse;"
 
 psql -h localhost -p 55432 niger -c "drop schema if exists albion cascade;"
 cp albion.sql /tmp/albion.sql
-sed -i "s/{srid}/32632/g" /tmp/albion.sql
+sed -i "s/\$SRID/32632/g" /tmp/albion.sql
 psql -h localhost -p 55432 niger -f /tmp/albion.sql
 
 psql -h localhost -p 55432 niger -c "update albion.metadata set snap_distance=.1, correlation_distance=300, correlation_slope=.02;"

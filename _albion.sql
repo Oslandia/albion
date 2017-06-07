@@ -56,6 +56,7 @@ create table _albion.metadata(
     precision real default .01,
     interpolation interpolation_method default 'balanced_tangential',
     end_distance real default 25,
+    end_slope real default 5.0/100,
     correlation_distance real default 200,
     correlation_slope real default 1.0/100)
 ;
@@ -231,7 +232,7 @@ create table _albion.node(
     id varchar primary key,
     graph_id varchar references _albion.graph(id) on delete cascade on update cascade,
         unique(id, graph_id),
-    hole_id varchar references _albion.hole(id),
+    hole_id varchar references _albion.hole(id) on delete cascade,
     geom geometry('LINESTRINGZ', $SRID) not null check (st_numpoints(geom)=2)
 )
 ;

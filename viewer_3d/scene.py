@@ -15,7 +15,7 @@ class Scene(QObject):
     
     changed = pyqtSignal()
 
-    def __init__(self, conn_info, texture_binder, parent=None):
+    def __init__(self, conn_info, graph_id, texture_binder, parent=None):
         super(Scene, self).__init__(parent)
         self.__zScale = 1. # must be one here
         self.shaderNeedRecompile = True
@@ -52,12 +52,29 @@ class Scene(QObject):
         self.__display_labels = False
         self.__labels = []
 
-        print "fetch holes"
+        self.__display_holes = False
+        self.__holes = []
+
+        print "done"
+
+        con.close()
+
+        self.setZscale(self.__zScale)
+
+        if graph_id:
+            self.update_data(graph_id)
+
+    def update_data(self, graph_id):
+
+        con = psycopg2.connect(self.__conn_info)
+        cur = con.cursor()
+
+        print "fetch nodes"
 
         cur.execute("""
-            select id, st_x(geom), st_y(geom), st_z(geom)
-            from albion.collar
-            """)
+            select hole_id, st_x(geom), st_y(geom), st_z(geom)
+            from (select hole_id, st_startpoint(geom) as geom from albion.node where graph_id='{}' ) as t
+            """.format(graph_id))
 
         for id_, x, y, z in cur.fetchall():
             scene = QGraphicsScene()
@@ -66,32 +83,26 @@ class Scene(QObject):
             image = QImage(scene.sceneRect().size().toSize(), QImage.Format_ARGB32)
             image.fill(Qt.transparent)
             painter = QPainter(image)
-            scene.render(painter)
             image.save('/tmp/test.png')
+            scene.render(painter)
             del painter
             scat = {'point': [x,y,z], 'image': image}
+            scat['texture'] = self.__textureBinder(scat['image'])
             self.__labels.append(scat)
 
-        self.__display_holes = False
+
         self.__holes = []
-        cur.execute("""select geom from albion.hole where geom is not null""")
+        cur.execute("""
+            select geom from albion.node where graph_id='{}'
+            """.format(graph_id))
         for geom, in cur.fetchall():
             line = numpy.require(wkb.loads(geom, True).coords, numpy.float32, 'C')
             self.__holes.append(line)
 
-        print "done"
-
-        con.close()
-
-        self.setZscale(self.__zScale)
-
-    def update_data(self, graph_id):
         print "fetch sections"
-        con = psycopg2.connect(self.__conn_info)
-        cur = con.cursor()
         cur.execute("""
-            select st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))
-            from albion.edge where graph_id='{}'
+            select st_collectionhomogenize(st_collect(geom))
+            from albion.section where graph_id='{}'
             """.format(graph_id))
         geom = wkb.loads(cur.fetchone()[0], True)
         self.vtx = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
@@ -102,8 +113,8 @@ class Scene(QObject):
         print "fetch surfaces"
 
         cur.execute("""
-            select st_collectionhomogenize(st_collect(albion.elementary_volume('{}', id))) 
-            from albion.cell
+            select st_collectionhomogenize(st_collect(geom)) 
+            from albion.volume
             """.format(graph_id))
         geom = wkb.loads(cur.fetchone()[0], True)
         self.hvtx = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
@@ -113,20 +124,17 @@ class Scene(QObject):
 
         con.close()
         print "done"
+        #self.initializeGL()
 
 
     def rendergl(self, leftv, upv, eye, height, context):
 
-        glUseProgram(0)
-        glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [1., 1., 1., 1.])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [1., 1., 1., 1.])
+        glEnable(GL_DEPTH_TEST)
+        glLightModelfv(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE)
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [1., 0., 0., 1.])
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [1., 0., 0., 1.])
         glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [1., 1., 1., 1.])
-
-        glEnable(GL_LIGHTING)
-        glEnable(GL_LIGHT0)
-        glEnable(GL_COLOR_MATERIAL)
-        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 100)
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 50)
 
         if self.shaderNeedRecompile:
             self.compileShaders()
@@ -145,12 +153,13 @@ class Scene(QObject):
         glDrawElementsui(GL_TRIANGLES, self.hidx)
 
         if self.__display_holes:
+            glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [1., 0., 0., 1.])
             glDisableClientState(GL_NORMAL_ARRAY)
             for hole in self.__holes:
                 glVertexPointerf(hole)
                 glDrawArrays(GL_LINE_STRIP, 0, len(hole))
 
-        
+            glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [0., 0., 0., 1.])
 
         # render labels
         if self.__display_labels:
@@ -159,7 +168,8 @@ class Scene(QObject):
             glDisableClientState(GL_VERTEX_ARRAY)
             glDisableClientState(GL_NORMAL_ARRAY)
             glDisableClientState(GL_TEXTURE_COORD_ARRAY)
-            glEnable(GL_COLOR_MATERIAL)
+            glDisable(GL_LIGHTING)
+            glDisable(GL_COLOR_MATERIAL)
             glDisable(GL_LIGHT0)
             glDisable(GL_DEPTH_TEST)
             glDisable(GL_TEXTURE_2D)
@@ -202,9 +212,9 @@ class Scene(QObject):
 
 
     def initializeGL(self, textureBinder=None):
-        for scatter in self.__labels:
-            scatter['texture'] = self.__textureBinder(scatter['image']) \
-                    if not textureBinder else textureBinder(scatter['image'])
+        #for scatter in self.__labels:
+        #    scatter['texture'] = self.__textureBinder(scatter['image']) \
+        #            if not textureBinder else textureBinder(scatter['image'])
 
         self.compileShaders()
 

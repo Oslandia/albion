@@ -340,7 +340,7 @@ create trigger grid_instead_trig
 create view albion.collar as select id, geom, date_, comments from _albion.collar
 ;
 
-create view albion.metadata as select id, srid, snap_distance, precision, interpolation, current_section, current_graph, end_distance, correlation_distance, correlation_slope from _albion.metadata
+create view albion.metadata as select id, srid, snap_distance, precision, interpolation, current_section, current_graph, end_distance, end_slope, correlation_distance, correlation_slope from _albion.metadata
 ;
 
 create view albion.hole as select id, collar_id, depth_, geom::geometry('LINESTRINGZ', $SRID) from _albion.hole
@@ -981,6 +981,7 @@ $$
     from subprocess import Popen, PIPE
     import numpy
     import tempfile
+    import shapely
     from shapely import wkb
     from shapely.geometry import MultiPolygon, Polygon, Point 
     from shapely import geos
@@ -1001,7 +1002,7 @@ $$
     with open(tmp_in_file, "w") as geo:
         for polygon in polygons:
             if len(polygon.exterior.coords) == 4:
-                result.append(polygon)
+                result.append(shapely.geometry.polygon.orient(polygon))
                 continue
             #elif len(polygon.exterior.coords) == 5:
             #    result.append(Polygon(polygon.exterior.coords[:3]))
@@ -1056,46 +1057,12 @@ $$
         assert re.match("^\$EndNodes", out.readline())
         assert re.match("^\$Elements", out.readline())
 
-
-        #with open('/tmp/debug_alti.txt', 'w') as dbg:
-        #    for k, v in altitudes.items():
-        #        dbg.write("{} {}\n".format(k, v))
-
-        ## set node altitude
-        #for i in range(len(nodes)):
-        #    nodes[i,2] = altitudes.get("%.2f %.2f"%(nodes[i,0], nodes[i,1]), 9999)
-
         elements = []
-        #neighbors = defaultdict(set)
         nb_elem = int(out.readline())
         for i in range(nb_elem):
             spl = out.readline().split()
             if spl[1] == '2':
                 elements.append([int(n) - 1 for n in spl[-3:]])
-                #neighbors[elements[-1][0]]|= set((elements[-1][1], elements[-1][2]))
-                #neighbors[elements[-1][1]]|= set((elements[-1][2], elements[-1][0]))
-                #neighbors[elements[-1][2]]|= set((elements[-1][0], elements[-1][1]))
-
-        #with open('/tmp/debug_neigh.txt', 'w') as dbg:
-        #    for k, v in neighbors.items():
-        #        dbg.write("{} {}\n".format(k, v))
-
-
-        #for l in range(4):
-        #    cont = False
-        #    #plpy.notice("fixing {} altitudes".format(len([i for i, in numpy.argwhere(nodes[:,2]==9999)])))
-        #    for i, in numpy.argwhere(nodes[:,2]==9999):
-        #        z =[nodes[n,2] for n in neighbors[i] if nodes[n,2] != 9999]
-        #        if len(z):
-        #            #plpy.notice("set altitude of node %.2f %.2f"%(nodes[i,0], nodes[i,1]), z)
-        #            nodes[i,2] = numpy.mean(z) 
-        #        else:
-        #            cont = True
-        #            #plpy.notice("cannot find altitude of node %.2f %.2f"%(nodes[i,0], nodes[i,1]),
-        #            #    "with neighbors:", " ".join(["%.2f %.2f"%(nodes[n,0], nodes[n,1]) for n in neighbors[i]]))
-        #    if not cont:
-        #        break
-        #plpy.notice("z in range %.2f %.2f"%(numpy.min(nodes[:,2]), numpy.max(nodes[:,2])))
             
         for element in elements:
             result.append(Polygon([(coord[0], coord[1])
@@ -1703,6 +1670,101 @@ $$
             where id=grid_id_
         ) as t
         where not exists (select 1 from albion.collar as c where st_intersects(c.geom, t.geom))
+        ;
+
+        return 't';
+    end;
+$$
+;
+
+
+create materialized view albion.volume
+as
+select g.id as graph_id, c.id as cell_id, albion.elementary_volume(g.id, c.id) as geom
+from albion.cell as c, albion.graph as g
+;
+
+create materialized view albion.section
+as
+select graph_id, grid_id, st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_))) as geom
+from albion.edge
+group by graph_id, grid_id
+;
+
+
+create or replace function albion.create_ends(graph_id_ varchar, grid_id_ varchar)
+returns boolean
+language plpgsql volatile
+as
+$$
+    begin
+        with extreme as (
+            select a.id, 
+            not exists (
+                select 1 
+                from albion.edge as b 
+                where st_startpoint(a.geom) in (st_startpoint(b.geom), st_endpoint(b.geom)) 
+                and b.graph_id=a.graph_id 
+                and b.grid_id=a.grid_id
+                and b.id!=a.id) as extreme_start,
+            not exists (
+                select 1 
+                from albion.edge as b 
+                where st_endpoint(a.geom) in (st_startpoint(b.geom), st_endpoint(b.geom)) 
+                and b.graph_id=a.graph_id 
+                and b.grid_id=a.grid_id
+                and b.id!=a.id) as extreme_end,
+            a.geom, a.ceil_, a.wall_,
+            (st_x(st_endpoint(a.geom))-st_x(st_startpoint(a.geom)))/st_3dlength(a.geom) as dx,
+            (st_y(st_endpoint(a.geom))-st_y(st_startpoint(a.geom)))/st_3dlength(a.geom) as dy,
+            (st_z(st_endpoint(a.geom))-st_z(st_startpoint(a.geom)))/st_3dlength(a.geom) as dz
+            from albion.edge as a, albion.grid as g
+            where a.graph_id=graph_id_
+            and a.grid_id=grid_id_
+            and g.id=grid_id_
+        )
+        insert into albion.edge_section(geom, ceil_, wall_, grid_id, graph_id)
+        select 
+            albion.to_section(
+            st_makeline(
+                st_translate(st_startpoint(e.geom), -dx*m.end_distance, -dy*m.end_distance, -dz*m.end_distance),
+                st_startpoint(e.geom)
+            ), s.geom), 
+            albion.to_section(
+            st_makeline(
+                st_translate(st_startpoint(e.ceil_), -dx*m.end_distance, -dy*m.end_distance, -dz*m.end_distance - m.end_slope*m.end_distance),
+                st_startpoint(e.ceil_)
+            ), s.geom), 
+            albion.to_section(
+            st_makeline(
+                st_translate(st_startpoint(e.wall_), -dx*m.end_distance, -dy*m.end_distance, -dz*m.end_distance + m.end_slope*m.end_distance),
+                st_startpoint(e.wall_)
+            ), s.geom), 
+            grid_id_, graph_id_
+        from extreme as e, albion.metadata as m, albion.grid as s
+        where e.extreme_start and s.id=grid_id_
+        and st_x(albion.to_section(st_startpoint(e.geom), s.geom) > m.end_distance
+        union
+        select 
+            albion.to_section(
+            st_makeline(
+                st_endpoint(e.geom),
+                st_translate(st_endpoint(e.geom), dx*m.end_distance, dy*m.end_distance, dz*m.end_distance)
+            ), s.geom), 
+            albion.to_section(
+            st_makeline(
+                st_endpoint(e.ceil_),
+                st_translate(st_endpoint(e.ceil_), dx*m.end_distance, dy*m.end_distance, dz*m.end_distance - m.end_slope*m.end_distance)
+            ), s.geom), 
+            albion.to_section(
+            st_makeline(
+                st_endpoint(e.wall_),
+                st_translate(st_endpoint(e.wall_), dx*m.end_distance, dy*m.end_distance, dz*m.end_distance + m.end_slope*m.end_distance)
+            ), s.geom), 
+            grid_id_, graph_id_
+        from extreme as e, albion.metadata as m, albion.grid as s
+        where e.extreme_end  and s.id=grid_id_
+        and st_x(albion.to_section(st_endpoint(e.geom), s.geom) < (st_length(s.geom)-m.end_distance)
         ;
 
         return 't';

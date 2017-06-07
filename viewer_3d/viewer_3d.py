@@ -15,6 +15,7 @@ from qgis.core import *
 
 import os
 import re
+import numpy
 from math import sqrt, ceil, log
 
 from .camera import Camera
@@ -23,15 +24,15 @@ from .viewer_controls import ViewerControls
 
 class Viewer3d(QGLWidget):
 
-    def __init__(self, conn_info=None, parent=None):
+    def __init__(self, conn_info=None, graph=None, parent=None):
         super(Viewer3d, self).__init__(parent)
         self.setFocusPolicy(Qt.StrongFocus)
         self.scene = None
-        self.resetScene(conn_info)
+        self.resetScene(conn_info, graph)
 
-    def resetScene(self, conn_info):
+    def resetScene(self, conn_info, graph_id):
         if conn_info:
-            self.scene = Scene(conn_info, self.bindTexture, self)
+            self.scene = Scene(conn_info, graph_id, self.bindTexture, self)
             at = self.scene.center
             ext_y = self.scene.extent[3] - self.scene.extent[1]
             eye = at + QVector3D(0, -1.5*ext_y , 0.5*ext_y)
@@ -42,7 +43,7 @@ class Viewer3d(QGLWidget):
         else:
             self.scene and self.scene.setParent(None)
             self.scene = None
-            self.camera = Camera(QVector3D(0, 0, -1), QVector3D(0, 0, 0))
+            self.camera = Camera(QVector3D(10, 10, -10), QVector3D(0, 0, 0))
 
     def initializeGL(self):
         if self.scene:
@@ -71,7 +72,6 @@ class Viewer3d(QGLWidget):
     def paintGL(self, context=None, camera=None):
         context = context or self
         glClearColor(.7, .7, .7, 1.0)
-        glEnable(GL_DEPTH_TEST)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
@@ -83,7 +83,8 @@ class Viewer3d(QGLWidget):
         glLoadIdentity()
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
-        glEnable(GL_COLOR_MATERIAL)
+        #glLightfv(GL_LIGHT0, GL_AMBIENT, [.2, .2, .2, 1.]) 
+
 
         GLU.gluLookAt(c.eye.x(), c.eye.y(), c.eye.z(),
                       c.at.x(), c.at.y(), c.at.z(),
@@ -92,11 +93,85 @@ class Viewer3d(QGLWidget):
         leftv = QVector3D.crossProduct(c.up, c.at-c.eye).normalized()
         upv = QVector3D.crossProduct(c.at-c.eye, leftv).normalized()
 
+        to = (c.at - c.eye).normalized()
+        #lightpos = numpy.require([c.at.x(), c.at.y(), c.at.z(), 1], numpy.float32, 'C')
+        #glLightfv(GL_LIGHT0, GL_POSITION, lightpos)
+
+        glLightfv(GL_LIGHT0, GL_POSITION, [c.eye.x(), c.eye.y(), c.eye.z(), 1])
         
         if self.scene:
             self.scene.rendergl(leftv, upv, c.eye, context.height(), context)
+        else:
+            # Draw Cube (multiple quads)
+            glEnable(GL_DEPTH_TEST)
+            glLightModelfv(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE)
+            glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE)
+            glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [1., 0., 0., 1.])
+            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [1., 0., 0., 1.])
+            glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [1., 1., 1., 1.])
+            glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 50)
 
-        glLightfv(GL_LIGHT0, GL_POSITION, [0, -1000, -1000]);
+            glBegin(GL_QUADS)
+     
+            glNormal3f(0, 1, 0)
+            glVertex3f( 1.0, 1.0,-1.0)
+            glNormal3f(0, 1, 0)
+            glVertex3f(-1.0, 1.0,-1.0)
+            glNormal3f(0, 1, 0)
+            glVertex3f(-1.0, 1.0, 1.0)
+            glNormal3f(0, 1, 0)
+            glVertex3f( 1.0, 1.0, 1.0) 
+     
+            #glNormal3f(0, -1, 0)
+            #glVertex3f( 1.0,-1.0, 1.0)
+            #glNormal3f(0, -1, 0)
+            #glVertex3f(-1.0,-1.0, 1.0)
+            #glNormal3f(0, -1, 0)
+            #glVertex3f(-1.0,-1.0,-1.0)
+            #glNormal3f(0, -1, 0)
+            #glVertex3f( 1.0,-1.0,-1.0) 
+     
+            glNormal3f(0, 0, 1)
+            glVertex3f( 1.0, 1.0, 1.0)
+            glNormal3f(0, 0, 1)
+            glVertex3f(-1.0, 1.0, 1.0)
+            glNormal3f(0, 0, 1)
+            glVertex3f(-1.0,-1.0, 1.0)
+            glNormal3f(0, 0, 1)
+            glVertex3f( 1.0,-1.0, 1.0)
+     
+            #glNormal3f(0, 0, -1)
+            #glVertex3f( 1.0,-1.0,-1.0)
+            #glNormal3f(0, 0, -1)
+            #glVertex3f(-1.0,-1.0,-1.0)
+            #glNormal3f(0, 0, -1)
+            #glVertex3f(-1.0, 1.0,-1.0)
+            #glNormal3f(0, 0, -1)
+            #glVertex3f( 1.0, 1.0,-1.0)
+     
+            #glNormal3f(-1, 0, 0)
+            #glVertex3f(-1.0, 1.0, 1.0) 
+            #glNormal3f(-1, 0, 0)
+            #glVertex3f(-1.0, 1.0,-1.0)
+            #glNormal3f(-1, 0, 0)
+            #glVertex3f(-1.0,-1.0,-1.0) 
+            #glNormal3f(-1, 0, 0)
+            #glVertex3f(-1.0,-1.0, 1.0) 
+     
+            glNormal3f(1, 0, 0)
+            glVertex3f( 1.0, 1.0,-1.0) 
+            glNormal3f(1, 0, 0)
+            glVertex3f( 1.0, 1.0, 1.0)
+            glNormal3f(1, 0, 0)
+            glVertex3f( 1.0,-1.0, 1.0)
+            glNormal3f(1, 0, 0)
+            glVertex3f( 1.0,-1.0,-1.0)
+
+            glEnd()
+            
+
+
+        #glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 2.0)
 
     def image(self, size):
         if not self.scene:
@@ -162,8 +237,8 @@ if __name__ == "__main__":
     QCoreApplication.setApplicationName("QGIS2")
 
     assert len(sys.argv) >= 2
-    win = ViewerWindow(sys.argv[1])
-    win.viewer.scene.update_data('tarat_u1')
+    win = ViewerWindow()
+    win.viewer.resetScene(sys.argv[1], 'tarat_u1' )
     win.show()
 
     sys.exit(app.exec_())

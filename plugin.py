@@ -35,6 +35,8 @@ from pglite import start_cluster, stop_cluster, init_cluster, check_cluster, clu
 import atexit
 import os
 import time
+from dxfwrite import DXFEngine as dxf
+from shapely import wkb
 
 from .axis_layer import AxisLayer, AxisLayerType
 from .log_strati import BoreHoleWindow
@@ -113,6 +115,7 @@ class Plugin(QObject):
         self.__toolbar.addAction(icon('auto_connect.svg'), 'auto connect').triggered.connect(self.__auto_connect)
         self.__toolbar.addAction(icon('auto_ceil_wall.svg'), 'auto ceil and wall').triggered.connect(self.__auto_ceil_wall)
         self.__toolbar.addAction(icon('extend_graph.svg'), 'extend to interpolated sections').triggered.connect(self.__extend_to_interpolated)
+        self.__toolbar.addAction(icon('extremities_graph.svg'), 'extend with taper').triggered.connect(self.__create_ends)
         self.__toolbar.addAction(icon('log_strati.svg'), 'stratigraphic log').triggered.connect(self.__log_strati_clicked)
 
         self.__current_graph.currentIndexChanged.connect(self.__current_graph_changed)
@@ -154,7 +157,7 @@ class Plugin(QObject):
         con.commit()
         con.close()
 
-        if self.__current_graph.currentText():
+        if self.__current_graph.currentText() and self.__viewer3d.widget().scene:
             self.__viewer3d.widget().scene.update_data(self.__current_graph.currentText())
 
     def __qgis__project__loaded(self):
@@ -168,10 +171,7 @@ class Plugin(QObject):
         self.__current_graph.addItems([id_ for id_, in cur.fetchall()])
         con.close()
 
-        self.__viewer3d.widget().resetScene(conn_info)
-        if self.__current_graph.currentText():
-            self.__viewer3d.widget().scene.update_data(self.__current_graph.currentText())
-
+        self.__viewer3d.widget().resetScene(conn_info, self.__current_graph.currentText() or None)
 
     def __new_project(self):
 
@@ -711,16 +711,16 @@ class Plugin(QObject):
         fil = QFileDialog.getSaveFileName(None,
                 u"Export volume",
                 QgsProject.instance().readEntry("albion", "last_dir", "")[0],
-                "Surface files(*.obj)")
+                "Volume files(*.obj *.dxf)")
         if not fil:
             return
         QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
 
-        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
-        con = psycopg2.connect(conn_info)
-        cur = con.cursor()
 
-        if fil[-4:] == '.obj':
+        if fil[-4:] in ['.obj', '.dxf']:
+            conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+            con = psycopg2.connect(conn_info)
+            cur = con.cursor()
             progressMessageBar = self.__iface.messageBar().createMessage("Computing volume {}...".format(fil))
             progress = QProgressBar()
             progress.setMaximum(7)
@@ -738,16 +738,36 @@ class Plugin(QObject):
             progress.setValue(4)
             cur.execute("refresh materialized  view albion.cell_edge")
             progress.setValue(5)
-            cur.execute("""
-                select albion.to_obj(st_collectionhomogenize(st_collect(albion.elementary_volume('{}', id)))) 
-                from albion.cell
-                """.format(self.__current_graph.currentText()))
-            progress.setValue(6)
-            open(fil, 'w').write(cur.fetchone()[0])
+
+            print 'extension', fil[-4:]
+            if fil[-4:] == '.obj':
+                cur.execute("""
+                    select albion.to_obj(st_collectionhomogenize(st_collect(albion.elementary_volume('{}', id)))) 
+                    from albion.cell
+                    """.format(self.__current_graph.currentText()))
+                progress.setValue(6)
+                open(fil, 'w').write(cur.fetchone()[0])
+
+            elif fil[-4:] == '.dxf':
+                cur.execute("""
+                    select st_collectionhomogenize(st_collect(albion.elementary_volume('{}', id))) 
+                    from albion.cell
+                    """.format(self.__current_graph.currentText()))
+                progress.setValue(6)
+                drawing = dxf.drawing(fil)
+                m = wkb.loads(cur.fetchone()[0], True)
+                for p in m:
+                    r = p.exterior.coords
+                    drawing.add(dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1))
+                drawing.save()
+
             progress.setValue(7)
             self.__iface.messageBar().clearWidgets()
-        con.commit()
-        con.close()
+            con.commit()
+            con.close()
+        else:
+            self.__iface.messageBar().pushWarning('Albion', 'unsupported extension for volume export')
+
 
     def __auto_graph(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
@@ -781,6 +801,18 @@ class Plugin(QObject):
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
         cur.execute("select albion.extend_to_interpolated('{}', albion.current_section_id())".format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__refresh_layers()
+
+    def __create_ends(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select albion.create_ends('{}', albion.current_section_id())".format(self.__current_graph.currentText()))
         con.commit()
         con.close()
         self.__refresh_layers()
