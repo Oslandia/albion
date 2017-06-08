@@ -70,7 +70,7 @@
     </widget>
    </item>
    <item row="10" column="1">
-    <widget class="QCheckBox" name="holesCheckBox">
+    <widget class="QCheckBox" name="nodesCheckBox">
      <property name="enabled">
       <bool>true</bool>
      </property>
@@ -78,11 +78,11 @@
       <string>Nodes</string>
      </property>
      <property name="checked">
-      <bool>false</bool>
+      <bool>true</bool>
      </property>
     </widget>
    </item>
-   <item row="11" column="0" colspan="3">
+   <item row="16" column="0" colspan="3">
     <widget class="QScrollArea" name="scrollArea">
      <property name="frameShadow">
       <enum>QFrame::Plain</enum>
@@ -96,7 +96,7 @@
         <x>0</x>
         <y>0</y>
         <width>143</width>
-        <height>305</height>
+        <height>177</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout_2">
@@ -125,6 +125,50 @@
        </item>
       </layout>
      </widget>
+    </widget>
+   </item>
+   <item row="11" column="1">
+    <widget class="QCheckBox" name="edgesCheckBox">
+     <property name="text">
+      <string>Edges</string>
+     </property>
+     <property name="checked">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="15" column="1">
+    <widget class="QCheckBox" name="volumesCheckBox">
+     <property name="text">
+      <string>Volume</string>
+     </property>
+    </widget>
+   </item>
+   <item row="12" column="1">
+    <widget class="QCheckBox" name="ceilsCheckBox">
+     <property name="text">
+      <string>Ceils</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="13" column="1">
+    <widget class="QCheckBox" name="wallsCheckBox">
+     <property name="text">
+      <string>Wall</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="14" column="1">
+    <widget class="QCheckBox" name="sectionsCheckBox">
+     <property name="text">
+      <string>Sections</string>
+     </property>
     </widget>
    </item>
   </layout>

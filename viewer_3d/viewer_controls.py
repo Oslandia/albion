@@ -15,10 +15,27 @@ class ViewerControls(QWidget):
         self.__viewer = viewer
 
         self.__viewer.setZscale(self.zScaleSlider.value())
+
+        self.__viewer.toggle_labels(self.labelsCheckBox.isChecked())
+        self.__viewer.toggle_nodes(self.nodesCheckBox.isChecked())
+        self.__viewer.toggle_edges(self.edgesCheckBox.isChecked())
+        self.__viewer.toggle_ceils(self.ceilsCheckBox.isChecked())
+        self.__viewer.toggle_walls(self.wallsCheckBox.isChecked())
+        self.__viewer.toggle_sections(self.sectionsCheckBox.isChecked())
+        self.__viewer.toggle_volumes(self.volumesCheckBox.isChecked())
+
         self.zScaleSlider.valueChanged.connect(self.__viewer.setZscale)
+
         self.labelsCheckBox.toggled.connect(self.__viewer.toggle_labels)
-        self.holesCheckBox.toggled.connect(self.__viewer.toggle_holes)
+        self.nodesCheckBox.toggled.connect(self.__viewer.toggle_nodes)
+        self.edgesCheckBox.toggled.connect(self.__viewer.toggle_edges)
+        self.ceilsCheckBox.toggled.connect(self.__viewer.toggle_ceils)
+        self.wallsCheckBox.toggled.connect(self.__viewer.toggle_walls)
+        self.sectionsCheckBox.toggled.connect(self.__viewer.toggle_sections)
+        self.volumesCheckBox.toggled.connect(self.__viewer.toggle_volumes)
+
         self.refreshButton.clicked.connect(self.__viewer.refresh_data)
 
         self.__iface = iface
+
 

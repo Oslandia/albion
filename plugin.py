@@ -168,8 +168,7 @@ class Plugin(QObject):
         con.commit()
         con.close()
 
-        if self.__current_graph.currentText() and self.__viewer3d.widget().scene:
-            self.__viewer3d.widget().scene.update_data(self.__current_graph.currentText())
+        self.__viewer3d.widget().resetScene(conn_info, self.__current_graph.currentText())
 
     def __qgis__project__loaded(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
@@ -182,7 +181,7 @@ class Plugin(QObject):
         self.__current_graph.addItems([id_ for id_, in cur.fetchall()])
         con.close()
 
-        self.__viewer3d.widget().resetScene(conn_info, self.__current_graph.currentText() or None)
+        self.__viewer3d.widget().resetScene(conn_info, self.__current_graph.currentText())
 
     def __new_project(self):
 
@@ -602,6 +601,7 @@ class Plugin(QObject):
         con.commit()
         con.close()
         self.__refresh_layers()
+        self.__viewer3d.widget().update()
 
     def __select_next_section(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
@@ -630,6 +630,7 @@ class Plugin(QObject):
         con.commit()
         con.close()
         self.__refresh_layers()
+        self.__viewer3d.widget().update()
 
     def __select_previous_section(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
@@ -656,6 +657,7 @@ class Plugin(QObject):
         con.commit()
         con.close()
         self.__refresh_layers()
+        self.__viewer3d.widget().update()
 
     def __auto_connect(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \

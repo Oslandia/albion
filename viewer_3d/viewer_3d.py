@@ -29,46 +29,67 @@ class Viewer3d(QGLWidget):
         self.setFocusPolicy(Qt.StrongFocus)
         self.scene = None
         self.resetScene(conn_info, graph)
-
+        self.__param = {
+                "label": False,
+                "node": False,
+                "edge": False,
+                "ceil": False,
+                "wall": False,
+                "section": False,
+                "volume": False,
+                "z_scale": 1
+                }
 
     def refresh_data(self):
         if self.scene:
             self.resetScene(self.scene.conn_info, self.scene.graph_id, False)
             self.update()
-        
 
     def resetScene(self, conn_info, graph_id, resetCamera=True):
-        if conn_info:
-            self.scene = Scene(conn_info, graph_id, self.bindTexture, self)
+        if conn_info and graph_id:
+            self.scene = Scene(conn_info, graph_id, self.__param, self.bindTexture, self)
             if resetCamera:
                 at = self.scene.center
                 ext_y = self.scene.extent[3] - self.scene.extent[1]
                 eye = at + QVector3D(0, -1.5*ext_y , 0.5*ext_y)
                 self.camera = Camera(eye, at)
 
-            self.scene.changed.connect(self.update)
-            self.initializeGL()
-
         else:
             self.scene and self.scene.setParent(None)
             self.scene = None
             self.camera = Camera(QVector3D(10, 10, -10), QVector3D(0, 0, 0))
 
-    def initializeGL(self):
-        if self.scene:
-            self.scene.initializeGL()
-
-    def toggle_holes(self, state):
-        if self.scene:
-            self.scene.toggle_holes(state)
+    def setZscale(self, value):
+        self.__param["z_scale"]=value
+        self.update()
 
     def toggle_labels(self, state):
-        if self.scene:
-            self.scene.toggle_labels(state)
+        self.__param["label"] = state
+        self.update()
 
-    def setZscale(self, value):
-        if self.scene:
-            self.scene.setZscale(value)
+    def toggle_nodes(self, state):
+        self.__param["node"] = state
+        self.update()
+
+    def toggle_edges(self, state):
+        self.__param["edge"] = state
+        self.update()
+
+    def toggle_ceils(self, state):
+        self.__param["ceil"] = state
+        self.update()
+
+    def toggle_walls(self, state):
+        self.__param["wall"] = state
+        self.update()
+
+    def toggle_sections(self, state):
+        self.__param["section"] = state
+        self.update()
+
+    def toggle_volumes(self, state):
+        self.__param["volume"] = state
+        self.update()
 
     def resizeGL(self, width, height):
         height = 1 if not height else height
@@ -92,8 +113,6 @@ class Viewer3d(QGLWidget):
         glLoadIdentity()
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
-        #glLightfv(GL_LIGHT0, GL_AMBIENT, [.2, .2, .2, 1.]) 
-
 
         GLU.gluLookAt(c.eye.x(), c.eye.y(), c.eye.z(),
                       c.at.x(), c.at.y(), c.at.z(),
@@ -103,8 +122,6 @@ class Viewer3d(QGLWidget):
         upv = QVector3D.crossProduct(c.at-c.eye, leftv).normalized()
 
         to = (c.at - c.eye).normalized()
-        #lightpos = numpy.require([c.at.x(), c.at.y(), c.at.z(), 1], numpy.float32, 'C')
-        #glLightfv(GL_LIGHT0, GL_POSITION, lightpos)
 
         glLightfv(GL_LIGHT0, GL_POSITION, [c.eye.x(), c.eye.y(), c.eye.z(), 1])
         
@@ -179,32 +196,6 @@ class Viewer3d(QGLWidget):
             glEnd()
             
 
-
-        #glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 2.0)
-
-    def image(self, size):
-        if not self.scene:
-            return
-        # we want all the scene in image, regardless of aspect ratio
-        zoom_out = max(float(self.width())/size.width(), float(self.height())/size.height())
-        camera = Camera(self.camera.eye, self.camera.at, self.camera.up)
-        #camera.eye = camera.at + (camera.eye-camera.at)*zoom_out
-        w, h = size.width(), size.height()
-        roundupSz = QSize(pow(2, ceil(log(w)/log(2))),
-                          pow(2, ceil(log(h)/log(2))))
-        fmt = QGLFormat()
-        #fmt.setAlpha(True)
-        context = QGLPixelBuffer(roundupSz, fmt)
-        context.makeCurrent()
-        self.scene.initializeGL(context.bindTexture)
-        self.scene.requireShaderRecompile()
-        self.paintGL(context, camera)
-        img = context.toImage()
-        context.doneCurrent()
-
-        return img.copy( .5*(roundupSz.width()-w), 
-                         .5*(roundupSz.height()-h), 
-                         w, h) 
 
     def mouseMoveEvent(self, event):
         delta_x = float(event.x() - self.oldx)/self.width()
