@@ -289,3 +289,56 @@ alter table _albion.edge alter column id set default _albion.unique_id()::varcha
 alter table _albion.edge alter column graph_id set default _albion.current_graph(); 
 ;
 
+
+create table _albion.cell(
+    id varchar primary key,
+    geom geometry('POLYGON', $SRID) not null check(st_isvalid(geom)),
+    triangulation geometry('MULTIPOLYGON', $SRID)
+)
+;
+
+create index cell_geom_idx on _albion.cell using gist(geom)
+;
+
+create index cell_triangulation_idx on _albion.cell using gist(triangulation)
+;
+
+alter table _albion.cell alter column id set default _albion.unique_id()::varchar
+;
+
+create table _albion.section(
+    id varchar primary key,
+    graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
+    grid_id varchar references _albion.grid(id) on delete cascade on update cascade,
+    triangulation geometry('MULTIPOLYGONZ', $SRID)
+)
+;
+
+create index section_graph_id_idx on _albion.section(graph_id)
+;
+
+create index section_grid_id_idx on _albion.section(grid_id)
+;
+
+alter table _albion.section alter column id set default _albion.unique_id()::varchar
+;
+
+create table _albion.volume(
+    id varchar primary key,
+    graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
+    cell_id varchar references _albion.cell(id) on delete cascade on update cascade,
+    triangulation geometry('MULTIPOLYGONZ', $SRID) not null
+);
+
+create index volume_graph_id_idx on _albion.volume(graph_id)
+;
+
+create index volume_cell_id_idx on _albion.volume(cell_id)
+;
+
+alter table _albion.volume alter column id set default _albion.unique_id()::varchar
+;
+
+
+
+

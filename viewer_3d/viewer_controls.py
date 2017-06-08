@@ -18,6 +18,7 @@ class ViewerControls(QWidget):
         self.zScaleSlider.valueChanged.connect(self.__viewer.setZscale)
         self.labelsCheckBox.toggled.connect(self.__viewer.toggle_labels)
         self.holesCheckBox.toggled.connect(self.__viewer.toggle_holes)
+        self.refreshButton.clicked.connect(self.__viewer.refresh_data)
 
         self.__iface = iface
 

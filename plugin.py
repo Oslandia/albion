@@ -58,6 +58,10 @@ def icon(name):
     """
     return QIcon(os.path.join(os.path.dirname(__file__), 'res', name))
 
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
 
 class Plugin(QObject):
     def __init__(self, iface):
@@ -97,8 +101,12 @@ class Plugin(QObject):
         self.__menu.addAction('Export sections').triggered.connect(self.__export_sections)
         self.__menu.addAction('Export volume').triggered.connect(self.__export_volume)
         self.__menu.addSeparator()
+        self.__menu.addAction('Create cells').triggered.connect(self.__create_cells)
         self.__menu.addAction('Auto graph').triggered.connect(self.__auto_graph)
-        self.__menu.addAction('Extend all sections').triggered.connect(self.__extend_all_sections)
+        self.__menu.addAction('Extend sections').triggered.connect(self.__extend_all_sections)
+        self.__menu.addAction('Triangulate sections').triggered.connect(self.__triangulate_sections)
+        self.__menu.addAction('Create volumes').triggered.connect(self.__create_volumes)
+        self.__menu.addSeparator()
         self.__menu.addAction('Toggle axis').triggered.connect(self.__toggle_axis)
         
         self.__iface.mainWindow().menuBar().addMenu(self.__menu)
@@ -116,6 +124,8 @@ class Plugin(QObject):
         self.__toolbar.addAction(icon('auto_ceil_wall.svg'), 'auto ceil and wall').triggered.connect(self.__auto_ceil_wall)
         self.__toolbar.addAction(icon('extend_graph.svg'), 'extend to interpolated sections').triggered.connect(self.__extend_to_interpolated)
         self.__toolbar.addAction(icon('extremities_graph.svg'), 'extend with taper').triggered.connect(self.__create_ends)
+        self.__toolbar.addAction(icon('triangulate.svg'), 'triangulate section').triggered.connect(self.__triangulate_section)
+        self.__toolbar.addAction(icon('volume.svg'), 'create voluem').triggered.connect(self.__create_volume)
         self.__toolbar.addAction(icon('log_strati.svg'), 'stratigraphic log').triggered.connect(self.__log_strati_clicked)
 
         self.__current_graph.currentIndexChanged.connect(self.__current_graph_changed)
@@ -141,6 +151,7 @@ class Plugin(QObject):
         self.__menu and self.__menu.setParent(None)
         self.__toolbar and self.__toolbar.setParent(None)
         self.__viewer3d and self.__viewer3d.setParent(None)
+        self.__viewer3d_ctrl and self.__viewer3d_ctrl.setParent(None)
         stop_cluster()
         QgsProject.instance().readProject.disconnect(self.__qgis__project__loaded)
 
@@ -682,7 +693,7 @@ class Plugin(QObject):
         fil = QFileDialog.getSaveFileName(None,
                 u"Export section",
                 QgsProject.instance().readEntry("albion", "last_dir", "")[0],
-                "Section files (*.obj *.txt)")
+                "Section files (*.obj *.dxf)")
         if not fil:
             return
         QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
@@ -691,13 +702,22 @@ class Plugin(QObject):
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
 
-        if fil[-4:] == '.txt':
-            cur.execute("select albion.export_polygons('{}')".format(self.__current_graph.currentText()))
-            open(fil, 'w').write(cur.fetchone()[0])
+        if fil[-4:] == '.dxf':
+            cur.execute("""
+                select st_collectionhomogenize(st_collect(triangulation)) 
+                from albion.section 
+                where graph_id='{}'
+                """.format(self.__current_graph.currentText()))
+            drawing = dxf.drawing(fil)
+            m = wkb.loads(cur.fetchone()[0], True)
+            for p in m:
+                r = p.exterior.coords
+                drawing.add(dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1))
+            drawing.save()
         elif fil[-4:] == '.obj':
             cur.execute("""
-                select albion.to_obj(st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_)))) 
-                from albion.edge 
+                select albion.to_obj(st_collectionhomogenize(st_collect(triangulation))) 
+                from albion.section 
                 where graph_id='{}'
                 """.format(self.__current_graph.currentText()))
             open(fil, 'w').write(cur.fetchone()[0])
@@ -721,39 +741,22 @@ class Plugin(QObject):
             conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
             con = psycopg2.connect(conn_info)
             cur = con.cursor()
-            progressMessageBar = self.__iface.messageBar().createMessage("Computing volume {}...".format(fil))
-            progress = QProgressBar()
-            progress.setMaximum(7)
-            progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
-            progressMessageBar.layout().addWidget(progress)
-            self.__iface.messageBar().pushWidget(progressMessageBar, self.__iface.messageBar().INFO)
-            progress.setValue(0)
-            cur.execute("refresh materialized  view albion.dense_grid")
-            progress.setValue(1)
-            cur.execute("refresh materialized  view albion.cell")
-            progress.setValue(2)
-            cur.execute("refresh materialized  view albion.triangle")
-            progress.setValue(3)
-            cur.execute("refresh materialized  view albion.projected_edge")
-            progress.setValue(4)
-            cur.execute("refresh materialized  view albion.cell_edge")
-            progress.setValue(5)
 
             print 'extension', fil[-4:]
             if fil[-4:] == '.obj':
                 cur.execute("""
-                    select albion.to_obj(st_collectionhomogenize(st_collect(albion.elementary_volume('{}', id)))) 
-                    from albion.cell
+                    select albion.to_obj(st_collectionhomogenize(st_collect(triangulation))) 
+                    from albion.volume
+                    where graph_id='{}'
                     """.format(self.__current_graph.currentText()))
-                progress.setValue(6)
                 open(fil, 'w').write(cur.fetchone()[0])
 
             elif fil[-4:] == '.dxf':
                 cur.execute("""
-                    select st_collectionhomogenize(st_collect(albion.elementary_volume('{}', id))) 
-                    from albion.cell
+                    select st_collectionhomogenize(st_collect(triangulation))
+                    from albion.volume
+                    where graph_id='{}'
                     """.format(self.__current_graph.currentText()))
-                progress.setValue(6)
                 drawing = dxf.drawing(fil)
                 m = wkb.loads(cur.fetchone()[0], True)
                 for p in m:
@@ -761,8 +764,6 @@ class Plugin(QObject):
                     drawing.add(dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1))
                 drawing.save()
 
-            progress.setValue(7)
-            self.__iface.messageBar().clearWidgets()
             con.commit()
             con.close()
         else:
@@ -893,3 +894,151 @@ class Plugin(QObject):
         QgsProject.instance().read(QFileInfo(self.__find_in_dir(dir_, '.qgs')))
 
 
+    def __triangulate_sections(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""
+            delete from albion.section 
+            where graph_id=albion.current_graph() """)
+        cur.execute("""
+            insert into albion.section(id, triangulation, graph_id, grid_id)
+            select 
+                _albion.unique_id()::varchar,
+                st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_))),
+                graph_id, grid_id
+            from albion.edge
+            where graph_id=albion.current_graph()
+            group by graph_id, grid_id
+            """.format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__viewer3d.widget().refresh_data()
+
+    def __triangulate_section(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""
+            delete from albion.section 
+            where graph_id=albion.current_graph()""")
+        cur.execute("""
+            insert into albion.section(id, triangulation, graph_id, grid_id)
+            select 
+                _albion.unique_id()::varchar,
+                st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_))),
+                graph_id, grid_id
+            from albion.edge
+            where graph_id=albion.current_graph()
+            and grid_id=albion.current_section_id()
+            group by graph_id, grid_id
+            """.format(self.__current_graph.currentText()))
+        con.commit()
+        con.close()
+        self.__viewer3d.widget().refresh_data()
+
+    def __create_volumes(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0] \
+                or not self.__current_graph.currentText():
+            return
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""
+            delete from albion.volume 
+            where graph_id=albion.current_graph()""")
+        cur.execute("select id from albion.cell")
+        ids = [cid for cid, in cur.fetchall()]
+        progressMessageBar = self.__iface.messageBar().createMessage("Creating volumes...")
+        progress = QProgressBar()
+        progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
+        progressMessageBar.layout().addWidget(progress)
+        self.__iface.messageBar().pushWidget(progressMessageBar, self.__iface.messageBar().INFO)
+        progress.setMaximum(len(ids))
+
+        progress.setValue(0)
+
+        for ids_ in chunks(ids, 10):
+            cur.execute("""
+                with mesh as (
+                    select albion.elementary_volume(albion.current_graph(), id) as geom,
+                    albion.current_graph() as graph_id, id as cell_id
+                    from albion.cell
+                    where id in ({})
+                )
+                insert into albion.volume(id, triangulation, graph_id, cell_id)
+                select 
+                _albion.unique_id()::varchar, geom, graph_id, cell_id
+                from mesh
+                where geom is not null
+                """.format(','.join(["'"+str(id_)+"'" for id_ in ids_])))
+            progress.setValue(progress.value()+10)
+
+        self.__iface.messageBar().clearWidgets()
+        con.commit()
+        con.close()
+        self.__viewer3d.widget().refresh_data()
+        self.__refresh_layers()
+
+    def __create_volume(self):
+        self.__click_tool = QgsMapToolEmitPoint(self.__iface.mapCanvas())
+        self.__iface.mapCanvas().setMapTool(self.__click_tool)
+        self.__click_tool.canvasClicked.connect(self.__create_volume_clicked)
+        self.__select_current_section_action.setChecked(True)
+
+    def __create_volume_clicked(self, point, button):
+        self.__select_current_section_action.setChecked(False)
+        self.__click_tool.setParent(None)
+        self.__click_tool = None
+
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+
+        cur.execute("""
+            select id from albion.cell 
+            where st_intersects(geom, 'SRID={srid} ;POINT({x} {y})'::geometry)
+            limit 1""".format(srid=srid, x=point.x(), y=point.y()))
+        res = cur.fetchone()
+        if res:
+            cur.execute("""
+                delete from albion.volume 
+                where graph_id=albion.current_graph() 
+                and cell_id='{}'""".format(res[0]))
+            cur.execute("""
+                insert into albion.volume(id, triangulation, graph_id, cell_id)
+                select 
+                _albion.unique_id()::varchar,
+                albion.elementary_volume(albion.current_graph(), '{cell_id}') ,
+                albion.current_graph(), '{cell_id}'""".format(cell_id=res[0]))
+
+        con.commit()
+        con.close()
+        self.__viewer3d.widget().refresh_data()
+        self.__refresh_layers()
+
+    def __create_cells(self):
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select albion.refresh_cell()")
+        con.commit()
+        con.close()
+
+        self.__refresh_layers()

@@ -23,8 +23,9 @@ class Scene(QObject):
 
 
         print "fetch collar"
-        self.__conn_info = conn_info
-        con = psycopg2.connect(self.__conn_info)
+        self.graph_id = graph_id
+        self.conn_info = conn_info
+        con = psycopg2.connect(self.conn_info)
         cur = con.cursor()
         cur.execute("""
             select st_3dextent(geom)
@@ -57,74 +58,70 @@ class Scene(QObject):
 
         print "done"
 
-        con.close()
 
         self.setZscale(self.__zScale)
 
         if graph_id:
-            self.update_data(graph_id)
 
-    def update_data(self, graph_id):
+            print "fetch nodes"
 
-        con = psycopg2.connect(self.__conn_info)
-        cur = con.cursor()
+            cur.execute("""
+                select hole_id, st_x(geom), st_y(geom), st_z(geom)
+                from (select hole_id, st_startpoint(geom) as geom from albion.node where graph_id='{}' ) as t
+                """.format(graph_id))
 
-        print "fetch nodes"
-
-        cur.execute("""
-            select hole_id, st_x(geom), st_y(geom), st_z(geom)
-            from (select hole_id, st_startpoint(geom) as geom from albion.node where graph_id='{}' ) as t
-            """.format(graph_id))
-
-        for id_, x, y, z in cur.fetchall():
-            scene = QGraphicsScene()
-            scene.setSceneRect(scene.itemsBoundingRect())
-            scene.addText(id_)#, QFont('Arial', 32))
-            image = QImage(scene.sceneRect().size().toSize(), QImage.Format_ARGB32)
-            image.fill(Qt.transparent)
-            painter = QPainter(image)
-            image.save('/tmp/test.png')
-            scene.render(painter)
-            del painter
-            scat = {'point': [x,y,z], 'image': image}
-            scat['texture'] = self.__textureBinder(scat['image'])
-            self.__labels.append(scat)
+            for id_, x, y, z in cur.fetchall():
+                scene = QGraphicsScene()
+                scene.setSceneRect(scene.itemsBoundingRect())
+                scene.addText(id_)#, QFont('Arial', 32))
+                image = QImage(scene.sceneRect().size().toSize(), QImage.Format_ARGB32)
+                image.fill(Qt.transparent)
+                painter = QPainter(image)
+                image.save('/tmp/test.png')
+                scene.render(painter)
+                del painter
+                scat = {'point': [x,y,z], 'image': image}
+                scat['texture'] = self.__textureBinder(scat['image'])
+                self.__labels.append(scat)
 
 
-        self.__holes = []
-        cur.execute("""
-            select geom from albion.node where graph_id='{}'
-            """.format(graph_id))
-        for geom, in cur.fetchall():
-            line = numpy.require(wkb.loads(geom, True).coords, numpy.float32, 'C')
-            self.__holes.append(line)
+            self.__holes = []
+            cur.execute("""
+                select geom from albion.node where graph_id='{}'
+                """.format(graph_id))
+            for geom, in cur.fetchall():
+                line = numpy.require(wkb.loads(geom, True).coords, numpy.float32, 'C')
+                self.__holes.append(line)
 
-        print "fetch sections"
-        cur.execute("""
-            select st_collectionhomogenize(st_collect(geom))
-            from albion.section where graph_id='{}'
-            """.format(graph_id))
-        geom = wkb.loads(cur.fetchone()[0], True)
-        self.vtx = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
-        self.vtx[:,2] *= self.__zScale
-        self.idx = numpy.require(numpy.arange(len(self.vtx)).reshape((-1,3)), numpy.int32, 'C')
-        self.nrml = computeNormals(self.vtx, self.idx)
+            print "fetch sections"
+            cur.execute("""
+                select st_collectionhomogenize(st_collect(triangulation))
+                from albion.section where graph_id='{}'
+                """.format(graph_id))
+            res = cur.fetchone()[0]
+            if res:
+                geom = wkb.loads(res, True)
+                self.vtx = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
+                self.vtx[:,2] *= self.__zScale
+                self.idx = numpy.require(numpy.arange(len(self.vtx)).reshape((-1,3)), numpy.int32, 'C')
+                self.nrml = computeNormals(self.vtx, self.idx)
 
-        print "fetch surfaces"
+            print "fetch surfaces"
 
-        cur.execute("""
-            select st_collectionhomogenize(st_collect(geom)) 
-            from albion.volume
-            """.format(graph_id))
-        geom = wkb.loads(cur.fetchone()[0], True)
-        self.hvtx = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
-        self.hvtx[:,2] *= self.__zScale
-        self.hidx = numpy.require(numpy.arange(len(self.hvtx)).reshape((-1,3)), numpy.int32, 'C')
-        self.hnrml = computeNormals(self.hvtx, self.hidx)
+            cur.execute("""
+                select st_collectionhomogenize(st_collect(triangulation)) 
+                from albion.volume
+                """.format(graph_id))
+            res = cur.fetchone()[0]
+            if res:
+                geom = wkb.loads(res, True)
+                self.hvtx = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
+                self.hvtx[:,2] *= self.__zScale
+                self.hidx = numpy.require(numpy.arange(len(self.hvtx)).reshape((-1,3)), numpy.int32, 'C')
+                self.hnrml = computeNormals(self.hvtx, self.hidx)
 
         con.close()
         print "done"
-        #self.initializeGL()
 
 
     def rendergl(self, leftv, upv, eye, height, context):

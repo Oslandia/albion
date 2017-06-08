@@ -32,6 +32,17 @@ $$
 ;
 
 
+create or replace function albion.current_graph()
+returns varchar
+language plpgsql stable
+as
+$$
+    begin
+        return (select current_graph from _albion.metadata);
+    end;
+$$
+;
+
 create or replace function albion.current_section_id()
 returns varchar
 language plpgsql stable
@@ -403,6 +414,9 @@ $$
                 (select graph_id from albion.node where id in (new.start_, new.end_) limit 1))
             into new.graph_id;
 
+            -- graph from current graph
+            select coalesce(new.graph_id, albion.current_graph()) into new.graph_id;
+
             -- invert start and end if they are inverted/grid direction
             if (select st_linelocatepoint((select geom from _albion.grid where id=new.grid_id), 
                 (select st_3dlineinterpolatepoint(geom, .5) from _albion.node where id=new.start_))) 
@@ -630,11 +644,11 @@ crossing as (
         albion.to_section(pt_wall.geom, albion.current_section_geom()) as wall_
     from pt join pt_wall on pt_wall.id=pt.id join pt_ceil on pt_ceil.id=pt.id
 )
-select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', 32632), ceil_::geometry('POINT', 32632), wall_::geometry('POINT', 32632), 'incomming' as connection from incomming
+select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', $SRID), ceil_::geometry('POINT', $SRID), wall_::geometry('POINT', $SRID), 'incomming' as connection from incomming
 union all
-select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', 32632), ceil_::geometry('POINT', 32632), wall_::geometry('POINT', 32632), 'outgoing' as connection from outgoing
+select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', $SRID), ceil_::geometry('POINT', $SRID), wall_::geometry('POINT', $SRID), 'outgoing' as connection from outgoing
 union all
-select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', 32632), ceil_::geometry('POINT', 32632), wall_::geometry('POINT', 32632), 'crossing' as connection from crossing
+select id, graph_id, start_, end_, grid_id, geom::geometry('POINT', $SRID), ceil_::geometry('POINT', $SRID), wall_::geometry('POINT', $SRID), 'crossing' as connection from crossing
 ;
 
 
@@ -821,6 +835,16 @@ $$
             where n2.id=e.end_ and n1.id=e.start_
         )
         where e.grid_id=grid_id_ and ceil_ is null and e.graph_id=graph_id_;
+
+
+
+        -- for egdes that are not handled, create fake wall and ceil at 1 m distance
+
+        update albion.edge as e set ceil_ =  st_translate(geom, 0, 0, 1)
+        where e.grid_id=grid_id_ and ceil_ is null and e.graph_id=graph_id_;
+
+        update albion.edge as e set wall_ =  st_translate(geom, 0, 0, -1)
+        where e.grid_id=grid_id_ and wall_ is null and e.graph_id=graph_id_;
 
         return 't'::boolean;
     end;
@@ -1168,7 +1192,9 @@ $$
         else: # ceil forward
             triangles.append(Polygon([w.coords[wi], c.coords[ci+1], c.coords[ci]]))
             ci += 1
-    return MultiPolygon(triangles).wkb_hex
+    output = MultiPolygon(triangles)
+    geos.lgeos.GEOSSetSRID(output._geom, $SRID)
+    return output.wkb_hex
 $$
 ;
 
@@ -1274,62 +1300,74 @@ $$
 $$
 ;
 
-
-create materialized view albion.dense_grid as
-with all_pt as (
-    select id, grid_id, st_dumppoints(ceil_) as d from albion.edge
-),
-all_but_end as (
-    select p.grid_id, st_collect((p.d).geom) as geom from all_pt as p
-    where (p.d).path != (select max((t.d).path) from all_pt as t where t.id=p.id)
-    and (p.d).path != (select min((t.d).path) from all_pt as t where t.id=p.id)
-    group by p.grid_id
-)
-select id, coalesce(st_snap(g.geom, a.geom, albion.precision()), g.geom)::geometry('LINESTRING', $SRID) as geom
-from all_but_end as a right join albion.grid as g on g.id=a.grid_id
+create view albion.cell as select id, geom::geometry('POLYGON', $SRID), triangulation::geometry('MULTIPOLYGON', $SRID) from _albion.cell
 ;
 
-create index dense_grid_geom_idx on albion.dense_grid using gist(geom)
+create view albion.section as select id, graph_id, grid_id, triangulation::geometry('MULTIPOLYGONZ', $SRID) from _albion.section
 ;
 
-create materialized view albion.cell
+create view albion.volume as select id, graph_id, cell_id, triangulation::geometry('MULTIPOLYGONZ', $SRID)  from _albion.volume
+;
+
+create or replace function albion.refresh_cell()
+returns boolean
+language plpgsql volatile
 as
-with collec as (
-    select
-            (st_dump(
-                coalesce(
-                    st_split(
-                        a.geom,
-                        (select st_collect(geom)
-                            from _albion.grid as b
-                            where a.id!=b.id and st_intersects(a.geom, b.geom)
-                            and st_dimension(st_intersection(a.geom, b.geom))=0)),
-                    a.geom)
-        )).geom as geom
-    from albion.dense_grid as a
-),
-poly as (
-    select (st_dump(st_polygonize(geom))).geom as geom from collec
-)
-select _albion.unique_id()::varchar as id, geom::geometry('POLYGON', $SRID) from poly where geom is not null
-;
+$$
+    begin
+        create temporary table dense_grid as
+        with all_pt as (
+            select id, grid_id, st_dumppoints(ceil_) as d from albion.edge
+        ),
+        all_but_end as (
+            select p.grid_id, st_collect((p.d).geom) as geom from all_pt as p
+            where (p.d).path != (select max((t.d).path) from all_pt as t where t.id=p.id)
+            and (p.d).path != (select min((t.d).path) from all_pt as t where t.id=p.id)
+            group by p.grid_id
+        )
+        select id, coalesce(st_snap(g.geom, a.geom, albion.precision()), g.geom)::geometry('LINESTRING', $SRID) as geom
+        from all_but_end as a right join albion.grid as g on g.id=a.grid_id;
 
-create index cell_geom_idx on albion.cell using gist(geom)
-;
+        create index dense_grid_geom_idx on dense_grid using gist(geom);
 
-create materialized view albion.triangle
-as
-with mesh as (
-    select albion.triangulate(st_collect(geom)) as geom from albion.cell
-),
-tri as (
-    select (st_dump(st_force2d(geom))).geom from mesh
-)
-select _albion.unique_id()::varchar as id, cell.id cell_id, st_snap(tri.geom, cell.geom, m.precision)::geometry('POLYGON', $SRID) as geom
-from tri join albion.cell on st_intersects(st_centroid(tri.geom), cell.geom), albion.metadata as m
-;
+        delete from _albion.cell;
 
-create index triangle_geom_idx on albion.triangle using gist(geom)
+        insert into _albion.cell(id, geom)
+        with collec as (
+            select
+                    (st_dump(
+                        coalesce(
+                            st_split(
+                                a.geom,
+                                (select st_collect(geom)
+                                    from _albion.grid as b
+                                    where a.id!=b.id and st_intersects(a.geom, b.geom)
+                                    and st_dimension(st_intersection(a.geom, b.geom))=0)),
+                            a.geom)
+                )).geom as geom
+            from dense_grid as a
+        ),
+        poly as (
+            select (st_dump(st_polygonize(geom))).geom as geom from collec
+        )
+        select _albion.unique_id()::varchar as id, geom::geometry('POLYGON', $SRID) from poly where geom is not null
+        ;
+
+        with mesh as (
+            select albion.triangulate(st_collect(geom)) as geom from albion.cell
+        ),
+        tri as (
+            select (st_dump(st_force2d(geom))).geom from mesh
+        ),
+        flagged as (
+            select cell.id cell_id, st_snap(tri.geom, cell.geom, m.precision)::geometry('POLYGON', $SRID) as geom
+            from tri join albion.cell on st_intersects(st_centroid(tri.geom), cell.geom), albion.metadata as m
+        )
+        update _albion.cell as c set triangulation=(select st_collect(f.geom) from flagged as f where f.cell_id=c.id) ;
+
+        return 't';
+    end;
+$$
 ;
 
 -- edge ends are projected on hole start if any
@@ -1426,30 +1464,20 @@ $$
 $$
 ;
 
-create materialized view albion.projected_edge
+create view albion.projected_edge
 as
-select id, albion.project_edge(id) as geom, albion.project_ceil(id) as ceil_, albion.project_wall(id) as wall_
+select id, albion.project_edge(id)::geometry('LINESTRING', $SRID) as geom, albion.project_ceil(id)::geometry('LINESTRING', $SRID) as ceil_, albion.project_wall(id)::geometry('LINESTRING', $SRID) as wall_
 from albion.edge
 ;
 
-create index project_edge_geom_idx on albion.projected_edge using gist(geom)
-;
-
-create index project_edge_id_idx on albion.projected_edge(id)
-;
-
-create materialized view albion.cell_edge
+create view albion.cell_edge
 as
-select _albion.unique_id()::varchar as id, c.id as cell_id, e.graph_id, e.id as edge_id, albion.ceil_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as piece_ceil_, albion.wall_piece(e.id, c.id)::geometry('LINESTRINGZ', 32632) as piece_wall_,
-p.ceil_ as proj_ceil_, p.wall_ as proj_wall_, e.ceil_, e.wall_
+select _albion.unique_id()::varchar as id, c.id as cell_id, e.graph_id, e.id as edge_id, albion.ceil_piece(e.id, c.id)::geometry('LINESTRINGZ', $SRID) as piece_ceil_, albion.wall_piece(e.id, c.id)::geometry('LINESTRINGZ', $SRID) as piece_wall_,
+p.ceil_::geometry('LINESTRING', $SRID) as proj_ceil_, p.wall_::geometry('LINESTRING', $SRID) as proj_wall_, e.ceil_::geometry('LINESTRINGZ', $SRID), e.wall_::geometry('LINESTRINGZ', $SRID)
 from albion.cell as c, albion.projected_edge as p join albion.edge as e on e.id=p.id
 where st_intersects(p.geom, c.geom)
 and st_dimension(st_intersection(p.geom, c.geom))=1
 ;
-
-create index cell_edge_id_idx on albion.cell_edge(edge_id)
-;
-
 
 create or replace function albion.elementary_volume(graph_id_ varchar, cell_id_ varchar)
 returns geometry
@@ -1468,11 +1496,13 @@ $$
     # get triangles
     precision = plpy.execute("""select albion.precision() as p""")[0]['p']
     res = plpy.execute("""
-        select id, geom
-        from albion.triangle
-        where cell_id='{cell_id_}'
+        select id, triangulation
+        from albion.cell
+        where id='{cell_id_}'
         """.format(cell_id_=cell_id_))
-    triangles = [wkb.loads(r['geom'], True) for r in res]
+    if not res:
+        return None
+    triangles = wkb.loads(res[0]['triangulation'], True)
     nodes = list(set((c for t in triangles for c in t.exterior.coords[:-1] )))
     node_map = {n:i for i, n in enumerate(nodes)}
     elements = [(node_map[t.exterior.coords[0]], node_map[t.exterior.coords[1]], node_map[t.exterior.coords[2]])
@@ -1485,11 +1515,15 @@ $$
         from albion.cell_edge
         where cell_id='{cell_id_}'
         and graph_id='{graph_id_}'
+        and st_isvalid(piece_ceil_) and st_isvalid(piece_wall_)
         """.format(cell_id_=cell_id_, graph_id_=graph_id_))
     if not res:
         return None
 
+    plpy.notice(cell_id_)
     for side in ['ceil_', 'wall_']:
+        for r in res:
+            plpy.notice(side, r['edge_id'], r['piece_'+side])
         edges = [wkb.loads(r['piece_'+side], True) for r in res]
         prj_edges = {r['edge_id']:wkb.loads(r['proj_'+side], True) for r in res}
         m_edges = {r['edge_id']:wkb.loads(r[side], True) for r in res}
@@ -1557,7 +1591,7 @@ $$
 
 create view albion.double_edge
 as
-select _albion.unique_id()::varchar as id, c.geom::geometry('POLYGON', 32632) 
+select _albion.unique_id()::varchar as id, c.geom::geometry('POLYGON', $SRID) 
 from albion.cell as c, albion.collar as g 
 where st_intersects(c.geom, g.geom) and not st_intersects(st_exteriorring(c.geom), g.geom)
 ;
@@ -1677,21 +1711,6 @@ $$
 $$
 ;
 
-
-create materialized view albion.volume
-as
-select g.id as graph_id, c.id as cell_id, albion.elementary_volume(g.id, c.id) as geom
-from albion.cell as c, albion.graph as g
-;
-
-create materialized view albion.section
-as
-select graph_id, grid_id, st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_))) as geom
-from albion.edge
-group by graph_id, grid_id
-;
-
-
 create or replace function albion.create_ends(graph_id_ varchar, grid_id_ varchar)
 returns boolean
 language plpgsql volatile
@@ -1743,7 +1762,7 @@ $$
             grid_id_, graph_id_
         from extreme as e, albion.metadata as m, albion.grid as s
         where e.extreme_start and s.id=grid_id_
-        and st_x(albion.to_section(st_startpoint(e.geom), s.geom) > m.end_distance
+        and st_x(albion.to_section(st_startpoint(e.geom), s.geom)) > m.end_distance
         union
         select 
             albion.to_section(
@@ -1764,7 +1783,7 @@ $$
             grid_id_, graph_id_
         from extreme as e, albion.metadata as m, albion.grid as s
         where e.extreme_end  and s.id=grid_id_
-        and st_x(albion.to_section(st_endpoint(e.geom), s.geom) < (st_length(s.geom)-m.end_distance)
+        and st_x(albion.to_section(st_endpoint(e.geom), s.geom)) < (st_length(s.geom)-m.end_distance)
         ;
 
         return 't';

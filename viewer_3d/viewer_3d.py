@@ -30,13 +30,22 @@ class Viewer3d(QGLWidget):
         self.scene = None
         self.resetScene(conn_info, graph)
 
-    def resetScene(self, conn_info, graph_id):
+
+    def refresh_data(self):
+        if self.scene:
+            self.resetScene(self.scene.conn_info, self.scene.graph_id, False)
+            self.update()
+        
+
+    def resetScene(self, conn_info, graph_id, resetCamera=True):
         if conn_info:
             self.scene = Scene(conn_info, graph_id, self.bindTexture, self)
-            at = self.scene.center
-            ext_y = self.scene.extent[3] - self.scene.extent[1]
-            eye = at + QVector3D(0, -1.5*ext_y , 0.5*ext_y)
-            self.camera = Camera(eye, at)
+            if resetCamera:
+                at = self.scene.center
+                ext_y = self.scene.extent[3] - self.scene.extent[1]
+                eye = at + QVector3D(0, -1.5*ext_y , 0.5*ext_y)
+                self.camera = Camera(eye, at)
+
             self.scene.changed.connect(self.update)
             self.initializeGL()
 
