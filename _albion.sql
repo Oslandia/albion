@@ -233,6 +233,8 @@ create table _albion.node(
     graph_id varchar references _albion.graph(id) on delete cascade on update cascade,
         unique(id, graph_id),
     hole_id varchar references _albion.hole(id) on delete cascade,
+    from_ real,
+    to_ real,
     geom geometry('LINESTRINGZ', $SRID) not null check (st_numpoints(geom)=2)
 )
 ;

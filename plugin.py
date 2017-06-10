@@ -38,7 +38,7 @@ import os
 import time
 from dxfwrite import DXFEngine as dxf
 from shapely import wkb
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Point
 import math
 
 from .axis_layer import AxisLayer, AxisLayerType
@@ -80,6 +80,7 @@ class Plugin(QObject):
         self.__click_tool = None
         self.__previous_tool = None
         self.__select_current_section_action = None
+        self.__line_extend_action = None
         self.__current_graph = QComboBox()
         self.__current_graph.setMinimumWidth(150)
         self.__axis_layer = None
@@ -131,6 +132,9 @@ class Plugin(QObject):
         self.__toolbar.addAction(icon('volume.svg'), 'create voluem').triggered.connect(self.__create_volume)
         self.__toolbar.addAction(icon('log_strati.svg'), 'stratigraphic log').triggered.connect(self.__log_strati_clicked)
         self.__toolbar.addAction(icon('line_from_selected.svg'), 'grid from selected collar').triggered.connect(self.__create_grid_from_selection)
+        self.__line_extend_action = self.__toolbar.addAction(icon('line_extend.svg'), 'extend grid')
+        self.__line_extend_action.setCheckable(True)
+        self.__line_extend_action.triggered.connect(self.__extend_grid)
 
         self.__current_graph.currentIndexChanged.connect(self.__current_graph_changed)
 
@@ -1097,3 +1101,78 @@ class Plugin(QObject):
         con.close()
 
         self.__refresh_layers()
+
+    def __extend_grid(self):
+        self.__click_tool = QgsMapToolEmitPoint(self.__iface.mapCanvas())
+        self.__iface.mapCanvas().setMapTool(self.__click_tool)
+        self.__click_tool.canvasClicked.connect(self.__extend_grid_clicked)
+        self.__line_extend_action.setChecked(True)
+
+    def __extend_grid_clicked(self, point, button):
+        self.__click_tool.setParent(None)
+        self.__click_tool = None
+        self.__line_extend_action.setChecked(False)
+
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+        
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+
+        cur.execute("""
+            select id, geom, st_linelocatepoint(geom, 'SRID={srid} ;POINT({x} {y})'::geometry) 
+            from albion.grid 
+            where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 50)
+            order by st_distance(geom, 'SRID={srid} ;POINT({x} {y})'::geometry)
+            limit 1""".format(srid=srid, x=point.x(), y=point.y()))
+        res = cur.fetchone()
+        if res:
+            lid = res[0]
+            line = wkb.loads(res[1], True)
+            alpha = res[2]
+            coords = numpy.array(line.coords)
+            print alpha
+            ext = LineString([coords[0], coords[0]-3*(coords[1]-coords[0])]) \
+                  if alpha < .5 else \
+                  LineString([coords[-1], coords[-1]+3*(coords[-1]-coords[-2])])
+
+            cur.execute("""
+                with intersected as (
+                    select id, geom, st_intersection(geom, st_setsrid('{line}'::geometry, {srid})) as inter
+                    from albion.grid
+                    where st_intersects(geom, st_setsrid('{line}'::geometry, {srid}))
+                    and st_geometrytype(st_intersection(geom, st_setsrid('{line}'::geometry, {srid}))) = 'ST_Point'
+                )
+                select id, inter
+                from intersected
+                where  st_linelocatepoint(st_setsrid('{line}'::geometry, {srid}), inter) > 1e-6
+                order by st_linelocatepoint(st_setsrid('{line}'::geometry, {srid}), inter) asc
+                limit 1
+                """.format(srid=srid, line=ext.wkb_hex))
+            res = cur.fetchone()
+            if res:
+                cur.execute("""
+                    update albion.grid set geom=st_snap(geom, '{}'::geometry, albion.precision())
+                    where id='{}'
+                    """.format(res[1], res[0]))
+                pt = wkb.loads(res[1], True)
+                line = LineString(list(pt.coords)+list(line.coords)) \
+                    if alpha < .5 else LineString(list(line.coords)+list(pt.coords))
+            else:
+                line =  LineString([coords[0]-(coords[1]-coords[0])]+list(line.coords)) \
+                    if alpha < .5 else LineString(list(line.coords)+[coords[-1]+(coords[-1]-coords[-2])])
+
+            cur.execute("""
+                update albion.grid set geom=st_setsrid('{line}'::geometry, {srid})
+                where id='{lid}'
+                """.format(line=line.wkb_hex, srid=srid, lid=lid))
+                    
+
+        con.commit()
+        con.close()
+        self.__viewer3d.widget().refresh_data()
+        self.__refresh_layers()
+

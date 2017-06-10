@@ -303,6 +303,9 @@ $$
         if tg_op = 'INSERT' or tg_op = 'UPDATE' then
             select st_removerepeatedpoints(new.geom, albion.snap_distance()) into new.geom;
 
+            -- move line points to closest collar if within snap distance
+            -- TODO
+
             with snap as (
                 select st_collect(geom) as geom
                 from (
@@ -384,9 +387,48 @@ select id, parent from _albion.graph
 ;
 
 create or replace view albion.node as 
-select id, graph_id, hole_id, geom::geometry('LINESTRINGZ', $SRID) 
+select id, graph_id, hole_id, from_, to_, geom::geometry('LINESTRINGZ', $SRID) 
 from _albion.node
 ;
+
+create or replace function albion.node_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    declare
+        parent_ varchar;
+        cent real;
+    begin
+        if tg_op = 'INSERT' or tg_op = 'UPDATE' then
+            select coalesce(new.graph_id, albion.current_graph()) into new.graph_id;
+            select parent from _albion.graph where id=new.graph_id into parent_;
+            if parent_ is not null and
+                    not exists (select 1 from _albion.node where graph_id=parent_ and hole_id=new.hole_id and .5*(new.from_+new.to_) >= from_ and .5*(new.from_+new.to_) < to_) then
+                return new; -- discard 
+            end if;
+            select coalesce(new.id, _albion.unique_id()::varchar) into new.id;
+        end if;
+
+        if tg_op = 'INSERT' then
+            insert into _albion.node(id, graph_id, hole_id, from_, to_, geom) values(new.id, new.graph_id, new.hole_id, new.from_, new.to_, new.geom) returning id into new.id;
+            return new;
+        elsif tg_op = 'UPDATE' then
+            update _albion.node set graph_id=new.graph_id, hole_id=new.hole_id, from_=new.from_, to_=new.to_, geom=new.geom where id=new.id;
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from _albion.node where id=old.id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger node_instead_trig
+    instead of insert or update or delete on albion.node
+       for each row execute procedure albion.node_instead_fct()
+;
+
 
 create or replace view albion.edge as 
 select id, graph_id, start_, end_, grid_id, geom::geometry('LINESTRINGZ', $SRID), ceil_::geometry('LINESTRINGZ', $SRID), wall_::geometry('LINESTRINGZ', $SRID) 
