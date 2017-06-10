@@ -27,6 +27,7 @@ from PyQt4.QtGui import (QMenu,
                          QDockWidget)
 
 
+import numpy
 import psycopg2 
 import tempfile
 import zipfile
@@ -37,6 +38,8 @@ import os
 import time
 from dxfwrite import DXFEngine as dxf
 from shapely import wkb
+from shapely.geometry import LineString
+import math
 
 from .axis_layer import AxisLayer, AxisLayerType
 from .log_strati import BoreHoleWindow
@@ -127,6 +130,7 @@ class Plugin(QObject):
         self.__toolbar.addAction(icon('triangulate.svg'), 'triangulate section').triggered.connect(self.__triangulate_section)
         self.__toolbar.addAction(icon('volume.svg'), 'create voluem').triggered.connect(self.__create_volume)
         self.__toolbar.addAction(icon('log_strati.svg'), 'stratigraphic log').triggered.connect(self.__log_strati_clicked)
+        self.__toolbar.addAction(icon('line_from_selected.svg'), 'grid from selected collar').triggered.connect(self.__create_grid_from_selection)
 
         self.__current_graph.currentIndexChanged.connect(self.__current_graph_changed)
 
@@ -929,7 +933,8 @@ class Plugin(QObject):
         cur = con.cursor()
         cur.execute("""
             delete from albion.section 
-            where graph_id=albion.current_graph()""")
+            where graph_id=albion.current_graph()
+            and grid_id=albion.current_section_id()""")
         cur.execute("""
             insert into albion.section(id, triangulation, graph_id, grid_id)
             select 
@@ -1040,6 +1045,52 @@ class Plugin(QObject):
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
         cur.execute("select albion.refresh_cell()")
+        con.commit()
+        con.close()
+
+        self.__refresh_layers()
+
+
+
+    def __create_grid_from_selection(self):
+
+        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
+            return
+
+        collar = QgsMapLayerRegistry.instance().mapLayersByName('collar')
+        if not len(collar):
+            return
+        selection = collar[0].selectedFeatures()
+        if len(selection) < 2:
+            return
+
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+        
+
+        def align(l):
+            assert len(l) >= 2
+            res = numpy.array(l[:2])
+            for p in l[2:]:
+                u, v = res[0] - res[1], p - res[1]
+                if numpy.dot(u,v) < 0:
+                    res[1] = p
+                elif numpy.dot(u, u) < numpy.dot(v,v):
+                    res[0] = p
+            # align with ref direction
+            sqrt2 = math.sqrt(2.)
+            l =  l[numpy.argsort(numpy.dot(l-res[0], res[1]-res[0]))]
+            d = l[-1] - l[0]
+            dr = numpy.array([(0,1),(sqrt2, sqrt2),(1,0), (sqrt2, -sqrt2)])
+            i = numpy.argmax(numpy.abs(d.dot(dr.transpose())))
+            return l if numpy.dot(d, dr[i]) > 0 else l[::-1]
+
+        line = LineString(align(numpy.array([f.geometry().asPoint() for f in selection])))
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("""
+            insert into albion.grid(geom) values(st_setsrid('{}'::geometry, {}))
+            """.format(line.wkb_hex, srid))
         con.commit()
         con.close()
 

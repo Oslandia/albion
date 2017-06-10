@@ -66,8 +66,8 @@ insert into _albion.metadata(srid) select $SRID
 
 create table _albion.collar(
     id varchar primary key default _albion.unique_id()::varchar,
-    x real,
-    y real,
+    x double precision,
+    y double precision,
     z real,
     date_ varchar,
     geom geometry('POINTZ', $SRID),
