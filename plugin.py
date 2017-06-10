@@ -1061,12 +1061,9 @@ class Plugin(QObject):
         if not len(collar):
             return
         selection = collar[0].selectedFeatures()
+
         if len(selection) < 2:
             return
-
-        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
-        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
-        
 
         def align(l):
             assert len(l) >= 2
@@ -1078,14 +1075,19 @@ class Plugin(QObject):
                 elif numpy.dot(u, u) < numpy.dot(v,v):
                     res[0] = p
             # align with ref direction
-            sqrt2 = math.sqrt(2.)
+            sqrt2 = math.sqrt(2.)/2
             l =  l[numpy.argsort(numpy.dot(l-res[0], res[1]-res[0]))]
-            d = l[-1] - l[0]
+            d = numpy.array(l[-1] - l[0])
             dr = numpy.array([(0,1),(sqrt2, sqrt2),(1,0), (sqrt2, -sqrt2)])
-            i = numpy.argmax(numpy.abs(d.dot(dr.transpose())))
-            return l if numpy.dot(d, dr[i]) > 0 else l[::-1]
+            i = numpy.argmax(numpy.abs(dr.dot(d)))
+            return l if (dr.dot(d))[i] > 0 else l[::-1]
 
         line = LineString(align(numpy.array([f.geometry().asPoint() for f in selection])))
+        collar[0].removeSelection()
+
+        conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
+        srid = QgsProject.instance().readEntry("albion", "srid", "")[0]
+
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
         cur.execute("""
