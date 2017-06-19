@@ -265,8 +265,8 @@ create table _albion.edge(
         unique (start_, end_),
     grid_id varchar references _albion.grid(id) on delete cascade,
     geom geometry('LINESTRINGZ', $SRID) not null check (st_isvalid(geom)),
-    ceil_ geometry('LINESTRINGZ', $SRID),
-    wall_ geometry('LINESTRINGZ', $SRID)
+    top geometry('LINESTRINGZ', $SRID),
+    bottom geometry('LINESTRINGZ', $SRID)
 )
 ;
 

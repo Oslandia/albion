@@ -36,10 +36,10 @@
         <property key="overview" value="1"/>
       </customproperties>
     </layer-tree-layer>
-    <layer-tree-layer expanded="1" checked="Qt::Unchecked" id="edge_wall_20170523125338449" name="edge.wall_">
+    <layer-tree-layer expanded="1" checked="Qt::Unchecked" id="edge_bottom20170523125338449" name="edge.wall_">
       <customproperties/>
     </layer-tree-layer>
-    <layer-tree-layer expanded="1" checked="Qt::Checked" id="edge_ceil_20170523125336844" name="edge.ceil_">
+    <layer-tree-layer expanded="1" checked="Qt::Checked" id="edge_top20170523125336844" name="edge.ceil_">
       <customproperties/>
     </layer-tree-layer>
     <layer-tree-layer expanded="0" checked="Qt::Checked" id="formation20170522101211599" name="formation">
@@ -51,7 +51,7 @@
     <layer-tree-layer expanded="1" checked="Qt::Checked" id="node20170602184418041" name="node">
       <customproperties/>
     </layer-tree-layer>
-    <layer-tree-layer expanded="1" checked="Qt::Unchecked" id="projected_edge_ceil_20170608101926335" name="projected_edge.ceil_">
+    <layer-tree-layer expanded="1" checked="Qt::Unchecked" id="projected_edge_top20170608101926335" name="projected_edge.ceil_">
       <customproperties/>
     </layer-tree-layer>
     <layer-tree-layer expanded="0" checked="Qt::Checked" id="edge20170522112047186" name="edge">
@@ -64,10 +64,10 @@
       <layer-tree-layer expanded="0" checked="Qt::Checked" id="crossing_edge_section_geom20170529171456799" name="crossing_edge_section.geom">
         <customproperties/>
       </layer-tree-layer>
-      <layer-tree-layer expanded="0" checked="Qt::Checked" id="crossing_edge_section_wall_20170529171146242" name="crossing_edge_section.wall_">
+      <layer-tree-layer expanded="0" checked="Qt::Checked" id="crossing_edge_section_bottom20170529171146242" name="crossing_edge_section.wall_">
         <customproperties/>
       </layer-tree-layer>
-      <layer-tree-layer expanded="0" checked="Qt::Checked" id="crossing_edge_section_ceil_20170529171141097" name="crossing_edge_section.ceil_">
+      <layer-tree-layer expanded="0" checked="Qt::Checked" id="crossing_edge_section_top20170529171141097" name="crossing_edge_section.ceil_">
         <customproperties/>
       </layer-tree-layer>
       <layer-tree-layer expanded="1" checked="Qt::Checked" id="node_section20170524131359405" name="node_section">
@@ -81,10 +81,10 @@
       <layer-tree-layer expanded="0" checked="Qt::Checked" id="edge_section20170522112938102" name="edge_section">
         <customproperties/>
       </layer-tree-layer>
-      <layer-tree-layer expanded="1" checked="Qt::Checked" id="edge_section20170522112938133" name="ceil_section">
+      <layer-tree-layer expanded="1" checked="Qt::Checked" id="edge_section20170522112938133" name="topsection">
         <customproperties/>
       </layer-tree-layer>
-      <layer-tree-layer expanded="1" checked="Qt::Checked" id="edge_section20170522112938152" name="wall_section">
+      <layer-tree-layer expanded="1" checked="Qt::Checked" id="edge_section20170522112938152" name="bottomsection">
         <customproperties/>
       </layer-tree-layer>
       <layer-tree-layer expanded="1" checked="Qt::Unchecked" id="hole_section20170523095444870" name="hole_section">
@@ -127,7 +127,7 @@
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="inter_320170530141418624"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="bug_220170530162325379"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="node20170602184418041"/>
-      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="edge_wall_20170523125338449"/>
+      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="edge_bottom20170523125338449"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="buggy20170529152503462"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="collar20170522101211588"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="current_section20170602185032112"/>
@@ -147,7 +147,7 @@
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="volume20170608150140145"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="small_edge20170523100536723"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="news20170530145747743"/>
-      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="crossing_edge_section_ceil_20170529171141097"/>
+      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="crossing_edge_section_top20170529171141097"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="crossing_edge_section_geom20170529171456799"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="axis_plugin_layer20170531165736984"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="edge_section20170522112938102"/>
@@ -164,17 +164,17 @@
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="edge_section20170522112938152"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="cell_edge20170529095143123"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="cell20170524154245456"/>
-      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="edge_ceil_20170523125336844"/>
+      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="edge_top20170523125336844"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="LITHOLOGIE_DEV20170531085320492"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="hole20170530164823248"/>
-      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="crossing_edge_section_ceil_20170524091608510"/>
+      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="crossing_edge_section_top20170524091608510"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="grid20170529152949891"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="node_section20170524131359405"/>
-      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="projected_edge_ceil_20170608101926335"/>
+      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="projected_edge_top20170608101926335"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="edge20170522112047186"/>
-      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="crossing_edge_section_wall_20170529171146242"/>
+      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="crossing_edge_section_bottom20170529171146242"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="radiometry_section20170602185507555"/>
-      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="crossing_edge_section_wall_20170524091612304"/>
+      <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="crossing_edge_section_bottom20170524091612304"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="cell_triangulation20170608140739497"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="projected20170526125504013"/>
       <layer_coordinate_transform destAuthId="EPSG:32632" srcAuthId="EPSG:32632" srcDatumTransform="-1" destDatumTransform="-1" layerid="inter_220170530141258740"/>
@@ -195,12 +195,12 @@
       <item>edge_section20170522112938152</item>
       <item>hole_section20170523095444870</item>
       <item>small_edge20170523100536723</item>
-      <item>edge_ceil_20170523125336844</item>
-      <item>edge_wall_20170523125338449</item>
+      <item>edge_top20170523125336844</item>
+      <item>edge_bottom20170523125338449</item>
       <item>collar_section20170524100603100</item>
       <item>node_section20170524131359405</item>
-      <item>crossing_edge_section_ceil_20170529171141097</item>
-      <item>crossing_edge_section_wall_20170529171146242</item>
+      <item>crossing_edge_section_top20170529171141097</item>
+      <item>crossing_edge_section_bottom20170529171146242</item>
       <item>crossing_edge_section_geom20170529171456799</item>
       <item>hole20170530164823248</item>
       <item>node20170602184418041</item>
@@ -208,7 +208,7 @@
       <item>current_section20170602185032112</item>
       <item>metadata20170602185222421</item>
       <item>radiometry_section20170602185507555</item>
-      <item>projected_edge_ceil_20170608101926335</item>
+      <item>projected_edge_top20170608101926335</item>
       <item>cell_geom20170608113257971</item>
       <item>cell_triangulation20170608140739497</item>
       <item>volume20170608150140145</item>
@@ -260,14 +260,14 @@
         <legendlayerfile isInOverview="1" layerid="grid20170522101211549" visible="1"/>
       </filegroup>
     </legendlayer>
-    <legendlayer drawingOrder="-1" open="true" checked="Qt::Unchecked" name="edge.wall_" showFeatureCount="0">
+    <legendlayer drawingOrder="-1" open="true" checked="Qt::Unchecked" name="edge.bottom" showFeatureCount="0">
       <filegroup open="true" hidden="false">
-        <legendlayerfile isInOverview="0" layerid="edge_wall_20170523125338449" visible="0"/>
+        <legendlayerfile isInOverview="0" layerid="edge_bottom20170523125338449" visible="0"/>
       </filegroup>
     </legendlayer>
-    <legendlayer drawingOrder="-1" open="true" checked="Qt::Checked" name="edge.ceil_" showFeatureCount="0">
+    <legendlayer drawingOrder="-1" open="true" checked="Qt::Checked" name="edge.top" showFeatureCount="0">
       <filegroup open="true" hidden="false">
-        <legendlayerfile isInOverview="0" layerid="edge_ceil_20170523125336844" visible="1"/>
+        <legendlayerfile isInOverview="0" layerid="edge_top20170523125336844" visible="1"/>
       </filegroup>
     </legendlayer>
     <legendlayer drawingOrder="-1" open="false" checked="Qt::Checked" name="formation" showFeatureCount="0">
@@ -285,9 +285,9 @@
         <legendlayerfile isInOverview="0" layerid="node20170602184418041" visible="1"/>
       </filegroup>
     </legendlayer>
-    <legendlayer drawingOrder="-1" open="true" checked="Qt::Unchecked" name="projected_edge.ceil_" showFeatureCount="0">
+    <legendlayer drawingOrder="-1" open="true" checked="Qt::Unchecked" name="projected_edge.top" showFeatureCount="0">
       <filegroup open="true" hidden="false">
-        <legendlayerfile isInOverview="0" layerid="projected_edge_ceil_20170608101926335" visible="0"/>
+        <legendlayerfile isInOverview="0" layerid="projected_edge_top20170608101926335" visible="0"/>
       </filegroup>
     </legendlayer>
     <legendlayer drawingOrder="-1" open="false" checked="Qt::Checked" name="edge" showFeatureCount="0">
@@ -301,14 +301,14 @@
           <legendlayerfile isInOverview="0" layerid="crossing_edge_section_geom20170529171456799" visible="1"/>
         </filegroup>
       </legendlayer>
-      <legendlayer drawingOrder="-1" open="false" checked="Qt::Checked" name="crossing_edge_section.wall_" showFeatureCount="0">
+      <legendlayer drawingOrder="-1" open="false" checked="Qt::Checked" name="crossing_edge_section.bottom" showFeatureCount="0">
         <filegroup open="false" hidden="false">
-          <legendlayerfile isInOverview="0" layerid="crossing_edge_section_wall_20170529171146242" visible="1"/>
+          <legendlayerfile isInOverview="0" layerid="crossing_edge_section_bottom20170529171146242" visible="1"/>
         </filegroup>
       </legendlayer>
-      <legendlayer drawingOrder="-1" open="false" checked="Qt::Checked" name="crossing_edge_section.ceil_" showFeatureCount="0">
+      <legendlayer drawingOrder="-1" open="false" checked="Qt::Checked" name="crossing_edge_section.top" showFeatureCount="0">
         <filegroup open="false" hidden="false">
-          <legendlayerfile isInOverview="0" layerid="crossing_edge_section_ceil_20170529171141097" visible="1"/>
+          <legendlayerfile isInOverview="0" layerid="crossing_edge_section_top20170529171141097" visible="1"/>
         </filegroup>
       </legendlayer>
       <legendlayer drawingOrder="-1" open="true" checked="Qt::Checked" name="node_section" showFeatureCount="0">
@@ -326,12 +326,12 @@
           <legendlayerfile isInOverview="0" layerid="edge_section20170522112938102" visible="1"/>
         </filegroup>
       </legendlayer>
-      <legendlayer drawingOrder="-1" open="true" checked="Qt::Checked" name="ceil_section" showFeatureCount="0">
+      <legendlayer drawingOrder="-1" open="true" checked="Qt::Checked" name="topsection" showFeatureCount="0">
         <filegroup open="true" hidden="false">
           <legendlayerfile isInOverview="0" layerid="edge_section20170522112938133" visible="1"/>
         </filegroup>
       </legendlayer>
-      <legendlayer drawingOrder="-1" open="true" checked="Qt::Checked" name="wall_section" showFeatureCount="0">
+      <legendlayer drawingOrder="-1" open="true" checked="Qt::Checked" name="bottomsection" showFeatureCount="0">
         <filegroup open="true" hidden="false">
           <legendlayerfile isInOverview="0" layerid="edge_section20170522112938152" visible="1"/>
         </filegroup>
@@ -1352,12 +1352,12 @@ def my_form_open(dialog, layer, feature):
         <xmax>200.79976493298599394</xmax>
         <ymax>381.3631825309209944</ymax>
       </extent>
-      <id>crossing_edge_section_ceil_20170529171141097</id>
-      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=Point table="albion"."crossing_edge_section" (ceil_) sql=</datasource>
+      <id>crossing_edge_section_top20170529171141097</id>
+      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=Point table="albion"."crossing_edge_section" (top) sql=</datasource>
       <keywordList>
         <value></value>
       </keywordList>
-      <layername>crossing_edge_section.ceil_</layername>
+      <layername>crossing_edge_section.top</layername>
       <srs>
         <spatialrefsys>
           <proj4>+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs</proj4>
@@ -1397,7 +1397,7 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="geom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="wall_">
+        <edittype widgetv2type="TextEdit" name="bottom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
         <edittype widgetv2type="TextEdit" name="connection">
@@ -1705,7 +1705,7 @@ def my_form_open(dialog, layer, feature):
         <alias field="end_" index="3" name=""/>
         <alias field="grid_id" index="4" name=""/>
         <alias field="geom" index="5" name=""/>
-        <alias field="wall_" index="6" name=""/>
+        <alias field="bottom" index="6" name=""/>
         <alias field="connection" index="7" name=""/>
       </aliases>
       <excludeAttributesWMS/>
@@ -1721,7 +1721,7 @@ def my_form_open(dialog, layer, feature):
           <column width="-1" hidden="0" type="field" name="geom"/>
           <column width="-1" hidden="0" type="field" name="connection"/>
           <column width="-1" hidden="1" type="actions"/>
-          <column width="-1" hidden="0" type="field" name="wall_"/>
+          <column width="-1" hidden="0" type="field" name="bottom"/>
         </columns>
       </attributetableconfig>
       <editform>.</editform>
@@ -1758,7 +1758,7 @@ def my_form_open(dialog, layer, feature):
         <default field="end_" expression=""/>
         <default field="grid_id" expression=""/>
         <default field="geom" expression=""/>
-        <default field="wall_" expression=""/>
+        <default field="bottom" expression=""/>
         <default field="connection" expression=""/>
       </defaults>
     </maplayer>
@@ -1811,10 +1811,10 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="grid_id">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="ceil_">
+        <edittype widgetv2type="TextEdit" name="top">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="wall_">
+        <edittype widgetv2type="TextEdit" name="bottom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
         <edittype widgetv2type="TextEdit" name="connection">
@@ -2121,8 +2121,8 @@ def my_form_open(dialog, layer, feature):
         <alias field="start_" index="2" name=""/>
         <alias field="end_" index="3" name=""/>
         <alias field="grid_id" index="4" name=""/>
-        <alias field="ceil_" index="5" name=""/>
-        <alias field="wall_" index="6" name=""/>
+        <alias field="top" index="5" name=""/>
+        <alias field="bottom" index="6" name=""/>
         <alias field="connection" index="7" name=""/>
       </aliases>
       <excludeAttributesWMS/>
@@ -2135,10 +2135,10 @@ def my_form_open(dialog, layer, feature):
           <column width="-1" hidden="0" type="field" name="start_"/>
           <column width="-1" hidden="0" type="field" name="end_"/>
           <column width="-1" hidden="0" type="field" name="grid_id"/>
-          <column width="-1" hidden="0" type="field" name="ceil_"/>
+          <column width="-1" hidden="0" type="field" name="top"/>
           <column width="-1" hidden="0" type="field" name="connection"/>
           <column width="-1" hidden="1" type="actions"/>
-          <column width="-1" hidden="0" type="field" name="wall_"/>
+          <column width="-1" hidden="0" type="field" name="bottom"/>
         </columns>
       </attributetableconfig>
       <editform>.</editform>
@@ -2174,8 +2174,8 @@ def my_form_open(dialog, layer, feature):
         <default field="start_" expression=""/>
         <default field="end_" expression=""/>
         <default field="grid_id" expression=""/>
-        <default field="ceil_" expression=""/>
-        <default field="wall_" expression=""/>
+        <default field="top" expression=""/>
+        <default field="bottom" expression=""/>
         <default field="connection" expression=""/>
       </defaults>
     </maplayer>
@@ -2186,12 +2186,12 @@ def my_form_open(dialog, layer, feature):
         <xmax>200.79976493298599394</xmax>
         <ymax>357.20994016657999737</ymax>
       </extent>
-      <id>crossing_edge_section_wall_20170529171146242</id>
-      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=Point table="albion"."crossing_edge_section" (wall_) sql=</datasource>
+      <id>crossing_edge_section_bottom20170529171146242</id>
+      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=Point table="albion"."crossing_edge_section" (bottom) sql=</datasource>
       <keywordList>
         <value></value>
       </keywordList>
-      <layername>crossing_edge_section.wall_</layername>
+      <layername>crossing_edge_section.bottom</layername>
       <srs>
         <spatialrefsys>
           <proj4>+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs</proj4>
@@ -2231,7 +2231,7 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="geom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="ceil_">
+        <edittype widgetv2type="TextEdit" name="top">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
         <edittype widgetv2type="TextEdit" name="connection">
@@ -2539,7 +2539,7 @@ def my_form_open(dialog, layer, feature):
         <alias field="end_" index="3" name=""/>
         <alias field="grid_id" index="4" name=""/>
         <alias field="geom" index="5" name=""/>
-        <alias field="ceil_" index="6" name=""/>
+        <alias field="top" index="6" name=""/>
         <alias field="connection" index="7" name=""/>
       </aliases>
       <excludeAttributesWMS/>
@@ -2553,7 +2553,7 @@ def my_form_open(dialog, layer, feature):
           <column width="-1" hidden="0" type="field" name="end_"/>
           <column width="-1" hidden="0" type="field" name="grid_id"/>
           <column width="-1" hidden="0" type="field" name="geom"/>
-          <column width="-1" hidden="0" type="field" name="ceil_"/>
+          <column width="-1" hidden="0" type="field" name="top"/>
           <column width="-1" hidden="0" type="field" name="connection"/>
           <column width="-1" hidden="1" type="actions"/>
         </columns>
@@ -2592,7 +2592,7 @@ def my_form_open(dialog, layer, feature):
         <default field="end_" expression=""/>
         <default field="grid_id" expression=""/>
         <default field="geom" expression=""/>
-        <default field="ceil_" expression=""/>
+        <default field="top" expression=""/>
         <default field="connection" expression=""/>
       </defaults>
     </maplayer>
@@ -2969,10 +2969,10 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="grid_id">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="ceil_">
+        <edittype widgetv2type="TextEdit" name="top">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="wall_">
+        <edittype widgetv2type="TextEdit" name="bottom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
       </edittypes>
@@ -3410,8 +3410,8 @@ def my_form_open(dialog, layer, feature):
         <alias field="start_" index="2" name=""/>
         <alias field="end_" index="3" name=""/>
         <alias field="grid_id" index="4" name=""/>
-        <alias field="ceil_" index="5" name=""/>
-        <alias field="wall_" index="6" name=""/>
+        <alias field="top" index="5" name=""/>
+        <alias field="bottom" index="6" name=""/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
@@ -3423,8 +3423,8 @@ def my_form_open(dialog, layer, feature):
           <column width="-1" hidden="0" type="field" name="start_"/>
           <column width="-1" hidden="0" type="field" name="end_"/>
           <column width="-1" hidden="0" type="field" name="grid_id"/>
-          <column width="786" hidden="0" type="field" name="ceil_"/>
-          <column width="893" hidden="0" type="field" name="wall_"/>
+          <column width="786" hidden="0" type="field" name="top"/>
+          <column width="893" hidden="0" type="field" name="bottom"/>
           <column width="-1" hidden="1" type="actions"/>
         </columns>
       </attributetableconfig>
@@ -3461,8 +3461,8 @@ def my_form_open(dialog, layer, feature):
         <default field="start_" expression=""/>
         <default field="end_" expression=""/>
         <default field="grid_id" expression=""/>
-        <default field="ceil_" expression=""/>
-        <default field="wall_" expression=""/>
+        <default field="top" expression=""/>
+        <default field="bottom" expression=""/>
       </defaults>
     </maplayer>
     <maplayer simplifyAlgorithm="0" minimumScale="0" maximumScale="1e+08" simplifyDrawingHints="1" minLabelScale="0" maxLabelScale="1e+08" simplifyDrawingTol="1" readOnly="0" geometry="Line" simplifyMaxScale="1" type="vector" hasScaleBasedVisibilityFlag="0" simplifyLocal="1" scaleBasedLabelVisibilityFlag="0">
@@ -3472,12 +3472,12 @@ def my_form_open(dialog, layer, feature):
         <xmax>327426.17203890398377553</xmax>
         <ymax>2081032.04357881005853415</ymax>
       </extent>
-      <id>edge_ceil_20170523125336844</id>
-      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=LineStringZ table="albion"."edge" (ceil_) sql=</datasource>
+      <id>edge_top20170523125336844</id>
+      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=LineStringZ table="albion"."edge" (top) sql=</datasource>
       <keywordList>
         <value></value>
       </keywordList>
-      <layername>edge.ceil_</layername>
+      <layername>edge.top</layername>
       <srs>
         <spatialrefsys>
           <proj4>+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs</proj4>
@@ -3517,7 +3517,7 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="geom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="wall_">
+        <edittype widgetv2type="TextEdit" name="bottom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
       </edittypes>
@@ -3581,7 +3581,7 @@ def my_form_open(dialog, layer, feature):
         <alias field="end_" index="3" name=""/>
         <alias field="grid_id" index="4" name=""/>
         <alias field="geom" index="5" name=""/>
-        <alias field="wall_" index="6" name=""/>
+        <alias field="bottom" index="6" name=""/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
@@ -3594,7 +3594,7 @@ def my_form_open(dialog, layer, feature):
           <column width="-1" hidden="0" type="field" name="end_"/>
           <column width="-1" hidden="0" type="field" name="grid_id"/>
           <column width="-1" hidden="0" type="field" name="geom"/>
-          <column width="-1" hidden="0" type="field" name="wall_"/>
+          <column width="-1" hidden="0" type="field" name="bottom"/>
           <column width="-1" hidden="1" type="actions"/>
         </columns>
       </attributetableconfig>
@@ -3617,7 +3617,7 @@ def my_form_open(dialog, layer, feature):
         <default field="end_" expression=""/>
         <default field="grid_id" expression=""/>
         <default field="geom" expression=""/>
-        <default field="wall_" expression=""/>
+        <default field="bottom" expression=""/>
       </defaults>
     </maplayer>
     <maplayer simplifyAlgorithm="0" minimumScale="0" maximumScale="1e+08" simplifyDrawingHints="1" minLabelScale="0" maxLabelScale="1e+08" simplifyDrawingTol="1" readOnly="0" geometry="Line" simplifyMaxScale="1" type="vector" hasScaleBasedVisibilityFlag="0" simplifyLocal="1" scaleBasedLabelVisibilityFlag="0">
@@ -3669,10 +3669,10 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="grid_id">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="ceil_">
+        <edittype widgetv2type="TextEdit" name="top">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="wall_">
+        <edittype widgetv2type="TextEdit" name="bottom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
       </edittypes>
@@ -4440,8 +4440,8 @@ def my_form_open(dialog, layer, feature):
         <alias field="start_" index="2" name=""/>
         <alias field="end_" index="3" name=""/>
         <alias field="grid_id" index="4" name=""/>
-        <alias field="ceil_" index="5" name=""/>
-        <alias field="wall_" index="6" name=""/>
+        <alias field="top" index="5" name=""/>
+        <alias field="bottom" index="6" name=""/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
@@ -4453,8 +4453,8 @@ def my_form_open(dialog, layer, feature):
           <column width="-1" hidden="0" type="field" name="start_"/>
           <column width="-1" hidden="0" type="field" name="end_"/>
           <column width="221" hidden="0" type="field" name="grid_id"/>
-          <column width="-1" hidden="0" type="field" name="ceil_"/>
-          <column width="-1" hidden="0" type="field" name="wall_"/>
+          <column width="-1" hidden="0" type="field" name="top"/>
+          <column width="-1" hidden="0" type="field" name="bottom"/>
           <column width="-1" hidden="1" type="actions"/>
         </columns>
       </attributetableconfig>
@@ -4491,8 +4491,8 @@ def my_form_open(dialog, layer, feature):
         <default field="start_" expression=""/>
         <default field="end_" expression=""/>
         <default field="grid_id" expression=""/>
-        <default field="ceil_" expression=""/>
-        <default field="wall_" expression=""/>
+        <default field="top" expression=""/>
+        <default field="bottom" expression=""/>
       </defaults>
     </maplayer>
     <maplayer simplifyAlgorithm="0" minimumScale="0" maximumScale="1e+08" simplifyDrawingHints="1" minLabelScale="0" maxLabelScale="1e+08" simplifyDrawingTol="1" readOnly="0" geometry="Line" simplifyMaxScale="1" type="vector" hasScaleBasedVisibilityFlag="0" simplifyLocal="1" scaleBasedLabelVisibilityFlag="0">
@@ -4503,11 +4503,11 @@ def my_form_open(dialog, layer, feature):
         <ymax>361.12497270622998258</ymax>
       </extent>
       <id>edge_section20170522112938133</id>
-      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=LineString table="albion"."edge_section" (ceil_) sql=</datasource>
+      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=LineString table="albion"."edge_section" (top) sql=</datasource>
       <keywordList>
         <value></value>
       </keywordList>
-      <layername>ceil_section</layername>
+      <layername>topsection</layername>
       <srs>
         <spatialrefsys>
           <proj4>+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs</proj4>
@@ -4547,7 +4547,7 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="geom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="wall_">
+        <edittype widgetv2type="TextEdit" name="bottom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
       </edittypes>
@@ -4946,7 +4946,7 @@ def my_form_open(dialog, layer, feature):
         <alias field="end_" index="3" name=""/>
         <alias field="grid_id" index="4" name=""/>
         <alias field="geom" index="5" name=""/>
-        <alias field="wall_" index="6" name=""/>
+        <alias field="bottom" index="6" name=""/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
@@ -4959,7 +4959,7 @@ def my_form_open(dialog, layer, feature):
           <column width="-1" hidden="0" type="field" name="end_"/>
           <column width="-1" hidden="0" type="field" name="grid_id"/>
           <column width="250" hidden="0" type="field" name="geom"/>
-          <column width="-1" hidden="0" type="field" name="wall_"/>
+          <column width="-1" hidden="0" type="field" name="bottom"/>
           <column width="-1" hidden="1" type="actions"/>
         </columns>
       </attributetableconfig>
@@ -4997,7 +4997,7 @@ def my_form_open(dialog, layer, feature):
         <default field="end_" expression=""/>
         <default field="grid_id" expression=""/>
         <default field="geom" expression=""/>
-        <default field="wall_" expression=""/>
+        <default field="bottom" expression=""/>
       </defaults>
     </maplayer>
     <maplayer simplifyAlgorithm="0" minimumScale="0" maximumScale="1e+08" simplifyDrawingHints="1" minLabelScale="0" maxLabelScale="1e+08" simplifyDrawingTol="1" readOnly="0" geometry="Line" simplifyMaxScale="1" type="vector" hasScaleBasedVisibilityFlag="0" simplifyLocal="1" scaleBasedLabelVisibilityFlag="0">
@@ -5008,11 +5008,11 @@ def my_form_open(dialog, layer, feature):
         <ymax>360.12525046811998664</ymax>
       </extent>
       <id>edge_section20170522112938152</id>
-      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=LineString table="albion"."edge_section" (wall_) sql=</datasource>
+      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=LineString table="albion"."edge_section" (bottom) sql=</datasource>
       <keywordList>
         <value></value>
       </keywordList>
-      <layername>wall_section</layername>
+      <layername>bottomsection</layername>
       <srs>
         <spatialrefsys>
           <proj4>+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs</proj4>
@@ -5052,7 +5052,7 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="geom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="ceil_">
+        <edittype widgetv2type="TextEdit" name="top">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
       </edittypes>
@@ -5451,7 +5451,7 @@ def my_form_open(dialog, layer, feature):
         <alias field="end_" index="3" name=""/>
         <alias field="grid_id" index="4" name=""/>
         <alias field="geom" index="5" name=""/>
-        <alias field="ceil_" index="6" name=""/>
+        <alias field="top" index="6" name=""/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
@@ -5464,7 +5464,7 @@ def my_form_open(dialog, layer, feature):
           <column width="-1" hidden="0" type="field" name="end_"/>
           <column width="-1" hidden="0" type="field" name="grid_id"/>
           <column width="-1" hidden="0" type="field" name="geom"/>
-          <column width="-1" hidden="0" type="field" name="ceil_"/>
+          <column width="-1" hidden="0" type="field" name="top"/>
           <column width="-1" hidden="1" type="actions"/>
         </columns>
       </attributetableconfig>
@@ -5502,7 +5502,7 @@ def my_form_open(dialog, layer, feature):
         <default field="end_" expression=""/>
         <default field="grid_id" expression=""/>
         <default field="geom" expression=""/>
-        <default field="ceil_" expression=""/>
+        <default field="top" expression=""/>
       </defaults>
     </maplayer>
     <maplayer simplifyAlgorithm="0" minimumScale="0" maximumScale="1e+08" simplifyDrawingHints="1" minLabelScale="0" maxLabelScale="1e+08" simplifyDrawingTol="1" readOnly="0" geometry="Line" simplifyMaxScale="1" type="vector" hasScaleBasedVisibilityFlag="0" simplifyLocal="1" scaleBasedLabelVisibilityFlag="0">
@@ -5512,12 +5512,12 @@ def my_form_open(dialog, layer, feature):
         <xmax>327426.17989756498718634</xmax>
         <ymax>2081031.73294216999784112</ymax>
       </extent>
-      <id>edge_wall_20170523125338449</id>
-      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=LineStringZ table="albion"."edge" (wall_) sql=</datasource>
+      <id>edge_bottom20170523125338449</id>
+      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=LineStringZ table="albion"."edge" (bottom) sql=</datasource>
       <keywordList>
         <value></value>
       </keywordList>
-      <layername>edge.wall_</layername>
+      <layername>edge.bottom</layername>
       <srs>
         <spatialrefsys>
           <proj4>+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs</proj4>
@@ -5557,7 +5557,7 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="geom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="ceil_">
+        <edittype widgetv2type="TextEdit" name="top">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
       </edittypes>
@@ -5621,7 +5621,7 @@ def my_form_open(dialog, layer, feature):
         <alias field="end_" index="3" name=""/>
         <alias field="grid_id" index="4" name=""/>
         <alias field="geom" index="5" name=""/>
-        <alias field="ceil_" index="6" name=""/>
+        <alias field="top" index="6" name=""/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
@@ -5648,7 +5648,7 @@ def my_form_open(dialog, layer, feature):
         <default field="end_" expression=""/>
         <default field="grid_id" expression=""/>
         <default field="geom" expression=""/>
-        <default field="ceil_" expression=""/>
+        <default field="top" expression=""/>
       </defaults>
     </maplayer>
     <maplayer simplifyAlgorithm="0" minimumScale="0" maximumScale="1e+08" simplifyDrawingHints="1" minLabelScale="0" maxLabelScale="1e+08" simplifyDrawingTol="1" readOnly="0" geometry="Line" simplifyMaxScale="1" type="vector" hasScaleBasedVisibilityFlag="0" simplifyLocal="1" scaleBasedLabelVisibilityFlag="0">
@@ -8403,12 +8403,12 @@ def my_form_open(dialog, layer, feature):
       </defaults>
     </maplayer>
     <maplayer simplifyAlgorithm="0" minimumScale="0" maximumScale="1e+08" simplifyDrawingHints="1" minLabelScale="0" maxLabelScale="1e+08" simplifyDrawingTol="1" readOnly="0" geometry="Line" simplifyMaxScale="1" type="vector" hasScaleBasedVisibilityFlag="0" simplifyLocal="1" scaleBasedLabelVisibilityFlag="0">
-      <id>projected_edge_ceil_20170608101926335</id>
-      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=LineString table="albion"."projected_edge" (ceil_) sql=</datasource>
+      <id>projected_edge_top20170608101926335</id>
+      <datasource>dbname='template_project' host=localhost port=55432 sslmode=disable key='id' srid=32632 type=LineString table="albion"."projected_edge" (top) sql=</datasource>
       <keywordList>
         <value></value>
       </keywordList>
-      <layername>projected_edge.ceil_</layername>
+      <layername>projected_edge.top</layername>
       <srs>
         <spatialrefsys>
           <proj4>+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs</proj4>
@@ -8436,7 +8436,7 @@ def my_form_open(dialog, layer, feature):
         <edittype widgetv2type="TextEdit" name="geom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
-        <edittype widgetv2type="TextEdit" name="wall_">
+        <edittype widgetv2type="TextEdit" name="bottom">
           <widgetv2config IsMultiline="0" fieldEditable="1" constraint="" UseHtml="0" labelOnTop="0" constraintDescription="" notNull="0"/>
         </edittype>
       </edittypes>
@@ -8685,7 +8685,7 @@ def my_form_open(dialog, layer, feature):
       <aliases>
         <alias field="id" index="0" name=""/>
         <alias field="geom" index="1" name=""/>
-        <alias field="wall_" index="2" name=""/>
+        <alias field="bottom" index="2" name=""/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
@@ -8694,7 +8694,7 @@ def my_form_open(dialog, layer, feature):
         <columns>
           <column width="-1" hidden="0" type="field" name="id"/>
           <column width="-1" hidden="0" type="field" name="geom"/>
-          <column width="-1" hidden="0" type="field" name="wall_"/>
+          <column width="-1" hidden="0" type="field" name="bottom"/>
           <column width="-1" hidden="1" type="actions"/>
         </columns>
       </attributetableconfig>
@@ -8728,7 +8728,7 @@ def my_form_open(dialog, layer, feature):
       <defaults>
         <default field="id" expression=""/>
         <default field="geom" expression=""/>
-        <default field="wall_" expression=""/>
+        <default field="bottom" expression=""/>
       </defaults>
     </maplayer>
     <maplayer simplifyAlgorithm="0" minimumScale="0" maximumScale="1e+08" simplifyDrawingHints="1" minLabelScale="0" maxLabelScale="1e+08" simplifyDrawingTol="1" readOnly="0" geometry="Line" simplifyMaxScale="1" type="vector" hasScaleBasedVisibilityFlag="0" simplifyLocal="1" scaleBasedLabelVisibilityFlag="0">
@@ -9524,16 +9524,16 @@ def my_form_open(dialog, layer, feature):
         <value>close_point20170602184635659</value>
         <value>collar20170522101211588</value>
         <value>collar_section20170524100603100</value>
-        <value>crossing_edge_section_ceil_20170529171141097</value>
+        <value>crossing_edge_section_top20170529171141097</value>
         <value>crossing_edge_section_geom20170529171456799</value>
-        <value>crossing_edge_section_wall_20170529171146242</value>
+        <value>crossing_edge_section_bottom20170529171146242</value>
         <value>current_section20170602185032112</value>
         <value>edge20170522112047186</value>
-        <value>edge_ceil_20170523125336844</value>
+        <value>edge_top20170523125336844</value>
         <value>edge_section20170522112938102</value>
         <value>edge_section20170522112938133</value>
         <value>edge_section20170522112938152</value>
-        <value>edge_wall_20170523125338449</value>
+        <value>edge_bottom20170523125338449</value>
         <value>formation20170522101211599</value>
         <value>formation_section20170522101211626</value>
         <value>grid20170522101211549</value>
@@ -9544,7 +9544,7 @@ def my_form_open(dialog, layer, feature):
         <value>radiometry_section20170602185507555</value>
         <value>small_edge20170523100536723</value>
         <value>triangle20170524162303221</value>
-        <value>projected_edge_ceil_20170608101926335</value>
+        <value>projected_edge_top20170608101926335</value>
       </LayerSnappingList>
       <LayerSnappingEnabledList type="QStringList">
         <value>disabled</value>

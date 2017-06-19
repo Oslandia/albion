@@ -125,7 +125,7 @@ class Plugin(QObject):
         self.__toolbar.addAction(icon('next_line.svg'), 'next section').triggered.connect(self.__select_next_section)
         self.__toolbar.addWidget(self.__current_graph)
         self.__toolbar.addAction(icon('auto_connect.svg'), 'auto connect').triggered.connect(self.__auto_connect)
-        self.__toolbar.addAction(icon('auto_ceil_wall.svg'), 'auto ceil and wall').triggered.connect(self.__auto_ceil_wall)
+        self.__toolbar.addAction(icon('auto_top_bottom.svg'), 'auto top and bottom').triggered.connect(self.__auto_top_bottom)
         self.__toolbar.addAction(icon('extend_graph.svg'), 'extend to interpolated sections').triggered.connect(self.__extend_to_interpolated)
         self.__toolbar.addAction(icon('extremities_graph.svg'), 'extend with taper').triggered.connect(self.__create_ends)
         self.__toolbar.addAction(icon('triangulate.svg'), 'triangulate section').triggered.connect(self.__triangulate_section)
@@ -681,7 +681,7 @@ class Plugin(QObject):
         con.close()
         self.__refresh_layers()
 
-    def __auto_ceil_wall(self):
+    def __auto_top_bottom(self):
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]\
                 or not self.__current_graph.currentText():
             return
@@ -689,7 +689,7 @@ class Plugin(QObject):
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
         cur.execute("""
-                select albion.auto_ceil_and_wall('{}', albion.current_section_id())
+                select albion.auto_top_and_bottom('{}', albion.current_section_id())
                 """.format(self.__current_graph.currentText()))
         con.commit()
         con.close()
@@ -918,7 +918,7 @@ class Plugin(QObject):
             insert into albion.section(id, triangulation, graph_id, grid_id)
             select 
                 _albion.unique_id()::varchar,
-                st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_))),
+                st_collectionhomogenize(st_collect(albion.triangulate_edge(top, bottom))),
                 graph_id, grid_id
             from albion.edge
             where graph_id=albion.current_graph()
@@ -943,7 +943,7 @@ class Plugin(QObject):
             insert into albion.section(id, triangulation, graph_id, grid_id)
             select 
                 _albion.unique_id()::varchar,
-                st_collectionhomogenize(st_collect(albion.triangulate_edge(ceil_, wall_))),
+                st_collectionhomogenize(st_collect(albion.triangulate_edge(top, bottom))),
                 graph_id, grid_id
             from albion.edge
             where graph_id=albion.current_graph()
