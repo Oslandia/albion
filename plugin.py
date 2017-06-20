@@ -992,6 +992,13 @@ class Plugin(QObject):
             progress.setValue(progress.value()+10)
 
         self.__iface.messageBar().clearWidgets()
+
+        cur.execute("""
+            insert into albion.volume(id, triangulation, graph_id)
+            select 
+            _albion.unique_id()::varchar, albion.close_volume(albion.current_graph()), albion.current_graph()
+            """)
+
         con.commit()
         con.close()
         self.__viewer3d.widget().refresh_data()
