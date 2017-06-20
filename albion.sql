@@ -2071,6 +2071,7 @@ $$
         for n1, n2 in zip(ring.coords[:-1], ring.coords[1:]):
             # find if terminaison exist at start
             top, bottom = [], []
+            flat = []
             for i, n in enumerate([n1, n2]):
                 res = plpy.execute("""
                     with connected as (
@@ -2138,14 +2139,23 @@ $$
                     u = (e - s)/3
                     top.append(LineString([Point(s), Point(s+u)]))
                     bottom.append(LineString([Point(s+2*u), Point(e)]))
+                    flat = i
                     #plpy.notice("flat at start")
 
-            output += [Polygon([top[0].coords[0], top[0].coords[1], top[1].coords[1]]),
-                       Polygon([top[0].coords[0], top[1].coords[1], top[1].coords[0]]),
-                       Polygon([top[0].coords[1], bottom[0].coords[0], top[1].coords[1]]),
-                       Polygon([bottom[0].coords[0], bottom[1].coords[0], top[1].coords[1]]),
-                       Polygon([bottom[0].coords[1], bottom[1].coords[0], bottom[1].coords[1]]),
-                       Polygon([bottom[0].coords[1], bottom[0].coords[0], bottom[1].coords[0]])]
+            if flat == 0:
+                output += [Polygon([top[0].coords[0], top[0].coords[1], top[1].coords[1]]),
+                           Polygon([top[0].coords[0], top[1].coords[1], top[1].coords[0]]),
+                           Polygon([top[0].coords[1], bottom[0].coords[0], top[1].coords[1]]),
+                           Polygon([bottom[0].coords[0], bottom[1].coords[0], top[1].coords[1]]),
+                           Polygon([bottom[0].coords[1], bottom[1].coords[0], bottom[1].coords[1]]),
+                           Polygon([bottom[0].coords[1], bottom[0].coords[0], bottom[1].coords[0]])]
+            else:
+                output += [Polygon([top[0].coords[0], top[0].coords[1], top[1].coords[0]]),
+                           Polygon([top[0].coords[1], top[1].coords[1], top[1].coords[0]]),
+                           Polygon([top[0].coords[1], bottom[0].coords[0], top[1].coords[1]]),
+                           Polygon([bottom[0].coords[0], bottom[1].coords[0], top[1].coords[1]]),
+                           Polygon([bottom[0].coords[0], bottom[1].coords[0], bottom[1].coords[1]]),
+                           Polygon([bottom[0].coords[0], bottom[1].coords[1], bottom[0].coords[1]])]
 
     result = MultiPolygon(output)
     geos.lgeos.GEOSSetSRID(result._geom, $SRID)
