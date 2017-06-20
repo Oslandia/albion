@@ -24,8 +24,8 @@ class Scene(QObject):
                 "label": False,
                 "node": False,
                 "edge": False,
-                "ceil": False,
-                "wall": False,
+                "top": False,
+                "bottom": False,
                 "section": False,
                 "volume": False,
                 "z_scale": 1
@@ -54,15 +54,15 @@ class Scene(QObject):
         self.vtx = {
                 "node":None,
                 "edge":None,
-                "ceil":None,
-                "wall":None,
+                "top":None,
+                "bottom":None,
                 "section":None,
                 "volume":None}
         self.idx = {
                 "node":None,
                 "edge":None,
-                "ceil":None,
-                "wall":None,
+                "top":None,
+                "bottom":None,
                 "section":None,
                 "volume":None}
         self.nrml = {
@@ -100,11 +100,11 @@ class Scene(QObject):
         glDisableClientState(GL_NORMAL_ARRAY)
         color = {'node':[0.,0.,0.,1.], 
                   'edge':[0.,1.,0.,1.],
-                  'ceil':[0.,1.,1.,1.],
-                  'wall':[1.,0.,0.,1.]
+                  'top':[0.,1.,1.,1.],
+                  'bottom':[1.,0.,0.,1.]
                   }
         glLineWidth(1)
-        for layer in ['node', 'edge', 'ceil', 'wall']:
+        for layer in ['node', 'edge', 'top', 'bottom']:
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
                     self.__update(layer)
@@ -252,9 +252,9 @@ class Scene(QObject):
                 self.vtx[layer][:,2] *= self.__zScale
             self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
         
-        elif layer=='ceil':
+        elif layer=='top':
             self.__cur.execute("""
-                select coalesce(st_collect(ceil_), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
+                select coalesce(st_collect(top), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
                 """.format(self.graph_id))
             lines = wkb.loads(self.__cur.fetchone()[0], True)
             vtx = []
@@ -267,9 +267,9 @@ class Scene(QObject):
                 self.vtx[layer][:,2] *= self.__zScale
             self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
 
-        elif layer=='wall':
+        elif layer=='bottom':
             self.__cur.execute("""
-                select coalesce(st_collect(wall_), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
+                select coalesce(st_collect(bottom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
                 """.format(self.graph_id))
             lines = wkb.loads(self.__cur.fetchone()[0], True)
             vtx = []
@@ -312,7 +312,7 @@ class Scene(QObject):
     def setZscale(self, scale):
         factor = float(scale)/self.__zScale
 
-        for layer in ['node', 'edge', 'ceil', 'wall', 'section', 'volume']:
+        for layer in ['node', 'edge', 'top', 'bottom', 'section', 'volume']:
             if self.vtx[layer] is not None:
                 self.vtx[layer][:,2] *= factor
                 if layer in ['section', 'volume']:

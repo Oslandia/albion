@@ -16,7 +16,6 @@ from qgis.core import *
 import os
 import re
 import numpy
-from math import sqrt, ceil, log
 
 from .camera import Camera
 from .scene import Scene
@@ -33,8 +32,8 @@ class Viewer3d(QGLWidget):
                 "label": False,
                 "node": False,
                 "edge": False,
-                "ceil": False,
-                "wall": False,
+                "top": False,
+                "bottom": False,
                 "section": False,
                 "volume": False,
                 "z_scale": 1
@@ -75,12 +74,12 @@ class Viewer3d(QGLWidget):
         self.__param["edge"] = state
         self.update()
 
-    def toggle_ceils(self, state):
-        self.__param["ceil"] = state
+    def toggle_tops(self, state):
+        self.__param["top"] = state
         self.update()
 
-    def toggle_walls(self, state):
-        self.__param["wall"] = state
+    def toggle_bottoms(self, state):
+        self.__param["bottom"] = state
         self.update()
 
     def toggle_sections(self, state):

@@ -19,8 +19,8 @@ class ViewerControls(QWidget):
         self.__viewer.toggle_labels(self.labelsCheckBox.isChecked())
         self.__viewer.toggle_nodes(self.nodesCheckBox.isChecked())
         self.__viewer.toggle_edges(self.edgesCheckBox.isChecked())
-        self.__viewer.toggle_ceils(self.ceilsCheckBox.isChecked())
-        self.__viewer.toggle_walls(self.wallsCheckBox.isChecked())
+        self.__viewer.toggle_tops(self.topsCheckBox.isChecked())
+        self.__viewer.toggle_bottoms(self.bottomsCheckBox.isChecked())
         self.__viewer.toggle_sections(self.sectionsCheckBox.isChecked())
         self.__viewer.toggle_volumes(self.volumesCheckBox.isChecked())
 
@@ -29,8 +29,8 @@ class ViewerControls(QWidget):
         self.labelsCheckBox.toggled.connect(self.__viewer.toggle_labels)
         self.nodesCheckBox.toggled.connect(self.__viewer.toggle_nodes)
         self.edgesCheckBox.toggled.connect(self.__viewer.toggle_edges)
-        self.ceilsCheckBox.toggled.connect(self.__viewer.toggle_ceils)
-        self.wallsCheckBox.toggled.connect(self.__viewer.toggle_walls)
+        self.topsCheckBox.toggled.connect(self.__viewer.toggle_tops)
+        self.bottomsCheckBox.toggled.connect(self.__viewer.toggle_bottoms)
         self.sectionsCheckBox.toggled.connect(self.__viewer.toggle_sections)
         self.volumesCheckBox.toggled.connect(self.__viewer.toggle_volumes)
 

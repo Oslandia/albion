@@ -1914,3 +1914,126 @@ select * from possible_edge;
 --;
 
 
+create or replace function albion.close_volume(graph_id_ varchar)
+returns geometry
+language plpython3u
+as
+$$
+    # create triangle neigbor
+    # get all edges that have no neigbor
+    # polygonize, small buffer
+    # for each ring
+    # get all termination edge and order them according to their curv coord
+    # create triangles between pairs of nodes, interpolating in between
+
+    import sys
+    from shapely import wkb
+    from collections import defaultdict
+    import numpy
+    from shapely.ops import polygonize
+    from shapely.geometry import MultiLineString, LineString, Point
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    res = plpy.execute("""
+        select triangulation from _albion.volume where graph_id='{}'
+        """.format(graph_id_))
+    top_node_map = {}
+    bottom_node_map = {}
+    top_triangles = []
+    bottom_triangles = []
+
+    for r in res:
+        for t in wkb.loads(r['triangulation'], True):
+            if t.exterior.is_ccw: # top triangles
+                top_triangles.append([])
+                for c in t.exterior.coords:
+                    if c not in top_node_map:
+                        top_node_map[c] = len(top_node_map)
+                    top_triangles[-1].append(top_node_map[c])
+            else: #bottom triangles
+                bottom_triangles.append([])
+                for c in t.exterior.coords:
+                    if c not in bottom_node_map:
+                        bottom_node_map[c] = len(bottom_node_map)
+                    bottom_triangles[-1].append(bottom_node_map[c])
+
+    def mesh_contours(node_map, triangles):
+        edges_neighbors = defaultdict(list)
+        for i, t in enumerate(triangles):
+            for n1, n2 in zip(t, t[1:]+t[0:1]):
+                edges_neighbors[tuple(sorted((n1,n2)))].append(i)
+
+        vtx = numpy.empty((len(node_map),3))
+        for k, v in node_map.items():
+            vtx[v] = k
+
+        borders = MultiLineString([LineString([vtx[n[0]], vtx[n[1]]]) 
+            for n, t in edges_neighbors.items() if len(t) == 1])
+
+        polys = polygonize(borders)
+        borders = []
+        for p in polys:
+            for r in [LineString(p.exterior)]+[LineString(h) for h in p.interiors]:
+                borders.append(r)
+        result = MultiLineString(borders)
+        return result
+
+    top_result = mesh_contours(top_node_map, top_triangles)
+    bottom_result = mesh_contours(bottom_node_map, bottom_triangles)
+
+    # we need to match rings of top and bottom
+    # they have the same number of points
+    # the sum of distance from all points is minimal
+    pairs = []
+    for it, t in enumerate(top_result):
+        min_dist = sys.float_info.max
+        matching = -1
+        for ib, b in enumerate(bottom_result):
+            if len(b.coords) == len(t.coords):
+                dist = sum([b.distance(Point(p)) for p in t.coords])
+                if dist < min_dist:
+                    min_dist = dist
+                    matching = ib
+        assert(matching != -1)
+        pairs.append((it, matching))
+                    
+    assert(len(top_result) == len(bottom_result))
+
+    ## get termination edges
+    #select 
+    #    e.id, 
+    #    exists (select 1 as ct from albion.edge as a where st_intersects(a.top, st_startpoint(e.top)) and id!=e.id) as start_con,
+    #    exists (select 1 as ct from albion.edge as a where st_intersects(a.top, st_endpoint(e.top)) and id!=e.id) as end_con
+    #from albion.edge as e 
+    #where graph_id='{graph_id_}'
+    #;
+
+    for it, ib in pairs:
+        t, b = top_result[it], bottom_result[ib]
+        # find the index of the closest point on b to t start
+        start = Point(t.coords[0])
+        idx = numpy.argmin(numpy.array([start.distance(Point(p)) for p in b.coords]))
+        b = LineString(b.coords[idx:]+b.coords[:idx])
+        plpy.notice(it, idx)
+        #for i in range(len(t.coords)-1):
+        #    # compute 4 points for start
+        #    # compute 4 points for end
+        #    # check if a terminaison is here and move second and third point accordingly
+        #    res = plpy.execute("""
+        #        select id, top from albion.edge 
+        #        where graph_id = '{graph_id_}'
+        #        and st_intersects(top, st_sersrid('{point}'::geometry,$SRID))
+        #        and (start_ is null or end_is null)
+        #        and (not )
+        #        """.format(graph_id_=graph_id_, point=Point(t.coords[i]).wkb)
+        #    plpy.notice(res)
+
+
+    result = top_result
+    geos.lgeos.GEOSSetSRID(result._geom, $SRID)
+
+    return result.wkb_hex
+$$
+;
+
