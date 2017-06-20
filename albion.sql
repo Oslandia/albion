@@ -467,6 +467,21 @@ $$
                 (select st_3dlineinterpolatepoint(geom, .5) from _albion.node where id=new.end_))) then
                     select new.start_, new.end_ into new.end_, new.start_;
             end if;
+            
+            -- snap to extremities
+            if new.start_ is not null then
+                select st_setpoint(new.geom, 0, (select st_3dlineinterpolatepoint(geom, .5) from _albion.node where id=new.start_)) into new.geom;
+                select st_setpoint(new.top, 0, (select st_startpoint(geom) from _albion.node where id=new.start_)) into new.top;
+                select st_setpoint(new.bottom, 0, (select st_endpoint(geom) from _albion.node where id=new.start_)) into new.bottom;
+            end if;
+
+            if new.end_ is not null then
+                select st_setpoint(new.geom, -1, (select st_3dlineinterpolatepoint(geom, .5) from _albion.node where id=new.end_)) into new.geom;
+                select st_setpoint(new.top, -1, (select st_startpoint(geom) from _albion.node where id=new.end_)) into new.top;
+                select st_setpoint(new.bottom, -1, (select st_endpoint(geom) from _albion.node where id=new.end_)) into new.bottom;
+            end if;
+
+
             -- adds points to match the grid nodes
             select albion.snap_edge_to_grid(new.geom, new.start_, new.end_, new.grid_id) into new.geom;
             select albion.snap_edge_to_grid(new.top, new.start_, new.end_, new.grid_id) into new.top;
@@ -586,7 +601,36 @@ join albion.hole_grid as g on g.hole_id=f.hole_id
 where g.grid_id = albion.current_section_id()
 ;
 
+create or replace function albion.node_section_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    declare
+        node_geom geometry;
+        bottomgeom geometry;
+        topgeom geometry;
+    begin
+        if tg_op = 'INSERT' or tg_op = 'UPDATE' then
+        end if;
 
+        -- /!\ insert/update the node view to trigger line splitting at grid points 
+        if tg_op = 'INSERT' then
+            return new;
+        elsif tg_op = 'UPDATE' then
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from albion.node where id=old.id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger node_section_instead_trig
+    instead of insert or update or delete on albion.node_section
+       for each row execute procedure albion.node_section_instead_fct()
+;
 
 create or replace view albion.edge_section as
 select f.id, f.graph_id, f.start_, f.end_, f.grid_id,
@@ -1913,25 +1957,74 @@ select * from possible_edge;
 --join lateral (select a.id, count(1) as ct from albion.edge as a where st_intersects(a.top, st_endpoint(e.top)) and id!=e.id group by a.id) as en on en.id=e.id 
 --;
 
+create or replace function albion.is_airtight(volume geometry)
+returns boolean
+language plpython3u
+as
+$$
+    from shapely import wkb
+    import numpy
+    from collections import defaultdict
+    from shapely.geometry import LineString
+
+    node_map = {}
+    triangles = []
+
+    for t in wkb.loads(volume, True):
+        triangles.append([])
+        for c in t.exterior.coords[:-1]:
+            if c not in node_map:
+                node_map[c] = len(node_map)
+            triangles[-1].append(node_map[c])
+
+    vtx = numpy.empty((len(node_map),3))
+    for k, v in node_map.items():
+            vtx[v] = k
+
+    edges_neighbors = defaultdict(list)
+    for i, t in enumerate(triangles):
+        for n1, n2 in zip(t, t[1:]+t[0:1]):
+            edges_neighbors[tuple(sorted((n1,n2)))].append(i)
+
+    res = True
+    reason = ""
+    for n, t in edges_neighbors.items():
+        if len(t) == 1:
+            reason += "border edge found : {}\n".format(LineString([vtx[n[0]], vtx[n[1]]]).wkt)
+            res = False
+        #elif len(t) > 2:
+        #    reason += "bifurcation edge found : {}\n".format(LineString([vtx[n[0]], vtx[n[1]]]).wkt)
+        #    res = False
+    if reason:
+        plpy.warning(reason)
+    return res
+
+$$
+;
+
+create or replace function albion.is_airtight(graph_id_ varchar)
+returns boolean
+language plpgsql
+as
+$$
+    begin
+        return (select albion.is_airtight((select st_collectionhomogenize(st_collect(triangulation)) from (select triangulation from albion.volume where graph_id=graph_id_ union select albion.close_volume(graph_id_) as triangulation) as t)));
+    end;
+$$
+;
+
 
 create or replace function albion.close_volume(graph_id_ varchar)
 returns geometry
 language plpython3u
 as
 $$
-    # create triangle neigbor
-    # get all edges that have no neigbor
-    # polygonize, small buffer
-    # for each ring
-    # get all termination edge and order them according to their curv coord
-    # create triangles between pairs of nodes, interpolating in between
-
     import sys
     from shapely import wkb
     from collections import defaultdict
     import numpy
     from shapely.ops import polygonize
-    from shapely.geometry import MultiLineString, LineString, Point
+    from shapely.geometry import MultiLineString, LineString, Point, Polygon, MultiPolygon
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
 
@@ -1939,34 +2032,22 @@ $$
         select triangulation from _albion.volume where graph_id='{}'
         """.format(graph_id_))
     top_node_map = {}
-    bottom_node_map = {}
     top_triangles = []
-    bottom_triangles = []
 
     for r in res:
         for t in wkb.loads(r['triangulation'], True):
             if t.exterior.is_ccw: # top triangles
                 top_triangles.append([])
-                for c in t.exterior.coords:
+                for c in t.exterior.coords[:-1]:
                     if c not in top_node_map:
                         top_node_map[c] = len(top_node_map)
                     top_triangles[-1].append(top_node_map[c])
-            else: #bottom triangles
-                bottom_triangles.append([])
-                for c in t.exterior.coords:
-                    if c not in bottom_node_map:
-                        bottom_node_map[c] = len(bottom_node_map)
-                    bottom_triangles[-1].append(bottom_node_map[c])
 
-    def mesh_contours(node_map, triangles):
+    def mesh_contours(vtx, triangles):
         edges_neighbors = defaultdict(list)
         for i, t in enumerate(triangles):
             for n1, n2 in zip(t, t[1:]+t[0:1]):
                 edges_neighbors[tuple(sorted((n1,n2)))].append(i)
-
-        vtx = numpy.empty((len(node_map),3))
-        for k, v in node_map.items():
-            vtx[v] = k
 
         borders = MultiLineString([LineString([vtx[n[0]], vtx[n[1]]]) 
             for n, t in edges_neighbors.items() if len(t) == 1])
@@ -1974,63 +2055,99 @@ $$
         polys = polygonize(borders)
         borders = []
         for p in polys:
-            for r in [LineString(p.exterior)]+[LineString(h) for h in p.interiors]:
-                borders.append(r)
+            for r in [p.exterior]+list(p.interiors):
+                borders.append(LineString(r.coords if r.is_ccw else r.coords[::-1]))
         result = MultiLineString(borders)
         return result
 
-    top_result = mesh_contours(top_node_map, top_triangles)
-    bottom_result = mesh_contours(bottom_node_map, bottom_triangles)
+    vtx = numpy.empty((len(top_node_map),3))
+    for k, v in top_node_map.items():
+            vtx[v] = k
 
-    # we need to match rings of top and bottom
-    # they have the same number of points
-    # the sum of distance from all points is minimal
-    pairs = []
-    for it, t in enumerate(top_result):
-        min_dist = sys.float_info.max
-        matching = -1
-        for ib, b in enumerate(bottom_result):
-            if len(b.coords) == len(t.coords):
-                dist = sum([b.distance(Point(p)) for p in t.coords])
-                if dist < min_dist:
-                    min_dist = dist
-                    matching = ib
-        assert(matching != -1)
-        pairs.append((it, matching))
-                    
-    assert(len(top_result) == len(bottom_result))
+    top_result = mesh_contours(vtx, top_triangles)
 
-    ## get termination edges
-    #select 
-    #    e.id, 
-    #    exists (select 1 as ct from albion.edge as a where st_intersects(a.top, st_startpoint(e.top)) and id!=e.id) as start_con,
-    #    exists (select 1 as ct from albion.edge as a where st_intersects(a.top, st_endpoint(e.top)) and id!=e.id) as end_con
-    #from albion.edge as e 
-    #where graph_id='{graph_id_}'
-    #;
+    output = []
+    for ring in top_result:
+        for n1, n2 in zip(ring.coords[:-1], ring.coords[1:]):
+            # find if terminaison exist at start
+            top, bottom = [], []
+            for i, n in enumerate([n1, n2]):
+                res = plpy.execute("""
+                    with connected as (
+                        select id, top, bottom, 
+                            not exists (select 1 from albion.edge as a 
+                                where graph_id='{graph_id_}' and a.id!=e.id and st_intersects(st_startpoint(e.top), a.top)) as extreme_start, 
+                            not exists (select 1 from albion.edge as a 
+                                where graph_id='{graph_id_}' and a.id!=e.id and st_intersects(st_endpoint(e.top), a.top)) as extreme_end
+                        from albion.edge as e
+                        where graph_id='{graph_id_}'
+                        and st_intersects(top, st_setsrid('{point}'::geometry, $SRID))
+                        and (start_ is null or end_ is null)
+                    )
+                    select * from connected where extreme_start or extreme_end
+                    """.format(point=Point(n).wkb_hex, graph_id_=graph_id_))
 
-    for it, ib in pairs:
-        t, b = top_result[it], bottom_result[ib]
-        # find the index of the closest point on b to t start
-        start = Point(t.coords[0])
-        idx = numpy.argmin(numpy.array([start.distance(Point(p)) for p in b.coords]))
-        b = LineString(b.coords[idx:]+b.coords[:idx])
-        plpy.notice(it, idx)
-        #for i in range(len(t.coords)-1):
-        #    # compute 4 points for start
-        #    # compute 4 points for end
-        #    # check if a terminaison is here and move second and third point accordingly
-        #    res = plpy.execute("""
-        #        select id, top from albion.edge 
-        #        where graph_id = '{graph_id_}'
-        #        and st_intersects(top, st_sersrid('{point}'::geometry,$SRID))
-        #        and (start_ is null or end_is null)
-        #        and (not )
-        #        """.format(graph_id_=graph_id_, point=Point(t.coords[i]).wkb)
-        #    plpy.notice(res)
+                # case where 2 termination at start, additional triangles from one to the other
+                if len(res) == 2:
+                    t1 = wkb.loads(res[0]['top'], True)
+                    t1 = t1 if res[0]['extreme_end'] else LineString(t1.coords[::-1])
+                    b1 = wkb.loads(res[0]['bottom'], True)
+                    b1 = b1 if res[0]['extreme_start'] else LineString(b1.coords[::-1])
+                    t2 = wkb.loads(res[1]['top'], True)
+                    t2 = t2 if res[1]['extreme_end'] else LineString(t2.coords[::-1])
+                    b2 = wkb.loads(res[1]['bottom'], True)
+                    b2 = b2 if res[1]['extreme_start'] else LineString(b2.coords[::-1])
+                    u = numpy.array(t1.coords[-1][:2]) - numpy.array(t1.coords[0][:2])
+                    v = numpy.array(t2.coords[-1][:2]) - numpy.array(t2.coords[0][:2])
+                    if numpy.cross(u, v) < 0:
+                        t1, b1, t2, b2 = t2, b2, t1, b1
+                    output += [Polygon([t1.coords[0], t1.coords[1], t2.coords[1]]),
+                               Polygon([t1.coords[1], b1.coords[0], t2.coords[1]]),
+                               Polygon([b1.coords[0], b2.coords[0], t2.coords[1]]),
+                               Polygon([b2.coords[1], b2.coords[0], b1.coords[0]])]
 
+                    top.append(t2 if i==0 else t1)
+                    bottom.append(b2 if i==0 else b1)
+                    #plpy.notice("corner at start")
 
-    result = top_result
+                elif len(res) == 1:
+                    t1 = wkb.loads(res[0]['top'], True)
+                    t1 = t1 if res[0]['extreme_end'] else LineString(t1.coords[::-1])
+                    b1 = wkb.loads(res[0]['bottom'], True)
+                    b1 = b1 if res[0]['extreme_start'] else LineString(b1.coords[::-1])
+                    top.append(t1)
+                    bottom.append(b1)
+                    #plpy.notice("term at start")
+
+                else:
+                    res = plpy.execute("""
+                        with nearby as (
+                            select (st_dumppoints(bottom)).geom as geom
+                            from albion.edge
+                            where graph_id='{graph_id_}'
+                            and st_intersects(top, st_setsrid('{point}'::geometry, $SRID))
+                        )
+                        select geom 
+                        from nearby
+                        order by st_3ddistance(geom, st_setsrid('{point}'::geometry, $SRID))
+                        limit 1
+                        """.format(point=Point(n).wkb_hex, graph_id_=graph_id_))
+
+                    s = numpy.array(n)
+                    e = numpy.array(wkb.loads(res[0]['geom'], True).coords[0])
+                    u = (e - s)/3
+                    top.append(LineString([Point(s), Point(s+u)]))
+                    bottom.append(LineString([Point(s+2*u), Point(e)]))
+                    #plpy.notice("flat at start")
+
+            output += [Polygon([top[0].coords[0], top[0].coords[1], top[1].coords[1]]),
+                       Polygon([top[0].coords[0], top[1].coords[1], top[1].coords[0]]),
+                       Polygon([top[0].coords[1], bottom[0].coords[0], top[1].coords[1]]),
+                       Polygon([bottom[0].coords[0], bottom[1].coords[0], top[1].coords[1]]),
+                       Polygon([bottom[0].coords[1], bottom[1].coords[0], bottom[1].coords[1]]),
+                       Polygon([bottom[0].coords[1], bottom[0].coords[0], bottom[1].coords[0]])]
+
+    result = MultiPolygon(output)
     geos.lgeos.GEOSSetSRID(result._geom, $SRID)
 
     return result.wkb_hex
