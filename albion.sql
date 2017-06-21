@@ -548,8 +548,8 @@ where g.grid_id = albion.current_section_id()
 ;
 
 create or replace view albion.mineralization_section as
-select f.id, f.hole_id, f.from_, f.to_, ioc, accu, grade, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', $SRID) as geom
-from albion.radiometry as f 
+select f.id, f.hole_id, f.from_, f.to_, oc, accu, grade, albion.to_section(f.geom, g.geom)::geometry('LINESTRING', $SRID) as geom
+from albion.mineralization as f 
 join albion.hole_grid as g on g.hole_id=f.hole_id
 where g.grid_id = albion.current_section_id()
 ;
@@ -1394,9 +1394,9 @@ $$
             perform count(albion.auto_connect(graph_id_, id, support_graph_id_)) from albion.grid;
         end if;
 
-        raise notice 'start auto_topand_bottom';
+        raise notice 'start auto_to_pand_bottom';
 
-        perform count(albion.auto_topand_bottom(graph_id_, id)) from albion.grid;
+        perform count(albion.auto_top_and_bottom(graph_id_, id)) from albion.grid;
 
         raise notice 'start fix';
         perform albion.fix_column(graph_id_, geom)
