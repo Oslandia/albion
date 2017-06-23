@@ -471,14 +471,14 @@ $$
             -- snap to extremities
             if new.start_ is not null then
                 select st_setpoint(new.geom, 0, (select st_3dlineinterpolatepoint(geom, .5) from _albion.node where id=new.start_)) into new.geom;
-                select st_setpoint(new.top, 0, (select st_startpoint(geom) from _albion.node where id=new.start_)) into new.top;
-                select st_setpoint(new.bottom, 0, (select st_endpoint(geom) from _albion.node where id=new.start_)) into new.bottom;
+                --select st_setpoint(new.top, 0, (select st_startpoint(geom) from _albion.node where id=new.start_)) into new.top;
+                --select st_setpoint(new.bottom, 0, (select st_endpoint(geom) from _albion.node where id=new.start_)) into new.bottom;
             end if;
 
             if new.end_ is not null then
                 select st_setpoint(new.geom, -1, (select st_3dlineinterpolatepoint(geom, .5) from _albion.node where id=new.end_)) into new.geom;
-                select st_setpoint(new.top, -1, (select st_startpoint(geom) from _albion.node where id=new.end_)) into new.top;
-                select st_setpoint(new.bottom, -1, (select st_endpoint(geom) from _albion.node where id=new.end_)) into new.bottom;
+                --select st_setpoint(new.top, -1, (select st_startpoint(geom) from _albion.node where id=new.end_)) into new.top;
+                --select st_setpoint(new.bottom, -1, (select st_endpoint(geom) from _albion.node where id=new.end_)) into new.bottom;
             end if;
 
 
@@ -805,6 +805,7 @@ $$
             join node as n1 on n1.hole_id=p.left
             join node as n2 on n2.hole_id=p.right, albion.metadata as m
             where st_distance(n1.geom, n2.geom) <  m.correlation_distance
+            and abs((st_z(n2.geom) - st_z(n1.geom))/st_distance(n1.geom, n2.geom)) < m.correlation_slope
         )
         insert into albion.edge(graph_id, start_, end_, grid_id, geom)
         select graph_id_, e.start_, e.end_, grid_id_, e.geom  from possible_edge as e
@@ -1809,14 +1810,14 @@ $$
         insert into albion.edge(geom, top, bottom, graph_id, grid_id) 
         select distinct geom, top, bottom, graph_id_, grid_id_ from next;
 
-        perform albion.fix_column(graph_id_, geom) 
-        from (
-            select (st_dumppoints(st_force2d(geom))).geom as geom
-            from albion.grid
-            where id=grid_id_
-        ) as t
-        --where not exists (select 1 from albion.collar as c where st_intersects(c.geom, t.geom))
-        ;
+        --perform albion.fix_column(graph_id_, geom) 
+        --from (
+        --    select (st_dumppoints(st_force2d(geom))).geom as geom
+        --    from albion.grid
+        --    where id=grid_id_
+        --) as t
+        ----where not exists (select 1 from albion.collar as c where st_intersects(c.geom, t.geom))
+        --;
 
         return 't';
     end;

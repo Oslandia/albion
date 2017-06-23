@@ -31,7 +31,7 @@ import numpy
 import psycopg2 
 import tempfile
 import zipfile
-from subprocess import Popen
+from subprocess import Popen, PIPE
 from pglite import start_cluster, stop_cluster, init_cluster, check_cluster, cluster_params
 import atexit
 import os
@@ -864,7 +864,7 @@ class Plugin(QObject):
             dump = tempfile.mkstemp()[1]
             cmd = ['pg_dump', '-h', param['host'], '-p', param['port'], '-d', param['dbname']]
             print ' '.join(cmd)
-            p = Popen(cmd, stdout=open(dump,'w')).communicate()
+            p = Popen(cmd, stdout=open(dump,'w'), stdin=PIPE, stderr=PIPE).communicate()
             project.write(dump, param['dbname']+'.dump')
             project.write(QgsProject.instance().fileName())
             
