@@ -24,7 +24,8 @@ from PyQt4.QtGui import (QMenu,
                          QComboBox,
                          QApplication,
                          QIcon,
-                         QDockWidget)
+                         QDockWidget,
+                         QMessageBox)
 
 
 import numpy
@@ -228,6 +229,13 @@ class Plugin(QObject):
         cur.execute("select pg_terminate_backend(pg_stat_activity.pid) \
                     from pg_stat_activity \
                     where pg_stat_activity.datname = '{}'".format(project_name))
+        
+        cur.execute("select count(1) from pg_catalog.pg_database where datname='{}'".format(project_name))
+        if cur.fetchone()[0]:
+            if QMessageBox.Yes != QMessageBox(QMessageBox.Information, "Delete existing DB", "Database {} exits, to you want to delete it ?".format(project_name), QMessageBox.Yes|QMessageBox.No).exec_():
+                con.close()
+                return
+
         cur.execute("drop database if exists {}".format(project_name))
         cur.execute("create database {}".format(project_name))
         con.commit()
