@@ -962,7 +962,7 @@ $$
 
 
 
-        -- for egdes that are not handled, create fake bottom and top at 1 m distance
+        -- for edges that are not handled, create fake bottom and top at 1 m distance
 
         update albion.edge as e set top =  st_translate(geom, 0, 0, 1)
         where e.grid_id=grid_id_ and top is null and e.graph_id=graph_id_;
@@ -2222,6 +2222,60 @@ $$
     geos.lgeos.GEOSSetSRID(result._geom, $SRID)
 
     return result.wkb_hex
+$$
+;
+
+create or replace function albion.isolated_node_volume(graph_id_ varchar)
+returns geometry
+language plpython3u
+as
+$$
+    from shapely import wkb
+    from shapely.geometry import MultiLineString, LineString, Point, Polygon, MultiPolygon
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    # for all isolated nodes (not connected to other node) get termination edges
+    # and create associted volume
+
+    output = []
+    isolated = plpy.execute("""
+        select n.id from albion.node as n
+        where n.graph_id='{graph_id_}'
+        and not exists (select 1 from albion.edge as e where e.graph_id='{graph_id_}' and ((e.start_=n.id and e.end_ is not null) or (e.end_=n.id and e.start_ is not null)))
+        """.format(graph_id_=graph_id_))
+    for rec in isolated:
+        res = plpy.execute("""
+            select 
+            case when start_ is not null then top else st_reverse(top) end as top, 
+            case when start_ is not null then st_reverse(bottom) else bottom end as bottom, 
+            case when start_ is not null then st_azimuth(st_startpoint(top), st_endpoint(top)) else st_azimuth(st_endpoint(top), st_startpoint(top)) end as azi
+            from albion.edge 
+            where graph_id='{graph_id_}'
+            and start_='{id_}' or end_='{id_}'
+            order by azi desc
+            """.format(graph_id_=graph_id_, id_=rec['id']))
+
+        tops = [wkb.loads(r['top'], True) for r in res]
+        bottoms = [wkb.loads(r['bottom'], True) for r in res]
+        n = len(tops)
+        if n < 3:
+            continue
+        for i in range(n):
+            t1, t2 = tops[i], tops[(i+1)%n]
+            b1, b2 = bottoms[i], bottoms[(i+1)%n]
+            output += [Polygon([t1.coords[0], t1.coords[-1], t2.coords[-1]]),
+                       Polygon([t1.coords[-1], b1.coords[0], t2.coords[-1]]),
+                       Polygon([b1.coords[0], b2.coords[0], t2.coords[-1]]),
+                       Polygon([b1.coords[0], b1.coords[-1], b2.coords[0]])]
+
+
+    result = MultiPolygon(output)
+    geos.lgeos.GEOSSetSRID(result._geom, $SRID)
+
+    return result.wkb_hex
+        
+
 $$
 ;
 
