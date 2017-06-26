@@ -223,7 +223,10 @@ $$
                     st_linesubstring(geom, 
                         st_linelocatepoint(geom, coalesce((select st_startpoint(h.geom) from albion.hole as h join albion.node as n on n.hole_id=h.id where n.id=start_), st_startpoint(new_geom))),
                         st_linelocatepoint(geom, coalesce((select st_startpoint(h.geom) from albion.hole as h join albion.node as n on n.hole_id=h.id where n.id=end_), st_endpoint(new_geom)))
-                    )) as d from albion.grid where id=grid_id) as t
+                    )) as d from albion.grid 
+                where id=grid_id
+                and st_linelocatepoint(geom, coalesce((select st_startpoint(h.geom) from albion.hole as h join albion.node as n on n.hole_id=h.id where n.id=start_), st_startpoint(new_geom))) < st_linelocatepoint(geom, coalesce((select st_startpoint(h.geom) from albion.hole as h join albion.node as n on n.hole_id=h.id where n.id=end_), st_endpoint(new_geom)))
+            ) as t
         ),
         snap as (
             select (st_dumppoints(new_geom)).geom as geom
@@ -442,14 +445,10 @@ as
 $$
     begin
         if tg_op = 'INSERT' or tg_op = 'UPDATE' then
+            select coalesce(new.grid_id, albion.current_graph()) into new.grid_id;
             -- find start_ and end_ if null
-            if new.graph_id is null then
-                select coalesce(new.start_, (select id from albion.node where st_dwithin(geom, st_startpoint(new.geom), albion.precision()) order by st_distance(geom, st_startpoint(new.geom)) limit 1)) into new.start_;
-                select coalesce(new.end_, (select id from albion.node where st_dwithin(geom, st_endpoint(new.geom), albion.precision()) order by st_distance(geom, st_endpoint(new.geom)) limit 1)) into new.end_;
-            else
-                select coalesce(new.start_, (select id from albion.node where st_dwithin(geom, st_startpoint(new.geom), albion.precision()) and graph_id=new.graph_id order by st_3ddistance(geom, st_startpoint(new.geom)) limit 1)) into new.start_;
-                select coalesce(new.end_, (select id from albion.node where st_dwithin(geom, st_endpoint(new.geom), albion.precision()) and graph_id=new.graph_id order by st_3ddistance(geom, st_endpoint(new.geom)) limit 1)) into new.end_;
-            end if;
+            select coalesce(new.start_, (select id from albion.node where st_dwithin(geom, st_startpoint(new.geom), albion.precision()) and graph_id=new.graph_id order by st_3ddistance(geom, st_startpoint(new.geom)) limit 1)) into new.start_;
+            select coalesce(new.end_, (select id from albion.node where st_dwithin(geom, st_endpoint(new.geom), albion.precision()) and graph_id=new.graph_id order by st_3ddistance(geom, st_endpoint(new.geom)) limit 1)) into new.end_;
 
             -- find graph_id from nodes
             select coalesce(new.graph_id, 
@@ -667,10 +666,8 @@ $$
             limit 1
             into new.end_;
 
-            -- find graph_id from nodes
-            select coalesce(new.graph_id, 
-                (select graph_id from albion.node where id in (new.start_, new.end_) limit 1))
-            into new.graph_id;
+            -- find graph_id from current graph
+            select coalesce(new.graph_id, albion.current_graph()) into new.graph_id;
 
             select albion.current_section_id() into new.grid_id;
 
@@ -680,8 +677,22 @@ $$
                 coalesce((select st_3dlineinterpolatepoint(geom, .5) from _albion.node where id=new.end_), albion.from_section(st_endpoint(new.geom), albion.current_section_geom()))
                 ) into edge_geom;
 
+            raise notice 'edge_section_instead_fct % % %', new.geom, new.top, new.bottom;
             select albion.from_section(new.top, albion.current_section_geom()) into topgeom;
             select albion.from_section(new.bottom, albion.current_section_geom()) into bottomgeom;
+
+            -- snap top and bottom extremities to node
+            select st_setpoint(st_setpoint(topgeom, 0, 
+                    coalesce((select st_3dlineinterpolatepoint(geom, st_linelocatepoint(albion.to_section(geom, albion.current_section_geom()), st_startpoint(new.top))) from _albion.node where id=new.start_), 
+                        st_startpoint(topgeom))), 
+                    -1, coalesce((select st_3dlineinterpolatepoint(geom, st_linelocatepoint(albion.to_section(geom, albion.current_section_geom()), st_endpoint(new.top))) from _albion.node where id=new.end_), st_endpoint(topgeom))) into topgeom;
+
+            select st_setpoint(st_setpoint(bottomgeom, 0, 
+                    coalesce((select st_3dlineinterpolatepoint(geom, st_linelocatepoint(albion.to_section(geom, albion.current_section_geom()), st_startpoint(new.bottom))) from _albion.node where id=new.start_), 
+                        st_startpoint(bottomgeom))), 
+                -1, coalesce((select st_3dlineinterpolatepoint(geom, st_linelocatepoint(albion.to_section(geom, albion.current_section_geom()), st_endpoint(new.bottom))) from _albion.node where id=new.end_), 
+                    st_endpoint(bottomgeom))) into bottomgeom;
+
         end if;
 
         -- /!\ insert/update the edge view to trigger line splitting at grid points 
@@ -1808,7 +1819,8 @@ $$
             and e.graph_id=graph_id_
         )
         insert into albion.edge(geom, top, bottom, graph_id, grid_id) 
-        select distinct geom, top, bottom, graph_id_, grid_id_ from next;
+        select distinct n.geom, n.top, n.bottom, graph_id_, grid_id_ from next as n, albion.metadata as m
+        where abs(st_z(st_startpoint(geom)) - st_z(st_endpoint(geom)))/st_length(geom) < m.correlation_slope;
 
         --perform albion.fix_column(graph_id_, geom) 
         --from (
@@ -1897,6 +1909,54 @@ $$
         from extreme as e, albion.metadata as m, albion.grid as s
         where e.extreme_end  and s.id=grid_id_
         and st_x(albion.to_section(st_endpoint(e.geom), s.geom)) < (st_length(s.geom)-m.end_distance)
+        ;
+
+        -- isolated nodes
+        with isolated as (
+            select st_lineinterpolatepoint(albion.to_section(n.geom, g.geom), .5) as geom, 
+            st_startpoint(albion.to_section(n.geom, g.geom)) as top,
+            st_endpoint(albion.to_section(n.geom, g.geom)) as bottom
+            from albion.node as n join albion.hole as h on h.id=n.hole_id join albion.grid as g on st_intersects(st_startpoint(h.geom), g.geom)
+            where g.id=grid_id_
+            and n.graph_id=graph_id_
+            and not exists (select 1 from albion.edge as e where e.graph_id=graph_id_ and e.grid_id=grid_id_ and (e.start_=n.id or e.end_=n.id))
+        )
+        insert into albion.edge_section(geom, top, bottom, grid_id, graph_id)
+        select 
+            st_makeline(
+                st_translate(e.geom, -m.end_distance, 0),
+                e.geom
+            ), 
+            st_makeline(
+                st_translate(e.top, -m.end_distance, -m.end_slope*m.end_distance),
+                e.top
+            ), 
+            st_makeline(
+                st_translate(e.bottom, -m.end_distance, m.end_slope*m.end_distance),
+                e.bottom
+            ), 
+            grid_id_, graph_id_
+        from isolated as e, albion.metadata as m, albion.grid as s
+        where s.id=grid_id_
+        and st_x(e.geom) > m.end_distance
+        union
+        select 
+            st_makeline(
+                e.geom,
+                st_translate(e.geom, m.end_distance, 0)
+            ),
+            st_makeline(
+                e.top,
+                st_translate(e.top, m.end_distance, - m.end_slope*m.end_distance)
+            ),
+            st_makeline(
+                e.bottom,
+                st_translate(e.bottom, m.end_distance, m.end_slope*m.end_distance)
+            ),
+            grid_id_, graph_id_
+        from isolated as e, albion.metadata as m, albion.grid as s
+        where s.id=grid_id_
+        and st_x(e.geom) < (st_length(s.geom)-m.end_distance)
         ;
 
         return 't';
