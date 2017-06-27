@@ -1024,9 +1024,25 @@ class Plugin(QObject):
         self.__iface.messageBar().clearWidgets()
 
         cur.execute("""
+            with p as (
+                select albion.close_volume(albion.current_graph()) as geom
+            )
             insert into albion.volume(id, triangulation, graph_id)
             select 
-            _albion.unique_id()::varchar, albion.close_volume(albion.current_graph()), albion.current_graph()
+            _albion.unique_id()::varchar, geom, albion.current_graph()
+            from p
+            where not st_isempty(geom)
+            """)
+
+        cur.execute("""
+            with p as (
+                select albion.isolated_node_volume(albion.current_graph()) as geom
+            )
+            insert into albion.volume(id, triangulation, graph_id)
+            select 
+            _albion.unique_id()::varchar, geom, albion.current_graph()
+            from p 
+            where not st_isempty(geom)
             """)
 
         con.commit()
