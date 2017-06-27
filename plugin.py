@@ -95,6 +95,7 @@ class Plugin(QObject):
     def initGui(self):
         self.__menu = QMenu("Albion")
         self.__menu.addAction('New &Project').triggered.connect(self.__new_project)
+        self.__menu.addAction('Upgrade Project').triggered.connect(self.__upgrade_project)
         self.__menu.addAction('&Import Data').triggered.connect(self.__import_data)
         self.__menu.addAction('Compute &Mineralization')
         self.__menu.addSeparator()
@@ -192,11 +193,32 @@ class Plugin(QObject):
 
         self.__viewer3d.widget().resetScene(conn_info, self.__current_graph.currentText())
 
+    def __upgrade_project(self):
+        project_name, ok = QInputDialog.getText(self.__iface.mainWindow(),
+                "Database name",
+                 "Database name:", QLineEdit.Normal,
+                 '')
+
+        if not ok:
+            return
+
+        conn_info = "dbname={} {}".format(project_name, cluster_params())
+        con = psycopg2.connect(conn_info)
+        cur = con.cursor()
+        cur.execute("select srid from _albion.metadata")
+        srid, = cur.fetchone()
+        cur.execute("drop schema if exists albion cascade")
+        for statement in open(os.path.join(os.path.dirname(__file__), 'albion.sql')).read().split('\n;\n')[:-1]:
+            cur.execute(statement.replace('$SRID', str(srid)))
+            #print statement.replace('$SRID', str(srid))
+        con.commit()
+        con.close()
+
     def __new_project(self):
 
         # @todo open dialog to configure project name and srid
         fil = QFileDialog.getSaveFileName(None,
-                u"New project name (no space, plai ascii)",
+                u"New project name (no space, plain ascii)",
                 QgsProject.instance().readEntry("albion", "last_dir", "")[0],
                 "QGIS poject file (*.qgs)")
         if not fil:
@@ -289,7 +311,7 @@ class Plugin(QObject):
 
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
-        cur.execute("delete from albion.graph casacde where id='{}';".format(graph))
+        cur.execute("delete from albion.graph cascade where id='{}';".format(graph))
         if parent:
             cur.execute("insert into albion.graph(id, parent) values ('{}', '{}');".format(graph, parent))
         else:
