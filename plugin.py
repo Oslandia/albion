@@ -824,7 +824,12 @@ class Plugin(QObject):
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
-        cur.execute("select albion.auto_graph('{}')".format(self.__current_graph.currentText()))
+        cur.execute("select parent from albion.graph where id='{}'".format(self.__current_graph.currentText()))
+        parent, = cur.fetchone()
+        if parent:
+            cur.execute("select albion.auto_graph('{}', '{}')".format(self.__current_graph.currentText(), parent))
+        else:
+            cur.execute("select albion.auto_graph('{}')".format(self.__current_graph.currentText()))
         con.commit()
         con.close()
         self.__refresh_layers()
@@ -860,7 +865,7 @@ class Plugin(QObject):
         conn_info = QgsProject.instance().readEntry("albion", "conn_info", "")[0]
         con = psycopg2.connect(conn_info)
         cur = con.cursor()
-        cur.execute("select albion.create_ends('{}', albion.current_section_id())".format(self.__current_graph.currentText()))
+        cur.execute("select albion.create_ends('{}')".format(self.__current_graph.currentText()))
         con.commit()
         con.close()
         self.__refresh_layers()
