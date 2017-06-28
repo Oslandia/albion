@@ -1088,11 +1088,13 @@ class Plugin(QObject):
                 where graph_id=albion.current_graph() 
                 and cell_id='{}'""".format(res[0]))
             cur.execute("""
+                with mesh as (
+                    select albion.elementary_volume(albion.current_graph(), '{cell_id}') as geom
+                )
                 insert into albion.volume(id, triangulation, graph_id, cell_id)
-                select 
-                _albion.unique_id()::varchar,
-                albion.elementary_volume(albion.current_graph(), '{cell_id}') ,
-                albion.current_graph(), '{cell_id}'""".format(cell_id=res[0]))
+                select _albion.unique_id()::varchar, geom, albion.current_graph(), '{cell_id}'
+                from mesh
+                where geom is not null""".format(cell_id=res[0]))
 
         con.commit()
         con.close()
