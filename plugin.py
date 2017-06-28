@@ -750,6 +750,25 @@ class Plugin(QObject):
         cur = con.cursor()
 
         if fil[-4:] == '.dxf':
+            dpi = math.pi*.05
+            for name, azi in zip(['0', '45', '90', '135'],
+                    [(2*math.pi-dpi, dpi), 
+                        (math.pi/4 - dpi, math.pi/4 + dpi), 
+                        (math.pi/2 - dpi, math.pi/2 + dpi), 
+                        (3*math.pi/4 - dpi, 3*math.pi/4 + dpi)]):
+                cur.execute("""
+                    select st_collectionhomogenize(st_collect(triangulation)) 
+                    from albion.section as s join albion.grid as g on g.id=s.grid_id  
+                    where graph_id='{}'
+                    and g.azimuth > {} {} g.azimuth < {}
+                    """.format(self.__current_graph.currentText(), azi[0], 'or' if azi[0]>azi[1] else 'and', azi[1]))
+                drawing = dxf.drawing(fil[:-4]+'_'+name+'.dxf')
+                m = wkb.loads(cur.fetchone()[0], True)
+                for p in m:
+                    r = p.exterior.coords
+                    drawing.add(dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1))
+                drawing.save()
+
             cur.execute("""
                 select st_collectionhomogenize(st_collect(triangulation)) 
                 from albion.section 
@@ -762,6 +781,20 @@ class Plugin(QObject):
                 drawing.add(dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1))
             drawing.save()
         elif fil[-4:] == '.obj':
+            dpi = math.pi*.05
+            for name, azi in zip(['0', '45', '90', '135'],
+                    [(2*math.pi-dpi, dpi), 
+                        (math.pi/4 - dpi, math.pi/4 + dpi), 
+                        (math.pi/2 - dpi, math.pi/2 + dpi), 
+                        (3*math.pi/4 - dpi, 3*math.pi/4 + dpi)]):
+                cur.execute("""
+                    select albion.to_obj(st_collectionhomogenize(st_collect(triangulation))) 
+                    from albion.section as s join albion.grid as g on g.id=s.grid_id  
+                    where graph_id='{}'
+                    and g.azimuth > {} {} g.azimuth < {}
+                    """.format(self.__current_graph.currentText(), azi[0], 'or' if azi[0]>azi[1] else 'and', azi[1]))
+                open(fil[:-4]+'_'+name+'.obj', 'w').write(cur.fetchone()[0])
+
             cur.execute("""
                 select albion.to_obj(st_collectionhomogenize(st_collect(triangulation))) 
                 from albion.section 

@@ -2198,12 +2198,13 @@ $$
                         limit 1
                         """.format(point=Point(n).wkb_hex, graph_id_=graph_id_))
 
-                    s = numpy.array(n)
-                    e = numpy.array(wkb.loads(res[0]['geom'], True).coords[0])
-                    u = (e - s)/3
-                    top.append(LineString([Point(s), Point(s+u)]))
-                    bottom.append(LineString([Point(s+2*u), Point(e)]))
-                    flat = i
+                    if len(res):
+                        s = numpy.array(n)
+                        e = numpy.array(wkb.loads(res[0]['geom'], True).coords[0])
+                        u = (e - s)/3
+                        top.append(LineString([Point(s), Point(s+u)]))
+                        bottom.append(LineString([Point(s+2*u), Point(e)]))
+                        flat = i
                     #plpy.notice("flat at start")
 
             if flat == 0:
