@@ -740,7 +740,7 @@ class Plugin(QObject):
         fil = QFileDialog.getSaveFileName(None,
                 u"Export section",
                 QgsProject.instance().readEntry("albion", "last_dir", "")[0],
-                "Section files (*.obj *.dxf)")
+                "Section files .obj, .dxf or .txt (*.obj *.dxf *.txt)")
         if not fil:
             return
         QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
@@ -780,6 +780,7 @@ class Plugin(QObject):
                 r = p.exterior.coords
                 drawing.add(dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1))
             drawing.save()
+
         elif fil[-4:] == '.obj':
             dpi = math.pi*.05
             for name, azi in zip(['0', '45', '90', '135'],
@@ -801,6 +802,35 @@ class Plugin(QObject):
                 where graph_id='{}'
                 """.format(self.__current_graph.currentText()))
             open(fil, 'w').write(cur.fetchone()[0])
+
+        elif fil[-4:] == '.txt':
+            cur.execute("""
+                with poly as (
+                    select row_number() over() as id, (t.d).geom as geom, azimuth
+                    from (select st_dump(albion.section_polygons('{}', id)) as d, azimuth from albion.grid) as t
+                ),
+                pt as (
+                    select id, (st_dumppoints(geom)).geom as geom, azimuth from poly
+                )
+                select id, st_x(geom), st_y(geom), st_z(geom), azimuth from pt
+                """.format(self.__current_graph.currentText()))
+            res = cur.fetchall()
+            open(fil, 'w').write('\n'.join(["{};{};{};{}".format(id_, x, y, z) for id_, x, y, z, az in res]))
+            dpi = math.pi*.05
+            for name, azi in zip(['0', '45', '90', '135'],
+                    [(2*math.pi-dpi, dpi), 
+                        (math.pi/4 - dpi, math.pi/4 + dpi), 
+                        (math.pi/2 - dpi, math.pi/2 + dpi), 
+                        (3*math.pi/4 - dpi, 3*math.pi/4 + dpi)]):
+                open(fil[:-4]+'_'+name+'.txt', 'w').write('\n'.join(["{};{};{};{}".format(id_, x, y, z) 
+                    for id_, x, y, z, az in res 
+                    if ((azi[0]>azi[1] and az > azi[0] or az < azi[1])
+                    or (azi[0]<azi[1] and az > azi[0] and az < azi[1]))]))
+        else:
+            self.__iface.messageBar().pushWarning('Albion', 'unsupported extension for section export')
+
+
+
         con.close()
 
     def __export_volume(self):

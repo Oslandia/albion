@@ -1322,17 +1322,30 @@ $$
 $$
 ;
 
--- returns polygons 
+-- returns rings 
 create or replace function albion.section_polygons(graph_id_ varchar, grid_id_ varchar)
 returns geometry
 language plpgsql stable
 as
 $$
-    declare
-        res geometry;
     begin
+        return (
         with section as (
             select geom from albion.grid where id = grid_id_
+        ),
+        point as (
+            select distinct t.geom, albion.to_section(t.geom, s.geom) as pgeom
+            from (
+                select (st_dumppoints(e.top)).geom as geom
+                from albion.edge as e
+                where e.grid_id=grid_id_
+                and e.graph_id=graph_id_
+                union
+                select (st_dumppoints(e.bottom)).geom as geom
+                from albion.edge as e, section as s
+                where e.grid_id=grid_id_
+                and e.graph_id=graph_id_
+            ) as t, section as s
         ),
         line as (
             select albion.to_section(e.top, s.geom) as geom 
@@ -1353,12 +1366,25 @@ $$
             and n.graph_id=graph_id_
 
         ),
-        poly as (
+        polys as (
             select st_polygonize(geom) as geom from line
+        ),
+        multipoly as ( 
+            select st_unaryunion(geom) as geom from polys where not st_isempty(geom)
+        ),
+        rings as (
+            select row_number() over() as id, (st_dumprings(geom)).geom from (select (st_dump(geom)).geom from multipoly) as t
+        ),
+        pt as (
+            select id, (st_dumppoints(geom)).geom as geom from rings
+        ),
+        line3d as (
+            select pt.id, st_makeline(m.geom) as geom 
+            from pt left join point as m on pt.geom=m.pgeom
+            group by pt.id
         )
-        select geom from poly where not st_isempty(geom) into res;
-
-        return (select albion.from_section(st_unaryunion(res), (select geom from albion.grid where id = grid_id_)));
+        select st_collect(geom) from line3d
+        );
     end;
 $$
 ;
@@ -2282,4 +2308,61 @@ $$
 
 $$
 ;
+/*
+with section as (
+    select geom from albion.grid where id = albion.current_section_id()
+),
+point as (
+    select distinct t.geom, albion.to_section(t.geom, s.geom) as pgeom
+    from (
+        select (st_dumppoints(e.top)).geom as geom
+        from albion.edge as e
+        where e.grid_id=albion.current_section_id()
+        and e.graph_id='tarat_u1'
+        union
+        select (st_dumppoints(e.bottom)).geom as geom
+        from albion.edge as e, section as s
+        where e.grid_id=albion.current_section_id()
+        and e.graph_id='tarat_u1'
+    ) as t, section as s
+),
+line as (
+    select albion.to_section(e.top, s.geom) as geom 
+    from section as s, albion.edge as e
+    where e.grid_id=albion.current_section_id()
+    and e.graph_id='tarat_u1'
+    union all
+    select albion.to_section(e.bottom, s.geom) as geom 
+    from section as s, albion.edge as e
+    where e.grid_id=albion.current_section_id()
+    and e.graph_id='tarat_u1'
+    union all
+    select albion.to_section(n.geom, s.geom) as geom
+    from section as s,
+    albion.node as n 
+    join albion.hole as h on h.id=n.hole_id
+    where st_intersects(st_startpoint(h.geom), s.geom)
+    and n.graph_id='tarat_u1'
 
+),
+polys as (
+    select st_polygonize(geom) as geom from line
+),
+multipoly as ( 
+    select st_unaryunion(geom) as geom from polys where not st_isempty(geom)
+),
+rings as (
+    select row_number() over() as id, (st_dumprings(geom)).geom from (select (st_dump(geom)).geom from multipoly) as t
+),
+pt as (
+    select id, (st_dumppoints(geom)).geom as geom from rings
+) 
+select pt.id, st_astext(st_makeline(m.geom)) from pt left join point as m on pt.geom=m.pgeom
+group by pt.id
+;
+
+select st_collect(m.geom) as geom
+from pt join point as m on (pt.d).geom=m.pgeom
+group by pt.id, pt.d
+order by (pt.d).path
+*/
