@@ -981,12 +981,14 @@ class Plugin(QObject):
         if not fil:
             return
         QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
-        dir_ = tempfile.mkdtemp()
+        dir_ = tempfile.gettempdir()
         with zipfile.ZipFile(fil, "r") as z:
+            prj = [f for f in z.namelist() if f[-4:] == '.qgs'][0]
             z.extractall(dir_)
             
         dump = self.__find_in_dir(dir_, '.dump')
         project_name = os.path.split(dump)[1][:-5]
+        print "loading", project_name, "from", dump
 
         con = psycopg2.connect("dbname=postgres {}".format(cluster_params()))
         cur = con.cursor()
@@ -999,14 +1001,14 @@ class Plugin(QObject):
         con.close()
 
         param = dict([p.split('=') for p in cluster_params().split()])
-        cmd = ['createdb', '-h', param['host'], '-p', param['port'], '-d', project_name]
+        cmd = ['createdb', '-h', param['host'], '-p', param['port'], project_name]
         print ' '.join(cmd)
-        p = Popen(cmd ).communicate()
+        p = Popen(cmd).communicate()
         cmd = ['psql', '-h', param['host'], '-p', param['port'], '-d', project_name, '-f', dump]
         print ' '.join(cmd)
         p = Popen(cmd ).communicate()
 
-        QgsProject.instance().read(QFileInfo(self.__find_in_dir(dir_, '.qgs')))
+        QgsProject.instance().read(QFileInfo(os.path.join(dir_, prj)))
 
 
     def __triangulate_sections(self):
