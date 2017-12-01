@@ -18,40 +18,17 @@ $$
 $$
 ;
 
-create or replace function _albion.current_graph()
-returns varchar
-language plpgsql stable
-as
-$$
-    begin
-        return (select current_graph from _albion.metadata);
-    end;
-$$
-;
-
 create type interpolation_method as enum ('balanced_tangential');
-
-create table _albion.grid(
-    id varchar primary key default _albion.unique_id()::varchar,
-    geom geometry('LINESTRING', $SRID))
-;
 
 create table _albion.graph(
     id varchar primary key default _albion.unique_id()::varchar,
     parent varchar references _albion.graph(id) on delete set null on update cascade)
 ;
 
-create index grid_geom_idx on _albion.grid using gist(geom)
-;
-
-alter table _albion.grid alter column id set default _albion.unique_id()::varchar
-;
-
 create table _albion.metadata(
     id integer primary key default 1 check (id=1), -- only one entry in table
     srid integer not null references public.spatial_ref_sys(srid),
-    current_section varchar references _albion.grid(id) on delete set null on update cascade,
-    current_graph varchar references _albion.graph(id) on delete set null on update cascade,
+    close_collar_distance real not null default 10,
     snap_distance real not null default 1,
     precision real default .01,
     interpolation interpolation_method default 'balanced_tangential',
@@ -251,22 +228,15 @@ create index node_hole_id_idx on _albion.node(hole_id)
 alter table _albion.node alter column id set default _albion.unique_id()::varchar
 ;
 
-alter table _albion.node alter column graph_id set default _albion.current_graph(); 
-;
-
 create table _albion.edge(
     id varchar primary key,
-    graph_id varchar not null,
-        unique(id, graph_id),
-    start_ varchar,
+    start_ varchar not null ,
         foreign key (graph_id, start_) references _albion.node(graph_id, id) on delete cascade on update cascade,
-    end_ varchar references _albion.node(id) on delete cascade,
+    end_ varchar not null,
         foreign key (graph_id, end_) references _albion.node(graph_id, id) on delete cascade on update cascade,
         unique (start_, end_),
-    grid_id varchar references _albion.grid(id) on delete cascade,
-    geom geometry('LINESTRINGZ', $SRID) not null check (st_isvalid(geom)),
-    top geometry('LINESTRINGZ', $SRID),
-    bottom geometry('LINESTRINGZ', $SRID)
+    graph_id varchar references _albion.graph(id) on delete cascade,
+    geom geometry('LINESTRINGZ', $SRID) not null check (st_isvalid(geom))
 )
 ;
 
@@ -274,9 +244,6 @@ create index edge_geom_idx on _albion.edge using gist(geom)
 ;
 
 create index edge_graph_id_idx on _albion.edge(graph_id)
-;
-
-create index edge_grid_id_idx on _albion.edge(grid_id)
 ;
 
 create index edge_start__idx on _albion.edge(start_)
@@ -288,21 +255,25 @@ create index edge_end__idx on _albion.edge(end_)
 alter table _albion.edge alter column id set default _albion.unique_id()::varchar
 ;
 
-alter table _albion.edge alter column graph_id set default _albion.current_graph(); 
-;
-
-
 create table _albion.cell(
     id varchar primary key,
-    geom geometry('POLYGON', $SRID) not null check(st_isvalid(geom)),
-    triangulation geometry('MULTIPOLYGON', $SRID)
+    a varchar not null references _albion.collar(id) on delete cascade on update cascade,
+    b varchar not null references _albion.collar(id) on delete cascade on update cascade,
+    c varchar not null references _albion.collar(id) on delete cascade on update cascade,
+    geom geometry('POLYGON', $SRID) not null check(st_isvalid(geom) and st_numpoints(geom)=4)
 )
 ;
 
 create index cell_geom_idx on _albion.cell using gist(geom)
 ;
 
-create index cell_triangulation_idx on _albion.cell using gist(triangulation)
+create index volume_cell_a_idx on _albion.cell(a)
+;
+
+create index volume_cell_b_idx on _albion.cell(b)
+;
+
+create index volume_cell_c_idx on _albion.cell(c)
 ;
 
 alter table _albion.cell alter column id set default _albion.unique_id()::varchar
@@ -310,16 +281,11 @@ alter table _albion.cell alter column id set default _albion.unique_id()::varcha
 
 create table _albion.section(
     id varchar primary key,
-    graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
-    grid_id varchar references _albion.grid(id) on delete cascade on update cascade,
-    triangulation geometry('MULTIPOLYGONZ', $SRID)
+    anchor geometry('LINESTRING', $SRID) not null check(st_numpoints(anchor)=2),
+    geom geometry('LINESTRING', $SRID)/* not null */,
+    nb_cell integer not null,
+    sorted_mesh bytea
 )
-;
-
-create index section_graph_id_idx on _albion.section(graph_id)
-;
-
-create index section_grid_id_idx on _albion.section(grid_id)
 ;
 
 alter table _albion.section alter column id set default _albion.unique_id()::varchar
@@ -328,7 +294,7 @@ alter table _albion.section alter column id set default _albion.unique_id()::var
 create table _albion.volume(
     id varchar primary key,
     graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
-    cell_id varchar references _albion.cell(id) on delete cascade on update cascade,
+    cell_id varchar not null references _albion.cell(id) on delete cascade on update cascade,
     triangulation geometry('MULTIPOLYGONZ', $SRID) not null
 );
 

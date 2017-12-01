@@ -1,8 +1,8 @@
 # coding: utf-8
 
-from .plugin import Plugin
 
 
 def classFactory(iface):
+    from .plugin import Plugin
     return Plugin(iface)
 
