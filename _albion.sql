@@ -33,9 +33,9 @@ create table _albion.metadata(
     precision real default .01,
     interpolation interpolation_method default 'balanced_tangential',
     end_distance real default 25,
-    end_slope real default 5.0/100,
+    end_angle real default 5.0,
     correlation_distance real default 200,
-    correlation_slope real default 1.0/100)
+    correlation_angle real default 5.0)
 ;
 
 insert into _albion.metadata(srid) select $SRID
@@ -182,6 +182,7 @@ alter table _albion.facies alter column id set default _albion.unique_id()::varc
 create table _albion.mineralization(
     id varchar primary key,
     hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
+    level_ real,
     from_ real,
     to_ real,
     oc real,
@@ -196,7 +197,6 @@ create index mineralization_geom_idx on _albion.mineralization using gist(geom)
 
 create index mineralization_hole_id_idx on _albion.mineralization(hole_id)
 ;
-
 
 alter table _albion.mineralization alter column id set default _albion.unique_id()::varchar
 ;
@@ -279,12 +279,17 @@ create index volume_cell_c_idx on _albion.cell(c)
 alter table _albion.cell alter column id set default _albion.unique_id()::varchar
 ;
 
+create table _albion.group(
+    id integer primary key
+)
+;
+
 create table _albion.section(
     id varchar primary key,
     anchor geometry('LINESTRING', $SRID) not null check(st_numpoints(anchor)=2),
-    geom geometry('LINESTRING', $SRID)/* not null */,
-    nb_cell integer not null,
-    sorted_mesh bytea
+    geom geometry('LINESTRING', $SRID) not null,
+    scale real not null default 1,
+    group_id integer references _albion.group(id) on delete set null on update cascade
 )
 ;
 
@@ -305,6 +310,20 @@ create index volume_cell_id_idx on _albion.volume(cell_id)
 ;
 
 alter table _albion.volume alter column id set default _albion.unique_id()::varchar
+;
+
+create table _albion.group_cell(
+    group_id integer not null references _albion.group(id) on delete cascade on update cascade,
+    cell_id varchar not null references _albion.cell(id) on delete cascade on update cascade,
+    section_id varchar not null references _albion.section(id) on delete cascade on update cascade,
+    unique(section_id, cell_id)
+)
+;
+
+create index group_cell_cell_id_idx on _albion.group_cell(cell_id)
+;
+
+create index group_cell_groupe_id_idx on _albion.group_cell(group_id)
 ;
 
 
