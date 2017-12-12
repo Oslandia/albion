@@ -255,7 +255,7 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("delete from albion.graph cascade where id='{}';".format(graph))
-            if parent is not None:
+            if parent:
                 cur.execute("insert into albion.graph(id, parent) values ('{}', '{}');".format(graph, parent))
             else:
                 cur.execute("insert into albion.graph(id) values ('{}');".format(graph))

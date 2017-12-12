@@ -212,7 +212,8 @@ create table _albion.node(
     hole_id varchar references _albion.hole(id) on delete cascade,
     from_ real,
     to_ real,
-    geom geometry('LINESTRINGZ', $SRID) not null check (st_numpoints(geom)=2)
+    geom geometry('LINESTRINGZ', $SRID) not null check (st_numpoints(geom)=2),
+    parent varchar references _albion.node(id) on delete set null on update cascade
 )
 ;
 
@@ -235,6 +236,7 @@ create table _albion.edge(
     end_ varchar not null,
         foreign key (graph_id, end_) references _albion.node(graph_id, id) on delete cascade on update cascade,
         unique (start_, end_),
+        check (start_ < end_),
     graph_id varchar references _albion.graph(id) on delete cascade,
     geom geometry('LINESTRINGZ', $SRID) not null check (st_isvalid(geom))
 )

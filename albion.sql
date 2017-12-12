@@ -735,8 +735,6 @@ join _albion.collar as c on c.id=h.collar_id
 join _albion.section as s on st_intersects(s.geom, c.geom)
 ;
 
-
-
 create or replace function albion.section_at_group(section_id_ varchar, group_id_ integer)
 returns geometry
 language plpgsql
@@ -937,9 +935,8 @@ group by hole_id
 update albion.test_mineralization set geom=albion.hole_piece(from_, to_, hole_id)
 ;
 
-
 create view albion.current_test_mineralization_section as
-select row_number() over() as id, m.hole_id as hole_id, h.collar_id, m.level_, m.oc, m.accu, m.grade, s.id as section_id, 
+select row_number() over() as id, m.hole_id, h.collar_id, m.level_, m.oc, m.accu, m.grade, s.id as section_id, 
     (albion.to_section(m.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
 from albion.test_mineralization as m
 join _albion.hole as h on h.id=m.hole_id
@@ -948,9 +945,137 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 ;
 
 
+create or replace function albion.compute_edge(start_nodes_ geometry, end_nodes_ geometry, max_angle_deg real default 10)
+returns geometry
+language plpython3u immutable
+as
+$$
+    from shapely.geometry import LineString
+    from shapely import wkb
+    import numpy
+    from numpy.linalg import norm
+    import math
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    tan_max_angle = math.tan(max_angle_deg*math.pi()/180)
+    start_nodes = wkb.loads(start_nodes_, True)
+    end_nodes = wkb.loads(end_nodes_, True)
+
+    assert(isinstance(start_nodes_, MultiLineString))
+    assert(isinstance(end_nodes_, MultiLineString))
+
+    result = []
+    for s in start_nodes:
+        ms = s.centroid
+        for e in end_nodes:
+            me = e.centroid
+            u =  numpy.array(me.coords[0])-numpy.array(ms.coords[0])
+            adjacend, opposed = norm(u[:2]), u[2]
+            if abs(opposed/adjacend) < tan_max_angle:
+                result.append(LineString(ms, me))
+
+    result = MultiLineString(res)
+
+    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(start_nodes._geom))
+    return result
+$$
+;
+
+create materialized view albion.all_edge as
+select case when a < b then a else b end as start_, case when a < b then b else a end as end_
+from _albion.cell
+union
+select case when b < c then b else c end as start_, case when b < c then c else b end as end_
+from _albion.cell
+union
+select case when c < a then c else a end as start_, case when c < a then a else c end as end_
+from _albion.cell
+;
+
+create view albion.possible_edge as
+with tan_ang as (
+    select tan(correlation_angle*pi()/180) as value from _albion.metadata
+)
+select row_number() over() as id, ns.id as start_, ne.id as end_, ns.graph_id as graph_id, (st_makeline(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)))::geometry('LINESTRINGZ', $SRID) as geom
+from albion.all_edge as e
+join _albion.hole as hs on hs.collar_id=e.start_
+join _albion.hole as he on he.collar_id=e.end_
+join _albion.node as ns on ns.hole_id=hs.id
+join _albion.node as ne on ne.hole_id=he.id, tan_ang
+where ns.graph_id = ne.graph_id
+and abs(st_z(st_3dlineinterpolatepoint(ns.geom, .5))-st_z(st_3dlineinterpolatepoint(ne.geom,.5)))
+    /st_distance(st_3dlineinterpolatepoint(ns.geom, .5), st_centroid(st_3dlineinterpolatepoint(ne.geom, .5))) < tan_ang.value
+and ns.parent
+;
 
 
+create view albion.edge as
+select id, start_, end_, graph_id, geom::geometry('LINESTRINGZ', $SRID)
+from _albion.edge
+;
 
+alter view albion.edge alter column id set default _albion.unique_id();
 
+create or replace function albion.edge_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    begin
+        if tg_op in ('INSERT', 'UPDATE') then
+            new.start_ := coalesce(new.start_, (select id from _albion.node where st_intersects(geom, new.geom) and st_centroid(geom)::varchar=st_startpoint(new.geom)::varchar));
+            new.end_ := coalesce(new.end_, (select id from _albion.node where st_intersects(geom, new.geom) and st_centroid(geom)::varchar=st_endpoint(new.geom)::varchar));
+            if new.start_ > new.end_ then
+                select new.start_, new.end_ into new.end_, new.start_;
+            end if;
+        end if;
 
-select hole_id, from_, to_, gamma, to_-from_, round((to_-from_)/.1) from _albion.radiometry where to_-from_ > .11
+        if tg_op = 'INSERT' then
+            insert into _albion.edge(id, start_, end_, graph_id, geom) 
+            values(new.id, new.start_, new.end_, new.graph_id, new.geom)
+            returning id into new.id;
+            return new;
+        elsif tg_op = 'UPDATE' then
+            update _albion.edge set id=new.id, start_=new.start_, end_=new.end_, graph_id=new.graph_id, new._geom=new.geom
+            where id=old.id;
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from _albion.edge where id=old.id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger edge_instead_trig
+    instead of insert or update or delete on albion.edge
+       for each row execute procedure albion.edge_instead_fct()
+;
+
+create view albion.current_edge_section as
+select row_number() over() as id, e.start_, e.end_, e.graph_id, s.id as section_id, 
+    (albion.to_section(e.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+from _albion.edge as e
+join _albion.node as ns on ns.id=e.start_
+join _albion.node as ne on ne.id=e.end_
+join _albion.hole as hs on hs.id=ns.hole_id
+join _albion.hole as he on he.id=ne.hole_id
+join _albion.collar as cs on cs.id=hs.collar_id
+join _albion.collar as ce on ce.id=he.collar_id
+join _albion.section as s on st_intersects(s.geom, cs.geom) and st_intersects(s.geom, ce.geom)
+;
+
+create view albion.current_possible_edge_section as
+select row_number() over() as id, e.start_, e.end_, e.graph_id, s.id as section_id, 
+    (albion.to_section(e.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+from albion.possible_edge as e
+join _albion.node as ns on ns.id=e.start_
+join _albion.node as ne on ne.id=e.end_
+join _albion.hole as hs on hs.id=ns.hole_id
+join _albion.hole as he on he.id=ne.hole_id
+join _albion.collar as cs on cs.id=hs.collar_id
+join _albion.collar as ce on ce.id=he.collar_id
+join _albion.section as s on st_intersects(s.geom, cs.geom) and st_intersects(s.geom, ce.geom)
+;
+
