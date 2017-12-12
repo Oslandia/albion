@@ -144,9 +144,53 @@ select id, parent from _albion.graph
 ;
 
 create or replace view albion.node as 
-select id, graph_id, hole_id, from_, to_, geom::geometry('LINESTRINGZ', $SRID) 
+select id, graph_id, hole_id, from_, to_, parent, geom::geometry('LINESTRINGZ', $SRID) 
 from _albion.node
 ;
+
+alter view albion.node alter column id set default _albion.unique_id()::varchar
+;
+
+create or replace function albion.node_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    begin
+        if tg_op in ('INSERT', 'UPDATE') then
+            if (select parent is not null from _albion.graph where id=new.graph_id) then
+                new.parent := coalesce(new.parent,
+                    (select id from _albion.node 
+                    where .5*(new.from_+new.to_) between from_ and to_ 
+                    and hole_id=new.hole_id and 
+                    n.graph_id=(select g.parent from _albion.graph as g where g.id=new.graph_id)));
+            end if;
+        end if;
+
+        if tg_op = 'INSERT' then
+            insert into _albion.node(id, graph_id, hole_id, from_, to_, geom, parent) 
+            values(new.id, new.graph_id, new.hole_id, new.from_, new.to_, new.geom, new.parent)
+            returning id into new.id;
+            return new;
+        elsif tg_op = 'UPDATE' then
+            update _albion.node set id=new.id, graph_id=new.graph_id, hole_id=new.hole_id, from_=new.from_, to_=new.to_, geom=new.geom, parent=new.parent
+            where id=old.id;
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from _albion.node where id=old.id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger node_instead_trig
+    instead of insert or update or delete on albion.node
+       for each row execute procedure albion.node_instead_fct()
+;
+
+
+
 
 create or replace view albion.close_collar as
 select a.id, a.geom from _albion.collar as a, _albion.collar as b, _albion.metadata as m
@@ -945,43 +989,6 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 ;
 
 
-create or replace function albion.compute_edge(start_nodes_ geometry, end_nodes_ geometry, max_angle_deg real default 10)
-returns geometry
-language plpython3u immutable
-as
-$$
-    from shapely.geometry import LineString
-    from shapely import wkb
-    import numpy
-    from numpy.linalg import norm
-    import math
-    from shapely import geos
-    geos.WKBWriter.defaults['include_srid'] = True
-
-    tan_max_angle = math.tan(max_angle_deg*math.pi()/180)
-    start_nodes = wkb.loads(start_nodes_, True)
-    end_nodes = wkb.loads(end_nodes_, True)
-
-    assert(isinstance(start_nodes_, MultiLineString))
-    assert(isinstance(end_nodes_, MultiLineString))
-
-    result = []
-    for s in start_nodes:
-        ms = s.centroid
-        for e in end_nodes:
-            me = e.centroid
-            u =  numpy.array(me.coords[0])-numpy.array(ms.coords[0])
-            adjacend, opposed = norm(u[:2]), u[2]
-            if abs(opposed/adjacend) < tan_max_angle:
-                result.append(LineString(ms, me))
-
-    result = MultiLineString(res)
-
-    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(start_nodes._geom))
-    return result
-$$
-;
-
 create materialized view albion.all_edge as
 select case when a < b then a else b end as start_, case when a < b then b else a end as end_
 from _albion.cell
@@ -995,9 +1002,12 @@ from _albion.cell
 
 create view albion.possible_edge as
 with tan_ang as (
-    select tan(correlation_angle*pi()/180) as value from _albion.metadata
-)
-select row_number() over() as id, ns.id as start_, ne.id as end_, ns.graph_id as graph_id, (st_makeline(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)))::geometry('LINESTRINGZ', $SRID) as geom
+    select tan(correlation_angle*pi()/180) as value, tan(parent_correlation_angle*pi()/180) as parent_value
+    
+    from _albion.metadata
+),
+result as (
+select ns.id as start_, ne.id as end_, ns.graph_id as graph_id, (st_makeline(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)))::geometry('LINESTRINGZ', $SRID) as geom, null as parent
 from albion.all_edge as e
 join _albion.hole as hs on hs.collar_id=e.start_
 join _albion.hole as he on he.collar_id=e.end_
@@ -1005,8 +1015,40 @@ join _albion.node as ns on ns.hole_id=hs.id
 join _albion.node as ne on ne.hole_id=he.id, tan_ang
 where ns.graph_id = ne.graph_id
 and abs(st_z(st_3dlineinterpolatepoint(ns.geom, .5))-st_z(st_3dlineinterpolatepoint(ne.geom,.5)))
-    /st_distance(st_3dlineinterpolatepoint(ns.geom, .5), st_centroid(st_3dlineinterpolatepoint(ne.geom, .5))) < tan_ang.value
-and ns.parent
+    /st_distance(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)) < tan_ang.value
+and ns.parent is null
+and ne.parent is null
+
+union all
+
+select ns.id as start_, ne.id as end_, ns.graph_id as graph_id, (st_makeline(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)))::geometry('LINESTRINGZ', $SRID) as geom, ns.parent as parent
+from _albion.edge as pe
+join _albion.node as pns on pns.id=pe.start_
+join _albion.node as pne on pne.id=pe.end_
+join _albion.node as ns on ns.parent=pns.id
+join _albion.node as ne on ne.parent=pne.id, tan_ang
+where ns.graph_id = ne.graph_id
+and abs( -- tan(A-B) = (tan(A)-tan(B))/(1+tan(A)tan(B)
+    (
+    (st_z(st_3dlineinterpolatepoint(ns.geom, .5))-st_z(st_3dlineinterpolatepoint(ne.geom,.5)))
+    /st_distance(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5))
+    -
+    (st_z(st_3dlineinterpolatepoint(pns.geom, .5))-st_z(st_3dlineinterpolatepoint(pne.geom,.5)))
+    /st_distance(st_3dlineinterpolatepoint(pns.geom, .5), st_3dlineinterpolatepoint(pne.geom, .5))
+    )
+    /
+    (
+    1.0 
+    +
+    (st_z(st_3dlineinterpolatepoint(ns.geom, .5))-st_z(st_3dlineinterpolatepoint(ne.geom,.5)))
+    /st_distance(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5))
+    *
+    (st_z(st_3dlineinterpolatepoint(pns.geom, .5))-st_z(st_3dlineinterpolatepoint(pne.geom,.5)))
+    /st_distance(st_3dlineinterpolatepoint(pns.geom, .5), st_3dlineinterpolatepoint(pne.geom, .5))
+    )
+    ) < tan_ang.parent_value
+)
+select row_number() over() as id, * from result
 ;
 
 
@@ -1068,7 +1110,7 @@ join _albion.section as s on st_intersects(s.geom, cs.geom) and st_intersects(s.
 
 create view albion.current_possible_edge_section as
 select row_number() over() as id, e.start_, e.end_, e.graph_id, s.id as section_id, 
-    (albion.to_section(e.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+    (albion.to_section(e.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom, e.parent
 from albion.possible_edge as e
 join _albion.node as ns on ns.id=e.start_
 join _albion.node as ne on ne.id=e.end_

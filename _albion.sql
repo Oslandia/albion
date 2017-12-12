@@ -35,7 +35,8 @@ create table _albion.metadata(
     end_distance real default 25,
     end_angle real default 5.0,
     correlation_distance real default 200,
-    correlation_angle real default 5.0)
+    correlation_angle real default 5.0,
+    parent_correlation_angle real default 1.0)
 ;
 
 insert into _albion.metadata(srid) select $SRID
@@ -207,7 +208,7 @@ alter table _albion.mineralization alter column id set default _albion.unique_id
 
 create table _albion.node(
     id varchar primary key,
-    graph_id varchar references _albion.graph(id) on delete cascade on update cascade,
+    graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
         unique(id, graph_id),
     hole_id varchar references _albion.hole(id) on delete cascade,
     from_ real,
