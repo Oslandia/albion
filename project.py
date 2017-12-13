@@ -377,4 +377,15 @@ class Project(object):
             con.commit() 
             
 
+    def export_obj(self, graph_id, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""
+                select albion.to_obj(st_collectionhomogenize(st_collect(geom)))
+                from albion.volume
+                where graph_id='{}'
+                and not st_isempty(geom)
+                """.format(graph_id))
+            open(filename, 'w').write(cur.fetchone()[0])
+
 

@@ -1121,3 +1121,306 @@ join _albion.collar as ce on ce.id=he.collar_id
 join _albion.section as s on st_intersects(s.geom, cs.geom) and st_intersects(s.geom, ce.geom)
 ;
 
+
+create or replace function albion.elementary_volumes(starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry)
+returns geometry
+language plpython3u immutable
+as
+$$
+    import plpy
+    import numpy
+    from numpy.linalg import norm
+    from collections import defaultdict
+    from itertools import product
+    from shapely.geometry import MultiPolygon, Polygon
+    from shapely import wkb
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    nodes = {id_: geom for id_, geom in zip(node_ids_, wkb.loads(nodes_, True))}
+    holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
+    edges = [(s, e) for s, e in zip(starts_, ends_)]
+    #plpy.notice('nodes', nodes)
+    #plpy.notice('edges', edges)
+
+    def create_results(polygons):
+        result = MultiPolygon(polygons)
+        geos.lgeos.GEOSSetSRID(result._geom, $SRID)
+        return result.wkb_hex
+
+
+    graph = defaultdict(set) # undirected (edge in both directions)
+    for e in edges:
+        graph[e[0]].add(e[1])
+        graph[e[1]].add(e[0])
+
+    # two connected edges form a ring
+    # /!\ do not do that, for complex trousers configuration, this will
+    # connect things that should not be connected
+    # e.g.
+    #select albion.to_obj(albion.elementary_volumes(
+    #        '{a, b, b, a, c, c}'::varchar[],
+    #        '{b, c, d, d, e, f}'::varchar[],
+    #        '{a, b, c, c, a, b}'::varchar[],
+    #        '{a, b, c, d, e, f}'::varchar[],
+    #        'MULTILINESTRINGZ((0 0 0, 0 0 -.1), (1 0 0, 1.05 0 -.11), (0.03 1 0, 0 1 -.12), (0 1 .15, 0 1 .05), (0 0 -.3, 0 0 -.5), (1 0 -.2, 1.05 0 -.3))'::geometry))
+    #;
+    #for n in graph.keys():
+    #    graph[n] = graph[n].union(set((e for o in graph[n] for e in graph[o] if holes[e] != holes[n])))
+    # 
+
+    triangles = set()
+    for e in edges:
+        common_neigbors = graph[e[0]].intersection(graph[e[1]])
+        for n in common_neigbors:
+            triangles.add(tuple((i for _, i in sorted(zip((holes[e[0]], holes[e[1]], holes[n]), (e[0], e[1], n))))))
+
+    triangles = [t for _, t in sorted(zip([sum((nodes[i].coords[0][2] for i in t)) for t in triangles], triangles), reverse=True)] 
+    #plpy.notice('triangles', triangles)
+
+    def make_polygon(tri, is_top_side, nds=None):
+        p = Polygon(tri) if nds is None else Polygon([nds[n].coords[-1*int(not is_top_side)] for n in tri])
+        return p if p.exterior.is_ccw == is_top_side else Polygon(p.exterior.coords[::-1])
+    
+    result = []
+
+    # and down the rabbit hole, we deal with every surface top -> bottom
+    for prv, tri, nxt in zip([None]+triangles[:-1], triangles, triangles[1:]+[None]):
+        inter = False if not prv else set(tri).intersection(set(prv))
+        if inter: # share node(s) with previous
+            if len(inter) == 1:
+                b, c = (tri.index(i) for i in set(tri).difference(inter))
+                a = tri.index(inter.pop())
+                A = numpy.array(nodes[tri[a]].coords[0])
+                B = numpy.array(nodes[tri[a]].coords[-1])
+                pt = []
+                for o in (b, c):
+                    C = numpy.array(nodes[tri[o]].coords[0])
+                    D = numpy.array(nodes[prv[o]].coords[-1])
+                    l = norm(A-B)
+                    r = norm(C-D)
+                    pt.append((r*A+r*B+l*C+l*D)/(2*(r+l)))
+                result.append(make_polygon([numpy.array(nodes[tri[b]].coords[0]),  numpy.array(nodes[tri[c]].coords[0]), pt[1]], True))
+                result.append(make_polygon([numpy.array(nodes[tri[b]].coords[0]),  pt[1], pt[0]], True))
+            else:
+                b, c = (tri.index(i) for i in inter)
+                a = tri.index(set(tri).difference(inter).pop())
+                A = numpy.array(nodes[tri[a]].coords[0])
+                B = numpy.array(nodes[prv[a]].coords[-1])
+                poly = [A]
+                for o in (b, c):
+                    C = numpy.array(nodes[tri[o]].coords[0])
+                    D = numpy.array(nodes[tri[o]].coords[-1])
+                    l = norm(A-B)
+                    r = norm(C-D)
+                    poly.append((r*A+r*B+l*C+l*D)/(2*(r+l)))
+                result.append(make_polygon(poly, True))
+        else:
+            result.append(make_polygon(tri, True, nodes))
+
+        inter = False if not nxt else set(tri).intersection(set(nxt))
+        if inter: # share node(s) with next
+            if len(inter) == 1:
+                b, c = (tri.index(i) for i in set(tri).difference(inter))
+                a = tri.index(inter.pop())
+                A = numpy.array(nodes[tri[a]].coords[1])
+                B = numpy.array(nodes[tri[a]].coords[0])
+                pt = []
+                for o in (b, c):
+                    C = numpy.array(nodes[tri[o]].coords[1])
+                    D = numpy.array(nodes[nxt[o]].coords[0])
+                    l = norm(A-B)
+                    r = norm(C-D)
+                    pt.append((r*A+r*B+l*C+l*D)/(2*(r+l)))
+                result.append(make_polygon([numpy.array(nodes[tri[b]].coords[1]),  numpy.array(nodes[tri[c]].coords[1]), pt[1]], False))
+                result.append(make_polygon([numpy.array(nodes[tri[b]].coords[1]),  pt[1], pt[0]], False))
+            else:
+                b, c = (tri.index(i) for i in inter)
+                a = tri.index(set(tri).difference(inter).pop())
+                A = numpy.array(nodes[tri[a]].coords[1])
+                B = numpy.array(nodes[nxt[a]].coords[0])
+                poly = [A]
+                for o in (b, c):
+                    C = numpy.array(nodes[tri[o]].coords[1])
+                    D = numpy.array(nodes[tri[o]].coords[0])
+                    l = norm(A-B)
+                    r = norm(C-D)
+                    poly.append((r*A+r*B+l*C+l*D)/(2*(r+l)))
+                result.append(make_polygon(poly, False))
+        else:
+            result.append(make_polygon(tri, False, nodes))
+
+    return create_results(result)
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # sort nodes in hole top -> bottom
+    hole_nodes = {h: [n for _, n in sorted(zip([nodes[k].coords[0][2] for k in nodes.keys() if holes[k] == h], 
+                                               [k for k in nodes.keys() if holes[k] == h]), reverse=True)
+                     ] for h in set(hole_ids_)}
+    plpy.notice('graph', graph)
+    plpy.notice('hole_nodes', hole_nodes)
+
+    if len(hole_nodes.keys()) != 3:
+        return create_results([])
+
+    # closed loops are triangles
+    
+    #triangles = set([tuple(sorted((a,b,c))) for a, b, c in product(*list(hole_nodes.values())) if c in graph[a] and c in graph[b] and b in graph[a] ])
+
+
+    # and down the rabbit hole, we deal with every surface top -> bottom
+        
+
+
+    #idx = [0, 0, 0]
+    #for level in range(2*max([len(n) for n in hole_nodes.values()])):
+    #    for h in hole_nodes.keys():
+    #        plpy.notice('surface', level, h, [(n, len(graph[n])) for n in hole_nodes[h][:level]])
+
+    #    #tri = 
+    #    #plpy.notice('surface', level, "bottom" if level%2 else "top", [ sum(len(graph[])) for h in hole_nodes.keys()]
+    #    # [hole_nodes[h][(level//2)%len(graph[h])] for h in hole_nodes.keys()] )
+
+
+
+    handled = []
+    for i, e1 in enumerate(edges):
+        for e2 in edges[i+1:]:
+            if e1[0] in e2 or e1[1] in e2:
+                tri = sorted(list(set(e1+e2)))
+                #plpy.notice('tri', tri)
+                if not tri in handled and len(set((holes[n] for n in tri))) == 3:
+                    handled.append(tri)
+                    top = Polygon([nodes[n].coords[0] for n in tri])
+                    top = top if top.exterior.is_ccw else Polygon(top.exterior.coords[::-1])
+                    bottom = Polygon([nodes[n].coords[-1] for n in tri])
+                    bottom = bottom if not bottom.exterior.is_ccw else Polygon(bottom.exterior.coords[::-1])
+                    result += [top, bottom]
+
+    return create_results(result)
+$$
+;
+
+create or replace view albion.volume as
+with res as (
+select
+c.id as cell_id, e.graph_id, array_agg(e.start_) as starts_, array_agg(e.end_) as ends_, array_agg(ARRAY[ns.hole_id, ne.hole_id]) as hole_ids,  array_agg(ARRAY[ns.id, ne.id]) as node_ids, array_agg(ARRAY[ns.geom, ne.geom]) as nodes
+from _albion.cell as c
+join _albion.hole as ha on ha.collar_id = c.a
+join _albion.hole as hb on hb.collar_id = c.b
+join _albion.hole as hc on hc.collar_id = c.c,
+_albion.edge as e
+join _albion.node as ns on ns.id = e.start_
+join _albion.node as ne on ne.id = e.end_
+where ns.hole_id in (ha.id, hb.id, hc.id) and ne.hole_id in (ha.id, hb.id, hc.id)
+group by c.id, e.graph_id
+)
+select row_number() over() as id, cell_id, graph_id, albion.elementary_volumes(starts_, ends_, (select array_agg(t) from unnest(hole_ids) as t), (select array_agg(t) from unnest(node_ids) as t), (select st_collect(t) from unnest(nodes) as t)) as geom
+from res
+;
+
+create or replace function albion.to_obj(multipoly geometry)
+returns varchar
+language plpython3u immutable
+as
+$$
+    from shapely import wkb
+    if multipoly is None:
+        return ''
+    m = wkb.loads(multipoly, True)
+    res = ""
+    node_map = {}
+    elem = []
+    n = 0
+    for p in m:
+        elem.append([])
+        for c in p.exterior.coords[:-1]:
+            sc = "%f %f %f" % (c[0], c[1], 5*c[2])
+            if sc not in node_map:
+                res += "v {}\n".format(sc)
+                n += 1
+                node_map[sc] = n
+                elem[-1].append(str(n))
+            else:
+                elem[-1].append(str(node_map[sc]))
+    for e in elem:
+        res += "f {}\n".format(" ".join(e))
+    return res
+$$
+;
+
+create or replace function albion.to_vtk(multiline geometry)
+returns varchar
+language plpython3u immutable
+as
+$$
+    from shapely import wkb
+    if multiline is None:
+        return ''
+    m = wkb.loads(multiline, True)
+    res = "# vtk DataFile Version 4.0\nvtk output\nASCII\nDATASET POLYDATA\n"
+    node_map = {}
+    nodes = ""
+    elem = []
+    n = 0
+    for l in m:
+        elem.append([])
+        for c in l.coords:
+            sc = "%f %f %f" % (tuple(c))
+            nodes += sc+"\n"
+            if sc not in node_map:
+                node_map[sc] = n
+                elem[-1].append(str(n))
+                n += 1
+            else:
+                elem[-1].append(str(node_map[sc]))
+
+    res += "POINTS {} float\n".format(len(node_map))
+    res += nodes
+
+    res += "\n"
+    res += "LINES {} {}\n".format(len(elem), sum([len(e)+1 for e in elem]))
+
+    for e in elem:
+        res += "{} {}\n".format(len(e), " ".join(e))
+    return res
+$$
+;
+
+select albion.to_obj(albion.elementary_volumes(
+        '{a, b, a}'::varchar[],
+        '{b, c, c}'::varchar[],
+        '{e, f, g}'::varchar[],
+        '{a, b, c}'::varchar[],
+        'MULTILINESTRINGZ((0 0 0, 0 0 -1), (1 0 0, 1 0 -1.1), (0 1 0, 0 1 -1.2))'::geometry))
+;
+
+select albion.to_obj(albion.elementary_volumes(
+        '{a, b, a, b, a}'::varchar[],
+        '{b, c, c, d, d}'::varchar[],
+        '{a, b, c, c}'::varchar[],
+        '{a, b, c, d}'::varchar[],
+        'MULTILINESTRINGZ((0 0 0, 0 0 -.1), (1 0 0, 1.05 0 -.11), (0.03 1 0, 0 1 -.12), (0 1 .15, 0 1 .05))'::geometry))
+;
+
+select albion.to_obj(albion.elementary_volumes(
+        '{a, b, a, b, a, c, c, e}'::varchar[],
+        '{b, c, c, d, d, e, f, f}'::varchar[],
+        '{a, b, c, c, a, b}'::varchar[],
+        '{a, b, c, d, e, f}'::varchar[],
+        'MULTILINESTRINGZ((0 0 0, 0 0 -.1), (1 0 0, 1.05 0 -.11), (0.03 1 0, 0 1 -.12), (0 1 .15, 0 1 .05), (0 0 -.3, 0 0 -.5), (1 0 -.2, 1.05 0 -.3))'::geometry))
+;
+
+
+
