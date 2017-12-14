@@ -1140,9 +1140,6 @@ $$
     nodes = {id_: geom for id_, geom in zip(node_ids_, wkb.loads(nodes_, True))}
     holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
     edges = [(s, e) for s, e in zip(starts_, ends_)]
-    #plpy.notice('nodes', nodes)
-    #plpy.notice('edges', edges)
-
 
     graph = defaultdict(set) # undirected (edge in both directions)
     for e in edges:
@@ -1150,23 +1147,14 @@ $$
         graph[e[1]].add(e[0])
 
     # two connected edges form a ring
-    # /!\ do not do that, for complex trousers configuration, this will
+    # /!\ do not do that for complex trousers configuration, this will
     # connect things that should not be connected
-    # e.g.
-    #select albion.to_obj(albion.elementary_volumes(
-    #        '{a, b, b, a, c, c}'::varchar[],
-    #        '{b, c, d, d, e, f}'::varchar[],
-    #        '{a, b, c, c, a, b}'::varchar[],
-    #        '{a, b, c, d, e, f}'::varchar[],
-    #        'MULTILINESTRINGZ((0 0 0, 0 0 -.1), (1 0 0, 1.05 0 -.11), (0.03 1 0, 0 1 -.12), (0 1 .15, 0 1 .05), (0 0 -.3, 0 0 -.5), (1 0 -.2, 1.05 0 -.3))'::geometry))
-    #;
     for n in graph.keys():
         neighbors = list(graph[n])
         if len(neighbors) == 2 and len(graph[neighbors[0]]) == 1 and len(graph[neighbors[1]]) == 1 \
             and holes[n] != holes[neighbors[0]] and holes[n] != holes[neighbors[1]] and holes[neighbors[0]] != holes[neighbors[1]]:
             graph[neighbors[0]].add(neighbors[1])
             graph[neighbors[1]].add(neighbors[0])
-     
 
     triangles = set()
     for e in edges:
@@ -1174,8 +1162,8 @@ $$
         for n in common_neigbors:
             triangles.add(tuple((i for _, i in sorted(zip((holes[e[0]], holes[e[1]], holes[n]), (e[0], e[1], n))))))
 
+    # z-sorted triangles
     triangles = [t for _, t in sorted(zip([sum((nodes[i].coords[0][2] for i in t)) for t in triangles], triangles), reverse=True)] 
-    #plpy.notice('triangles', triangles)
 
     def make_polygon(tri, is_top_side, nds=None):
         p = Polygon(tri) if nds is None else Polygon([nds[n].coords[-1*int(not is_top_side)] for n in tri])
@@ -1191,49 +1179,28 @@ $$
 
     # and down the rabbit hole, we deal with every surface top -> bottom
     for prv, tri, nxt in zip([None]+triangles[:-1], triangles, triangles[1:]+[None]):
-        inter = False if not prv else set(tri).intersection(set(prv))
-        if inter: # share node(s) with previous
-            if len(inter) == 1:
-                b, c = (tri.index(i) for i in set(tri).difference(inter))
-                a = tri.index(inter.pop())
-                A, B = numpy.array(nodes[tri[a]].coords[0]), numpy.array(nodes[tri[a]].coords[-1])
-                C, D = numpy.array(nodes[tri[b]].coords[0]), numpy.array(nodes[prv[b]].coords[-1])
-                E, F = numpy.array(nodes[tri[c]].coords[0]), numpy.array(nodes[prv[c]].coords[-1])
-                G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
-                result.append(make_polygon([C, E, H], True))
-                result.append(make_polygon([D, H, G], True))
+        for is_top_side, is_bottom_side, other in ((True, False, prv), (False, True, nxt)):
+            inter = False if not other else set(tri).intersection(set(other))
+            if inter: # share node(s) 
+                if len(inter) == 1:
+                    b, c = (tri.index(i) for i in set(tri).difference(inter))
+                    a = tri.index(inter.pop())
+                    A, B = numpy.array(nodes[tri[a]].coords[-1*is_bottom_side]), numpy.array(nodes[tri[a]].coords[-1*is_top_side])
+                    C, D = numpy.array(nodes[tri[b]].coords[-1*is_bottom_side]), numpy.array(nodes[other[b]].coords[-1*is_top_side])
+                    E, F = numpy.array(nodes[tri[c]].coords[-1*is_bottom_side]), numpy.array(nodes[other[c]].coords[-1*is_top_side])
+                    G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
+                    result.append(make_polygon([C, E, H], is_top_side))
+                    result.append(make_polygon([C, H, G], is_top_side))
+                else:
+                    b, c = (tri.index(i) for i in inter)
+                    a = tri.index(set(tri).difference(inter).pop())
+                    A, B = numpy.array(nodes[tri[a]].coords[-1*is_bottom_side]), numpy.array(nodes[other[a]].coords[-1*is_top_side])
+                    C, D = numpy.array(nodes[tri[b]].coords[-1*is_bottom_side]), numpy.array(nodes[tri[b]].coords[-1*is_top_side])
+                    E, F = numpy.array(nodes[tri[c]].coords[-1*is_bottom_side]), numpy.array(nodes[tri[c]].coords[-1*is_top_side])
+                    G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
+                    result.append(make_polygon([A, G, H], is_top_side))
             else:
-                b, c = (tri.index(i) for i in inter)
-                a = tri.index(set(tri).difference(inter).pop())
-                A, B = numpy.array(nodes[tri[a]].coords[0]), numpy.array(nodes[prv[a]].coords[-1])
-                C, D = numpy.array(nodes[tri[b]].coords[0]), numpy.array(nodes[tri[b]].coords[-1])
-                E, F = numpy.array(nodes[tri[c]].coords[0]), numpy.array(nodes[tri[c]].coords[-1])
-                G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
-                result.append(make_polygon([A, G, H], True))
-        else:
-            result.append(make_polygon(tri, True, nodes))
-
-        inter = False if not nxt else set(tri).intersection(set(nxt))
-        if inter: # share node(s) with next
-            if len(inter) == 1:
-                b, c = (tri.index(i) for i in set(tri).difference(inter))
-                a = tri.index(inter.pop())
-                A, B = numpy.array(nodes[tri[a]].coords[-1]), numpy.array(nodes[tri[a]].coords[0])
-                C, D = numpy.array(nodes[tri[b]].coords[-1]), numpy.array(nodes[nxt[b]].coords[0])
-                E, F = numpy.array(nodes[tri[c]].coords[-1]), numpy.array(nodes[nxt[c]].coords[0])
-                G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
-                result.append(make_polygon([C, E, H], False))
-                result.append(make_polygon([D, H, G], False))
-            else:
-                b, c = (tri.index(i) for i in inter)
-                a = tri.index(set(tri).difference(inter).pop())
-                A, B = numpy.array(nodes[tri[a]].coords[1]), numpy.array(nodes[nxt[a]].coords[0])
-                C, D = numpy.array(nodes[tri[b]].coords[1]), numpy.array(nodes[tri[b]].coords[0])
-                E, F = numpy.array(nodes[tri[c]].coords[1]), numpy.array(nodes[tri[c]].coords[0])
-                G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
-                result.append(make_polygon([A, G, H], False))
-        else:
-            result.append(make_polygon(tri, False, nodes))
+                result.append(make_polygon(tri, is_top_side, nodes))
 
     result = MultiPolygon(result)
     geos.lgeos.GEOSSetSRID(result._geom, $SRID)
