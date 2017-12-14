@@ -1143,11 +1143,6 @@ $$
     #plpy.notice('nodes', nodes)
     #plpy.notice('edges', edges)
 
-    def create_results(polygons):
-        result = MultiPolygon(polygons)
-        geos.lgeos.GEOSSetSRID(result._geom, $SRID)
-        return result.wkb_hex
-
 
     graph = defaultdict(set) # undirected (edge in both directions)
     for e in edges:
@@ -1165,9 +1160,13 @@ $$
     #        '{a, b, c, d, e, f}'::varchar[],
     #        'MULTILINESTRINGZ((0 0 0, 0 0 -.1), (1 0 0, 1.05 0 -.11), (0.03 1 0, 0 1 -.12), (0 1 .15, 0 1 .05), (0 0 -.3, 0 0 -.5), (1 0 -.2, 1.05 0 -.3))'::geometry))
     #;
-    #for n in graph.keys():
-    #    graph[n] = graph[n].union(set((e for o in graph[n] for e in graph[o] if holes[e] != holes[n])))
-    # 
+    for n in graph.keys():
+        neighbors = list(graph[n])
+        if len(neighbors) == 2 and len(graph[neighbors[0]]) == 1 and len(graph[neighbors[1]]) == 1 \
+            and holes[n] != holes[neighbors[0]] and holes[n] != holes[neighbors[1]] and holes[neighbors[0]] != holes[neighbors[1]]:
+            graph[neighbors[0]].add(neighbors[1])
+            graph[neighbors[1]].add(neighbors[0])
+     
 
     triangles = set()
     for e in edges:
@@ -1181,6 +1180,12 @@ $$
     def make_polygon(tri, is_top_side, nds=None):
         p = Polygon(tri) if nds is None else Polygon([nds[n].coords[-1*int(not is_top_side)] for n in tri])
         return p if p.exterior.is_ccw == is_top_side else Polygon(p.exterior.coords[::-1])
+
+    def interpolate_point(A, B, C, D):
+        "returns the points as numpy arrays and the two interpolated points on a-b and a-c"
+        l = norm(A-B)
+        r = norm(C-D)
+        return (r*A+r*B+l*C+l*D)/(2*(r+l))
     
     result = []
 
@@ -1191,30 +1196,20 @@ $$
             if len(inter) == 1:
                 b, c = (tri.index(i) for i in set(tri).difference(inter))
                 a = tri.index(inter.pop())
-                A = numpy.array(nodes[tri[a]].coords[0])
-                B = numpy.array(nodes[tri[a]].coords[-1])
-                pt = []
-                for o in (b, c):
-                    C = numpy.array(nodes[tri[o]].coords[0])
-                    D = numpy.array(nodes[prv[o]].coords[-1])
-                    l = norm(A-B)
-                    r = norm(C-D)
-                    pt.append((r*A+r*B+l*C+l*D)/(2*(r+l)))
-                result.append(make_polygon([numpy.array(nodes[tri[b]].coords[0]),  numpy.array(nodes[tri[c]].coords[0]), pt[1]], True))
-                result.append(make_polygon([numpy.array(nodes[tri[b]].coords[0]),  pt[1], pt[0]], True))
+                A, B = numpy.array(nodes[tri[a]].coords[0]), numpy.array(nodes[tri[a]].coords[-1])
+                C, D = numpy.array(nodes[tri[b]].coords[0]), numpy.array(nodes[prv[b]].coords[-1])
+                E, F = numpy.array(nodes[tri[c]].coords[0]), numpy.array(nodes[prv[c]].coords[-1])
+                G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
+                result.append(make_polygon([C, E, H], True))
+                result.append(make_polygon([D, H, G], True))
             else:
                 b, c = (tri.index(i) for i in inter)
                 a = tri.index(set(tri).difference(inter).pop())
-                A = numpy.array(nodes[tri[a]].coords[0])
-                B = numpy.array(nodes[prv[a]].coords[-1])
-                poly = [A]
-                for o in (b, c):
-                    C = numpy.array(nodes[tri[o]].coords[0])
-                    D = numpy.array(nodes[tri[o]].coords[-1])
-                    l = norm(A-B)
-                    r = norm(C-D)
-                    poly.append((r*A+r*B+l*C+l*D)/(2*(r+l)))
-                result.append(make_polygon(poly, True))
+                A, B = numpy.array(nodes[tri[a]].coords[0]), numpy.array(nodes[prv[a]].coords[-1])
+                C, D = numpy.array(nodes[tri[b]].coords[0]), numpy.array(nodes[tri[b]].coords[-1])
+                E, F = numpy.array(nodes[tri[c]].coords[0]), numpy.array(nodes[tri[c]].coords[-1])
+                G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
+                result.append(make_polygon([A, G, H], True))
         else:
             result.append(make_polygon(tri, True, nodes))
 
@@ -1223,92 +1218,27 @@ $$
             if len(inter) == 1:
                 b, c = (tri.index(i) for i in set(tri).difference(inter))
                 a = tri.index(inter.pop())
-                A = numpy.array(nodes[tri[a]].coords[1])
-                B = numpy.array(nodes[tri[a]].coords[0])
-                pt = []
-                for o in (b, c):
-                    C = numpy.array(nodes[tri[o]].coords[1])
-                    D = numpy.array(nodes[nxt[o]].coords[0])
-                    l = norm(A-B)
-                    r = norm(C-D)
-                    pt.append((r*A+r*B+l*C+l*D)/(2*(r+l)))
-                result.append(make_polygon([numpy.array(nodes[tri[b]].coords[1]),  numpy.array(nodes[tri[c]].coords[1]), pt[1]], False))
-                result.append(make_polygon([numpy.array(nodes[tri[b]].coords[1]),  pt[1], pt[0]], False))
+                A, B = numpy.array(nodes[tri[a]].coords[-1]), numpy.array(nodes[tri[a]].coords[0])
+                C, D = numpy.array(nodes[tri[b]].coords[-1]), numpy.array(nodes[nxt[b]].coords[0])
+                E, F = numpy.array(nodes[tri[c]].coords[-1]), numpy.array(nodes[nxt[c]].coords[0])
+                G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
+                result.append(make_polygon([C, E, H], False))
+                result.append(make_polygon([D, H, G], False))
             else:
                 b, c = (tri.index(i) for i in inter)
                 a = tri.index(set(tri).difference(inter).pop())
-                A = numpy.array(nodes[tri[a]].coords[1])
-                B = numpy.array(nodes[nxt[a]].coords[0])
-                poly = [A]
-                for o in (b, c):
-                    C = numpy.array(nodes[tri[o]].coords[1])
-                    D = numpy.array(nodes[tri[o]].coords[0])
-                    l = norm(A-B)
-                    r = norm(C-D)
-                    poly.append((r*A+r*B+l*C+l*D)/(2*(r+l)))
-                result.append(make_polygon(poly, False))
+                A, B = numpy.array(nodes[tri[a]].coords[1]), numpy.array(nodes[nxt[a]].coords[0])
+                C, D = numpy.array(nodes[tri[b]].coords[1]), numpy.array(nodes[tri[b]].coords[0])
+                E, F = numpy.array(nodes[tri[c]].coords[1]), numpy.array(nodes[tri[c]].coords[0])
+                G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
+                result.append(make_polygon([A, G, H], False))
         else:
             result.append(make_polygon(tri, False, nodes))
 
-    return create_results(result)
+    result = MultiPolygon(result)
+    geos.lgeos.GEOSSetSRID(result._geom, $SRID)
+    return result.wkb_hex
 
-
-
-
-
-
-
-
-
-
-
-
-
-    # sort nodes in hole top -> bottom
-    hole_nodes = {h: [n for _, n in sorted(zip([nodes[k].coords[0][2] for k in nodes.keys() if holes[k] == h], 
-                                               [k for k in nodes.keys() if holes[k] == h]), reverse=True)
-                     ] for h in set(hole_ids_)}
-    plpy.notice('graph', graph)
-    plpy.notice('hole_nodes', hole_nodes)
-
-    if len(hole_nodes.keys()) != 3:
-        return create_results([])
-
-    # closed loops are triangles
-    
-    #triangles = set([tuple(sorted((a,b,c))) for a, b, c in product(*list(hole_nodes.values())) if c in graph[a] and c in graph[b] and b in graph[a] ])
-
-
-    # and down the rabbit hole, we deal with every surface top -> bottom
-        
-
-
-    #idx = [0, 0, 0]
-    #for level in range(2*max([len(n) for n in hole_nodes.values()])):
-    #    for h in hole_nodes.keys():
-    #        plpy.notice('surface', level, h, [(n, len(graph[n])) for n in hole_nodes[h][:level]])
-
-    #    #tri = 
-    #    #plpy.notice('surface', level, "bottom" if level%2 else "top", [ sum(len(graph[])) for h in hole_nodes.keys()]
-    #    # [hole_nodes[h][(level//2)%len(graph[h])] for h in hole_nodes.keys()] )
-
-
-
-    handled = []
-    for i, e1 in enumerate(edges):
-        for e2 in edges[i+1:]:
-            if e1[0] in e2 or e1[1] in e2:
-                tri = sorted(list(set(e1+e2)))
-                #plpy.notice('tri', tri)
-                if not tri in handled and len(set((holes[n] for n in tri))) == 3:
-                    handled.append(tri)
-                    top = Polygon([nodes[n].coords[0] for n in tri])
-                    top = top if top.exterior.is_ccw else Polygon(top.exterior.coords[::-1])
-                    bottom = Polygon([nodes[n].coords[-1] for n in tri])
-                    bottom = bottom if not bottom.exterior.is_ccw else Polygon(bottom.exterior.coords[::-1])
-                    result += [top, bottom]
-
-    return create_results(result)
 $$
 ;
 
@@ -1346,7 +1276,7 @@ $$
     for p in m:
         elem.append([])
         for c in p.exterior.coords[:-1]:
-            sc = "%f %f %f" % (c[0], c[1], 5*c[2])
+            sc = "%f %f %f" % (tuple(c))
             if sc not in node_map:
                 res += "v {}\n".format(sc)
                 n += 1
