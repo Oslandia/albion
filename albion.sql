@@ -1128,14 +1128,93 @@ language plpython3u immutable
 as
 $$
     import plpy
-    import numpy
+    import random
+    from math import pi as PI, inf as INF
+    from numpy import array, roll, cross, arccos, einsum, argmin, logical_not, indices, dot, average
     from numpy.linalg import norm
     from collections import defaultdict
     from itertools import product
-    from shapely.geometry import MultiPolygon, Polygon
+    from shapely.geometry import MultiPolygon, Polygon, LineString, MultiLineString
     from shapely import wkb
+    from shapely.ops import unary_union, polygonize
+    from shapely.ops import transform 
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
+
+    def triangulate(poly):
+        """
+        simple earclip implementation
+        the case where a reflex vertex lies on the boundary of a condidate triangle
+
+        algoriyjm is described in 
+        Ear-clipping Based Algorithms of Generating High-quality Polygon Triangulation, Gang Mei 1 , John C.Tipper 1 and Nengxiong Xu 2
+
+        the input polygon is assumed ccw
+        """
+
+        def is_inside(p, t):
+            def sign (p1, p2, p3):
+                return (p1[0] - p3[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p3[1])
+            l = max(norm(t[1]-t[0]), norm(t[2]-t[1]), norm(t[0]-t[2]))
+            if norm(p-t[0])/l < 1e-3 or norm(p-t[1])/l < 1e-3 or norm(p-t[2])/l < 1e-3:
+                return False
+            l2 = l*l
+            b1 = sign(p, t[0], t[1])/l2 > -1e-3
+            b2 = sign(p, t[1], t[2])/l2 > -1e-3
+            b3 = sign(p, t[2], t[0])/l2 > -1e-3
+            return b1 and b2 and b3
+
+        vtx = array(poly if poly[0] != poly[-1] else poly[:-1])
+        n = len(vtx)
+        prv = (indices((n,))[0] + n - 1) % n 
+        nxt = (indices((n,))[0] + 1) % n
+
+        reflex = cross(vtx[nxt]-vtx, vtx[prv]-vtx, 1) < 0
+        
+        angle = arccos(einsum('ij,ij->i',vtx[nxt]-vtx, vtx[prv]-vtx)/(norm(vtx[nxt]-vtx, axis=1)*norm(vtx[prv]-vtx, axis=1))) *180 / PI
+        angle[reflex] = INF
+         
+        reflex_vtx = vtx[reflex]
+        for i in range(n):
+            if angle[i] != INF:
+                for r in reflex_vtx:
+                    if is_inside(r, vtx[array((prv[i], i, nxt[i]))]):
+                        angle[i] = INF
+                        break
+
+        triangles = []
+        step = 0
+        while len(triangles) < n-2:
+            step += 1
+            i = argmin(angle)
+            pi, ni = prv[i], nxt[i]
+            triangles.append((pi, i, ni))
+            # update angles
+            angle[pi] = arccos(dot(vtx[prv[pi]] - vtx[pi], 
+                                   vtx[ni] - vtx[pi])
+                            /(norm(vtx[prv[pi]] - vtx[pi])
+                             *norm(vtx[ni] - vtx[pi]))) *180 / pi \
+                    if cross(vtx[prv[pi]] - vtx[pi], vtx[ni] - vtx[pi]) < 0 \
+                    else INF
+            angle[i] = INF
+            angle[ni] = arccos(dot(vtx[pi] - vtx[ni],
+                                   vtx[nxt[ni]] - vtx[ni])
+                            /(norm(vtx[pi] - vtx[ni])
+                             *norm(vtx[nxt[ni]] - vtx[ni]))) *180 / pi \
+                    if cross(vtx[pi] - vtx[ni], vtx[nxt[ni]] - vtx[ni]) < 0 \
+                    else INF
+            # update connectivity info
+            prv[ni], nxt[pi] = pi, ni
+
+            # udate eartip status
+            for j in (pi, ni):
+                for r in reflex_vtx:
+                    if is_inside(r, vtx[array((prv[j], j, nxt[j]))]):
+                        angle[j] = INF
+                        break
+        return [(tuple(vtx[t[0]]), tuple(vtx[t[1]]), tuple(vtx[t[2]])) for t in triangles]
+
+
 
     nodes = {id_: geom for id_, geom in zip(node_ids_, wkb.loads(nodes_, True))}
     holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
@@ -1162,20 +1241,33 @@ $$
         for n in common_neigbors:
             triangles.add(tuple((i for _, i in sorted(zip((holes[e[0]], holes[e[1]], holes[n]), (e[0], e[1], n))))))
 
+    if not len(triangles):
+        return None
+
+    #remove unused nodes
+    used_nodes = set([n for t in triangles for n in t])
+    unused_nodes = set(nodes.keys()).difference(used_nodes)
+    for n in unused_nodes:
+        del nodes[n]
+        del holes[n]
+
     # z-sorted triangles
     triangles = [t for _, t in sorted(zip([sum((nodes[i].coords[0][2] for i in t)) for t in triangles], triangles), reverse=True)] 
 
-    def make_polygon(tri, is_top_side, nds=None):
-        p = Polygon(tri) if nds is None else Polygon([nds[n].coords[-1*int(not is_top_side)] for n in tri])
+
+    def make_polygon(tri, is_top_side):
+        p = Polygon(tri)
         return p if p.exterior.is_ccw == is_top_side else Polygon(p.exterior.coords[::-1])
 
     def interpolate_point(A, B, C, D):
-        "returns the points as numpy arrays and the two interpolated points on a-b and a-c"
         l = norm(A-B)
         r = norm(C-D)
         return (r*A+r*B+l*C+l*D)/(2*(r+l))
     
     result = []
+    sorted_holes = sorted(set(holes.values()))
+
+    faces = [[], [], []]
 
     # and down the rabbit hole, we deal with every surface top -> bottom
     for prv, tri, nxt in zip([None]+triangles[:-1], triangles, triangles[1:]+[None]):
@@ -1183,29 +1275,124 @@ $$
             inter = False if not other else set(tri).intersection(set(other))
             if inter: # share node(s) 
                 if len(inter) == 1:
-                    b, c = (tri.index(i) for i in set(tri).difference(inter))
                     a = tri.index(inter.pop())
-                    A, B = numpy.array(nodes[tri[a]].coords[-1*is_bottom_side]), numpy.array(nodes[tri[a]].coords[-1*is_top_side])
-                    C, D = numpy.array(nodes[tri[b]].coords[-1*is_bottom_side]), numpy.array(nodes[other[b]].coords[-1*is_top_side])
-                    E, F = numpy.array(nodes[tri[c]].coords[-1*is_bottom_side]), numpy.array(nodes[other[c]].coords[-1*is_top_side])
+                    b, c = [[1,2], [2,0], [0,1]][a] #sorted(tri.index(i) for i in set(tri).difference(inter))
+                    A, B = array(nodes[tri[a]].coords[-1*is_bottom_side]), array(nodes[tri[a]].coords[-1*is_top_side])
+                    C, D = array(nodes[tri[b]].coords[-1*is_bottom_side]), array(nodes[other[b]].coords[-1*is_top_side])
+                    E, F = array(nodes[tri[c]].coords[-1*is_bottom_side]), array(nodes[other[c]].coords[-1*is_top_side])
                     G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
-                    result.append(make_polygon([C, E, H], is_top_side))
-                    result.append(make_polygon([C, H, G], is_top_side))
+                    if norm(H-C) < norm(G-E):
+                        result.append(make_polygon([C, E, H], is_top_side))
+                        result.append(make_polygon([C, H, G], is_top_side))
+                    else:
+                        result.append(make_polygon([C, E, G], is_top_side))
+                        result.append(make_polygon([E, H, G], is_top_side))
+                    faces[a].append((C,G))# if is_bottom_side else (G, C))
+                    faces[(a+2)%3].append((E,H))# if is_bottom_side else (H, E))
+                    faces[(a+1)%3].append((C,E))# if is_bottom_side else (E, C))
                 else:
-                    b, c = (tri.index(i) for i in inter)
                     a = tri.index(set(tri).difference(inter).pop())
-                    A, B = numpy.array(nodes[tri[a]].coords[-1*is_bottom_side]), numpy.array(nodes[other[a]].coords[-1*is_top_side])
-                    C, D = numpy.array(nodes[tri[b]].coords[-1*is_bottom_side]), numpy.array(nodes[tri[b]].coords[-1*is_top_side])
-                    E, F = numpy.array(nodes[tri[c]].coords[-1*is_bottom_side]), numpy.array(nodes[tri[c]].coords[-1*is_top_side])
+                    b, c = [[1,2], [2,0], [0,1]][a] #sorted(tri.index(i) for i in inter)
+                    A, B = array(nodes[tri[a]].coords[-1*is_bottom_side]), array(nodes[other[a]].coords[-1*is_top_side])
+                    C, D = array(nodes[tri[b]].coords[-1*is_bottom_side]), array(nodes[tri[b]].coords[-1*is_top_side])
+                    E, F = array(nodes[tri[c]].coords[-1*is_bottom_side]), array(nodes[tri[c]].coords[-1*is_top_side])
                     G, H = interpolate_point(A, B, C, D), interpolate_point(A, B, E, F)
                     result.append(make_polygon([A, G, H], is_top_side))
+                    faces[a].append((A, G))# if is_bottom_side else (G, A))
+                    faces[(a+2)%3].append((A, H))# if is_bottom_side else (H, A))
             else:
-                result.append(make_polygon(tri, is_top_side, nodes))
+                A, B, C = [array(nodes[n].coords[-1*is_bottom_side]) for n in tri]
+                faces[0].append((A,B))# if is_bottom_side else (B,A))
+                faces[1].append((B,C))# if is_bottom_side else (C,B))
+                faces[2].append((A,C))# if is_bottom_side else (C,A))
+                result.append(make_polygon([A, B, C], is_top_side))
+    faces[0] += [(array(n.coords[0]), array(n.coords[-1])) for i, n in nodes.items() if holes[i] == sorted_holes[0]] \
+        +[(array(n.coords[-1]), array(n.coords[0])) for i, n in nodes.items() if holes[i] == sorted_holes[1]] 
+    faces[1] += [(array(n.coords[0]), array(n.coords[-1])) for i, n in nodes.items() if holes[i] == sorted_holes[1]] \
+        +[(array(n.coords[-1]), array(n.coords[0])) for i, n in nodes.items() if holes[i] == sorted_holes[2]] 
+    faces[2] += [(array(n.coords[0]), array(n.coords[-1])) for i, n in nodes.items() if holes[i] == sorted_holes[0]] \
+        +[(array(n.coords[-1]), array(n.coords[0])) for i, n in nodes.items() if holes[i] == sorted_holes[2]] 
+
+    debug_file = []
+    for i in range(3):
+        # we need to work in a plane, we build it with the first triangle
+        # and the z direction
+        origin = faces[i][0][0]
+        u = faces[i][0][1] - origin
+        z = array((0, 0, 1))
+        w = cross(z, u)
+        w /= norm(w)
+        v = cross(w, z)
+        node_map = {(round(dot(p-origin, v), 6), round(dot(p-origin, z), 6)): p for e in faces[i] for p in e}
+        linework = [LineString([(round(dot(e[0]-origin, v), 6), round(dot(e[0]-origin, z), 6)),
+                                (round(dot(e[1]-origin, v), 6), round(dot(e[1]-origin, z), 6))])
+                   for e in faces[i]]
+        polygons = list(polygonize(linework))
+
+        # orientation
+        
+
+        if len(polygons)==0:
+            for j in range(3):
+                rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in faces[j]]).wkt))
+                open("/tmp/face_{}.vtk".format(i), 'w').write(rv[0]['vtk'])
+            open("/tmp/error_linework.txt".format(i), 'w').write(MultiLineString(linework).wkt+'\n')
+            open("/tmp/error_merged_linework.txt".format(i), 'w').write(unary_union(linework).wkt+'\n')
+            open("/tmp/error.txt".format(i), 'w').write(nodes_+'\n')
+            plpy.error('no polygons to close', i, starts_, ends_, hole_ids_, node_ids_, nodes_)
+
+        
+        for p in polygons:
+            p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
+            assert(p.exterior.is_ccw)
+            if len(p.exterior.coords) > 5:
+                debug_file.append('/tmp/mesh_{}.txt'.format(int(random.random()*10000)))
+                f = open(debug_file[-1], 'w')
+                f.write("\n".join(("{} {}".format(*x) for x in p.exterior.coords)))
+                f.write("\n\n")
+            else:
+                f = None
+
+            for tri in triangulate(p.exterior.coords):
+                assert(len(tri)==3)
+                if f:
+                    f.write("\n".join(["{} {}".format(*x) for x in tri+tri[0:1]]))
+                    f.write("\n\n")
+                q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]])
+                if dot(cross(array(q.exterior.coords[1]) - array(q.exterior.coords[0]), 
+                                         array(q.exterior.coords[2]) - array(q.exterior.coords[0])), 
+                             average(array(result[0].exterior.coords), (0,)) -  array(q.exterior.coords[0])) > 0:
+                    q = Polygon(q.exterior.coords[::-1])
+                assert(len(q.exterior.coords)==4)
+                result.append(q)
 
     result = MultiPolygon(result)
     geos.lgeos.GEOSSetSRID(result._geom, $SRID)
-    return result.wkb_hex
+    result = transform(lambda x, y, z=None: (round(x, 4), round(y, 4), round(z, 4)), result)
 
+    # check generated volume is closed
+    node_map = {}
+    nb_node = 0
+    edges = set()
+    for p in result:
+        for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
+            if s not in node_map:
+                node_map[s] = nb_node
+                nb_node += 1
+            if e not in node_map:
+                node_map[e] = nb_node
+                nb_node += 1
+            if (e, s) in edges:
+                edges.remove((e, s))
+            else:
+                edges.add((s, e))
+    if (len(edges)):
+        rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(result.wkb_hex))
+        open("/tmp/unclosed_volume.obj".format(i), 'w').write(rv[0]['obj'])
+        plpy.error("elementary volume is not closed", edges, debug_file)
+    assert(len(edges)==0)
+
+    return result.wkb_hex
 $$
 ;
 
@@ -1275,8 +1462,8 @@ $$
         elem.append([])
         for c in l.coords:
             sc = "%f %f %f" % (tuple(c))
-            nodes += sc+"\n"
             if sc not in node_map:
+                nodes += sc+"\n"
                 node_map[sc] = n
                 elem[-1].append(str(n))
                 n += 1
@@ -1319,5 +1506,11 @@ select albion.to_obj(albion.elementary_volumes(
         'MULTILINESTRINGZ((0 0 0, 0 0 -.1), (1 0 0, 1.05 0 -.11), (0.03 1 0, 0 1 -.12), (0 1 .15, 0 1 .05), (0 0 -.3, 0 0 -.5), (1 0 -.2, 1.05 0 -.3))'::geometry))
 ;
 
-
+select albion.to_obj(albion.elementary_volumes(
+'{293309, 293309, 293309, 293411, 293411, 293310, 293310}'::varchar[], 
+'{293440, 293441, 293411, 293440, 293441, 293441, 293412}'::varchar[], 
+'{TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0777_1, TMRI_0777_1, TMRI_0789_1, TMRI_0777_1, TMRI_0789_1, TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0777_1}'::varchar[], 
+'{293309, 293440, 293309, 293441, 293309, 293411, 293411, 293440, 293411, 293441, 293310, 293441, 293310, 293412}'::varchar[], 
+'01050000A0787F00000E00000001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C9393764001020000800200000059D97C6C85BC13418A67D48DBAA93F41FF7B08EA919F7640418F5F6685BC1341B0A9D78CBAA93F4178920C2DC58A764001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C939376400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C93937640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD947640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD94764001020000800200000059D97C6C85BC13418A67D48DBAA93F41FF7B08EA919F7640418F5F6685BC1341B0A9D78CBAA93F4178920C2DC58A7640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD9476400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000056B7652688BC1341EA1D85B9D2A93F41D7DF7D1858F87640E1BD403F88BC13418DABDEB2D2A93F41BFCC2B28C0DE76400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000056B7652688BC1341EA1D85B9D2A93F41D7DF7D1858F87640E1BD403F88BC13418DABDEB2D2A93F41BFCC2B28C0DE764001020000800200000042B5BD4C29BC134102FDA4FBD3A93F4171017AF02C16774018C4BC7729BC134173507003D4A93F4124AB1F80CAFF7640'::geometry))
+;
 

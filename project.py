@@ -384,7 +384,7 @@ class Project(object):
                 select albion.to_obj(st_collectionhomogenize(st_collect(geom)))
                 from albion.volume
                 where graph_id='{}'
-                and not st_isempty(geom)
+                and geom is not null --not st_isempty(geom)
                 """.format(graph_id))
             open(filename, 'w').write(cur.fetchone()[0])
 
