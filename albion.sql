@@ -1096,16 +1096,74 @@ create trigger edge_instead_trig
 ;
 
 create view albion.current_edge_section as
-select row_number() over() as id, e.start_, e.end_, e.graph_id, s.id as section_id, 
+with collar_idx as (
+    select c.id, rank() over(partition by s.id order by st_linelocatepoint(s.geom, c.geom)) as rk, c.geom
+    from _albion.section as s
+    join _albion.collar as c on st_intersects(s.geom, c.geom) and st_intersects(s.geom, c.geom)
+)
+select row_number() over() as id, e.id as edge_id, e.start_, e.end_, e.graph_id, s.id as section_id, 
     (albion.to_section(e.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
 from _albion.edge as e
 join _albion.node as ns on ns.id=e.start_
 join _albion.node as ne on ne.id=e.end_
 join _albion.hole as hs on hs.id=ns.hole_id
 join _albion.hole as he on he.id=ne.hole_id
-join _albion.collar as cs on cs.id=hs.collar_id
-join _albion.collar as ce on ce.id=he.collar_id
-join _albion.section as s on st_intersects(s.geom, cs.geom) and st_intersects(s.geom, ce.geom)
+join collar_idx as cs on cs.id=hs.collar_id
+join collar_idx as ce on ce.id=he.collar_id
+join albion.section as s on st_intersects(s.geom, cs.geom) and st_intersects(s.geom, ce.geom) 
+where (cs.rk = ce.rk + 1) or (ce.rk = cs.rk + 1) 
+;
+
+create or replace function albion.current_edge_section_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    declare
+        new_geom geometry;
+    begin
+        if tg_op in ('INSERT', 'UPDATE') then
+            new.start_ := coalesce(new.start_, (select node_id from albion.current_node_section as n, _albion.metadata as m 
+                    where st_dwithin(n.geom, st_startpoint(new.geom), m.snap_distance)
+                    and graph_id=new.graph_id
+                    order by st_distance(n.geom, st_startpoint(new.geom)) asc
+                    limit 1
+                    ));
+            new.end_ := coalesce(new.end_, (select node_id from albion.current_node_section as n, _albion.metadata as m
+                    where st_dwithin(n.geom, st_endpoint(new.geom), m.snap_distance)
+                    and graph_id=new.graph_id
+                    order by st_distance(n.geom, st_endpoint(new.geom)) asc
+                    limit 1
+                    ));
+            if new.start_ > new.end_ then
+                select new.start_, new.end_ into new.end_, new.start_;
+                select st_reverse(new.geom) into new.geom;
+            end if;
+            select st_makeline(st_3dlineinterpolatepoint(s.geom, .5), st_3dlineinterpolatepoint(e.geom, .5)) 
+            from _albion.node as s, _albion.node as e 
+            where s.id=new.start_ and e.id=new.end_ into new_geom;
+        end if;
+
+        if tg_op = 'INSERT' then
+            insert into _albion.edge(start_, end_, graph_id, geom) 
+            values(new.start_, new.end_, new.graph_id, new_geom)
+            returning id into new.edge_id;
+            return new;
+        elsif tg_op = 'UPDATE' then
+            update _albion.edge set id=new.edge_id, start_=new.start_, end_=new.end_, graph_id=new.graph_id, new._geom=new_geom
+            where id=old.edge_id;
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from _albion.edge where id=old.edge_id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger current_edge_section_instead_trig
+    instead of insert or update or delete on albion.current_edge_section
+       for each row execute procedure albion.current_edge_section_instead_fct()
 ;
 
 create view albion.current_possible_edge_section as
@@ -1214,7 +1272,10 @@ $$
                         break
         return [(tuple(vtx[t[0]]), tuple(vtx[t[1]]), tuple(vtx[t[2]])) for t in triangles]
 
-
+    def interpolate_point(A, B, C, D):
+        l = norm(A-B)
+        r = norm(C-D)
+        return (r*A+r*B+l*C+l*D)/(2*(r+l))
 
     nodes = {id_: geom for id_, geom in zip(node_ids_, wkb.loads(nodes_, True))}
     holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
@@ -1236,13 +1297,113 @@ $$
             graph[neighbors[1]].add(neighbors[0])
 
     triangles = set()
+    triangle_edges = set()
     for e in edges:
         common_neigbors = graph[e[0]].intersection(graph[e[1]])
         for n in common_neigbors:
-            triangles.add(tuple((i for _, i in sorted(zip((holes[e[0]], holes[e[1]], holes[n]), (e[0], e[1], n))))))
+            tri = tuple((i for _, i in sorted(zip((holes[e[0]], holes[e[1]], holes[n]), (e[0], e[1], n)))))
+            triangles.add(tri)
+            triangle_edges.add(tri[0:2])
+            triangle_edges.add(tri[1:3])
+            triangle_edges.add(tri[0:1]+tri[2:3])
 
     if not len(triangles):
         return None
+
+    result = []
+    #plpy.notice("graph", graph)
+    #plpy.notice("triangles", triangles)
+
+    sorted_holes = sorted(set(holes.values()))
+    face_idx = 0
+    for hl, hr in ((sorted_holes[0], sorted_holes[1]), (sorted_holes[1], sorted_holes[2]), (sorted_holes[0], sorted_holes[2])):
+        face_idx += 1
+
+        # collect, orient and order edges top -> bottom
+        face_edges = set([(s, e) if holes[s] == hl else (e, s) 
+            for s in graph.keys() for e in graph[s] if holes[s] in (hl, hr) and holes[e] in (hl, hr)])
+
+        face_edges = [e for _, e in sorted(zip([max(.5*(nodes[e[0]].coords[0][2] + nodes[e[0]].coords[-1][2]), 
+                                                    .5*(nodes[e[1]].coords[0][2] + nodes[e[1]].coords[-1][2])) for e in face_edges],  face_edges), 
+                                            reverse=True)]
+        #plpy.notice("face_edges", face_edges)
+
+        if not len(face_edges):
+            continue
+
+        linework = set()
+        for i, e in enumerate(face_edges):
+            # we output only edges that are part of a triangle
+            # but we use all connected edges pieces that are inside
+            # the polygon
+            linework.add((tuple(nodes[e[0]].coords[0]), tuple(nodes[e[0]].coords[-1])))
+            linework.add((tuple(nodes[e[1]].coords[0]), tuple(nodes[e[1]].coords[-1])))
+
+            # cut top line with bottom lines of connected edges above (top->bottom)
+            prv = tuple(nodes[e[0]].coords[0])
+            for ce_above in face_edges[:i]:
+                if e[0] == ce_above[0] or e[1] == ce_above[1]:
+                    interpolated = tuple(interpolate_point(array(nodes[e[0]].coords[0]), array(nodes[ce_above[0]].coords[-1]), 
+                                                           array(nodes[e[1]].coords[0]), array(nodes[ce_above[1]].coords[-1])))
+                    linework.add((prv, interpolated))
+                    prv = interpolated
+            linework.add((prv, tuple(nodes[e[1]].coords[0])))
+
+            # cut bottom line with top lines of connecte edges below (bottom->top)
+            prv = tuple(nodes[e[0]].coords[-1])
+            for ce_below in reversed(face_edges[i+1:]):
+                if e[0] == ce_below[0] or e[1] == ce_below[1]:
+                    interpolated = tuple(interpolate_point(array(nodes[e[0]].coords[-1]), array(nodes[ce_below[0]].coords[0]),
+                                                               array(nodes[e[1]].coords[-1]), array(nodes[ce_below[1]].coords[0])))
+                    linework.add((prv, interpolated))
+                    prv = interpolated
+            linework.add((prv, tuple(nodes[e[1]].coords[-1])))
+
+        linework = [array(e) for e in linework]
+        #plpy.notice("linework", linework)
+
+        #rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in linework]).wkt))
+        #open("/tmp/face_{}.vtk".format(face_idx), 'w').write(rv[0]['vtk'])
+
+        origin = array(nodes[face_edges[0][0]].coords[0])
+        u = array(nodes[face_edges[0][1]].coords[0]) - origin
+        z = array((0, 0, 1))
+        w = cross(z, u)
+        w /= norm(w)
+        v = cross(w, z)
+        
+        node_map = {(round(dot(p-origin, v), 6), round(dot(p-origin, z), 6)): p for e in linework for p in e}
+        linework = [LineString([(round(dot(e[0]-origin, v), 6), round(dot(e[0]-origin, z), 6)),
+                                (round(dot(e[1]-origin, v), 6), round(dot(e[1]-origin, z), 6))])
+                   for e in linework]
+        polygons = list(polygonize(linework))
+        #plpy.notice("face ", len(polygons))
+
+        for p in polygons:
+            p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
+            assert(p.exterior.is_ccw)
+            for tri in triangulate(p.exterior.coords):
+                assert(len(tri)==3)
+                q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]])
+                #if dot(cross(array(q.exterior.coords[1]) - array(q.exterior.coords[0]), 
+                #             array(q.exterior.coords[2]) - array(q.exterior.coords[0])), 
+                #         average(array(result[0].exterior.coords), (0,)) -  array(q.exterior.coords[0])) > 0:
+                #    q = Polygon(q.exterior.coords[::-1])
+                assert(len(q.exterior.coords)==4)
+                result.append(q)
+
+
+    #@todo complete algorithm above
+#    result = MultiPolygon(result)
+#    geos.lgeos.GEOSSetSRID(result._geom, $SRID)
+#    return result.wkb_hex
+
+
+
+
+
+
+
 
     #remove unused nodes
     used_nodes = set([n for t in triangles for n in t])
@@ -1259,13 +1420,8 @@ $$
         p = Polygon(tri)
         return p if p.exterior.is_ccw == is_top_side else Polygon(p.exterior.coords[::-1])
 
-    def interpolate_point(A, B, C, D):
-        l = norm(A-B)
-        r = norm(C-D)
-        return (r*A+r*B+l*C+l*D)/(2*(r+l))
     
     result = []
-    sorted_holes = sorted(set(holes.values()))
 
     faces = [[], [], []]
 
@@ -1306,6 +1462,7 @@ $$
                 faces[1].append((B,C))# if is_bottom_side else (C,B))
                 faces[2].append((A,C))# if is_bottom_side else (C,A))
                 result.append(make_polygon([A, B, C], is_top_side))
+
     faces[0] += [(array(n.coords[0]), array(n.coords[-1])) for i, n in nodes.items() if holes[i] == sorted_holes[0]] \
         +[(array(n.coords[-1]), array(n.coords[0])) for i, n in nodes.items() if holes[i] == sorted_holes[1]] 
     faces[1] += [(array(n.coords[0]), array(n.coords[-1])) for i, n in nodes.items() if holes[i] == sorted_holes[1]] \
@@ -1367,8 +1524,8 @@ $$
                 result.append(q)
 
     result = MultiPolygon(result)
-    geos.lgeos.GEOSSetSRID(result._geom, $SRID)
     result = transform(lambda x, y, z=None: (round(x, 4), round(y, 4), round(z, 4)), result)
+    geos.lgeos.GEOSSetSRID(result._geom, $SRID)
 
     # check generated volume is closed
     node_map = {}
@@ -1396,7 +1553,7 @@ $$
 $$
 ;
 
-create or replace view albion.volume as
+create or replace view albion.dynamic_volume as
 with res as (
 select
 c.id as cell_id, e.graph_id, array_agg(e.start_) as starts_, array_agg(e.end_) as ends_, array_agg(ARRAY[ns.hole_id, ne.hole_id]) as hole_ids,  array_agg(ARRAY[ns.id, ne.id]) as node_ids, array_agg(ARRAY[ns.geom, ne.geom]) as nodes
@@ -1410,8 +1567,13 @@ join _albion.node as ne on ne.id = e.end_
 where ns.hole_id in (ha.id, hb.id, hc.id) and ne.hole_id in (ha.id, hb.id, hc.id)
 group by c.id, e.graph_id
 )
-select row_number() over() as id, cell_id, graph_id, albion.elementary_volumes(starts_, ends_, (select array_agg(t) from unnest(hole_ids) as t), (select array_agg(t) from unnest(node_ids) as t), (select st_collect(t) from unnest(nodes) as t)) as geom
+select row_number() over() as id, cell_id, graph_id, albion.elementary_volumes(starts_, ends_, (select array_agg(t) from unnest(hole_ids) as t), (select array_agg(t) from unnest(node_ids) as t), (select st_collect(t) from unnest(nodes) as t))::geometry('MULTIPOLYGONZ', $SRID) as geom
 from res
+;
+
+create or replace view albion.volume as
+select id, graph_id, cell_id, triangulation
+from _albion.volume
 ;
 
 create or replace function albion.to_obj(multipoly geometry)
@@ -1507,10 +1669,19 @@ select albion.to_obj(albion.elementary_volumes(
 ;
 
 select albion.to_obj(albion.elementary_volumes(
-'{293309, 293309, 293309, 293411, 293411, 293310, 293310}'::varchar[], 
-'{293440, 293441, 293411, 293440, 293441, 293441, 293412}'::varchar[], 
-'{TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0777_1, TMRI_0777_1, TMRI_0789_1, TMRI_0777_1, TMRI_0789_1, TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0777_1}'::varchar[], 
-'{293309, 293440, 293309, 293441, 293309, 293411, 293411, 293440, 293411, 293441, 293310, 293441, 293310, 293412}'::varchar[], 
-'01050000A0787F00000E00000001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C9393764001020000800200000059D97C6C85BC13418A67D48DBAA93F41FF7B08EA919F7640418F5F6685BC1341B0A9D78CBAA93F4178920C2DC58A764001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C939376400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C93937640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD947640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD94764001020000800200000059D97C6C85BC13418A67D48DBAA93F41FF7B08EA919F7640418F5F6685BC1341B0A9D78CBAA93F4178920C2DC58A7640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD9476400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000056B7652688BC1341EA1D85B9D2A93F41D7DF7D1858F87640E1BD403F88BC13418DABDEB2D2A93F41BFCC2B28C0DE76400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000056B7652688BC1341EA1D85B9D2A93F41D7DF7D1858F87640E1BD403F88BC13418DABDEB2D2A93F41BFCC2B28C0DE764001020000800200000042B5BD4C29BC134102FDA4FBD3A93F4171017AF02C16774018C4BC7729BC134173507003D4A93F4124AB1F80CAFF7640'::geometry))
+        '{a, b, a, c, e, c, b}'::varchar[],
+        '{b, d, d, e, f, f, e}'::varchar[],
+        '{a, b, c, c, a, b}'::varchar[],
+        '{a, b, c, d, e, f}'::varchar[],
+        'MULTILINESTRINGZ((0 0 0, 0 0 -.1), (1 0 0, 1.05 0 -.11), (0.03 1 0, 0 1 -.12), (0 1 .15, 0 1 .05), (0 0 -.3, 0 0 -.5), (1 0 -.2, 1.05 0 -.3))'::geometry))
 ;
+
+
+--select albion.to_obj(albion.elementary_volumes(
+--'{293309, 293309, 293309, 293411, 293411, 293310, 293310}'::varchar[], 
+--'{293440, 293441, 293411, 293440, 293441, 293441, 293412}'::varchar[], 
+--'{TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0777_1, TMRI_0777_1, TMRI_0789_1, TMRI_0777_1, TMRI_0789_1, TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0777_1}'::varchar[], 
+--'{293309, 293440, 293309, 293441, 293309, 293411, 293411, 293440, 293411, 293441, 293310, 293441, 293310, 293412}'::varchar[], 
+--'01050000A0787F00000E00000001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C9393764001020000800200000059D97C6C85BC13418A67D48DBAA93F41FF7B08EA919F7640418F5F6685BC1341B0A9D78CBAA93F4178920C2DC58A764001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C939376400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C93937640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD947640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD94764001020000800200000059D97C6C85BC13418A67D48DBAA93F41FF7B08EA919F7640418F5F6685BC1341B0A9D78CBAA93F4178920C2DC58A7640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD9476400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000056B7652688BC1341EA1D85B9D2A93F41D7DF7D1858F87640E1BD403F88BC13418DABDEB2D2A93F41BFCC2B28C0DE76400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000056B7652688BC1341EA1D85B9D2A93F41D7DF7D1858F87640E1BD403F88BC13418DABDEB2D2A93F41BFCC2B28C0DE764001020000800200000042B5BD4C29BC134102FDA4FBD3A93F4171017AF02C16774018C4BC7729BC134173507003D4A93F4124AB1F80CAFF7640'::geometry))
+--;
 

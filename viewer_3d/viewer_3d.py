@@ -1,5 +1,8 @@
 # -*- coding: UTF-8 -*-
 
+from qgis.core import *
+
+
 from OpenGL.GL import *
 from OpenGL.GL import shaders
 
@@ -9,9 +12,6 @@ from PyQt4.QtOpenGL import QGLWidget, QGLPixelBuffer, QGLFormat
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4 import uic
-
-from qgis.gui import *
-from qgis.core import *
 
 import os
 import re
@@ -23,30 +23,29 @@ from .viewer_controls import ViewerControls
 
 class Viewer3d(QGLWidget):
 
-    def __init__(self, conn_info=None, graph=None, parent=None):
+    def __init__(self, project=None, parent=None):
         super(Viewer3d, self).__init__(parent)
         self.setFocusPolicy(Qt.StrongFocus)
         self.scene = None
-        self.resetScene(conn_info, graph)
         self.__param = {
                 "label": False,
                 "node": False,
                 "edge": False,
-                "top": False,
-                "bottom": False,
-                "section": False,
                 "volume": False,
-                "z_scale": 1
+                "z_scale": 1,
+                "graph_id": "330"
                 }
+        self.__project = project
+        self.resetScene(project)
 
     def refresh_data(self):
         if self.scene:
-            self.resetScene(self.scene.conn_info, self.scene.graph_id, False)
+            self.resetScene(self.__project, False)
             self.update()
 
-    def resetScene(self, conn_info, graph_id, resetCamera=True):
-        if conn_info and graph_id:
-            self.scene = Scene(conn_info, graph_id, self.__param, self.bindTexture, self)
+    def resetScene(self, project, resetCamera=True):
+        if project:
+            self.scene = Scene(project, self.__param, self.bindTexture, self)
             if resetCamera:
                 at = self.scene.center
                 ext_y = self.scene.extent[3] - self.scene.extent[1]
@@ -74,20 +73,12 @@ class Viewer3d(QGLWidget):
         self.__param["edge"] = state
         self.update()
 
-    def toggle_tops(self, state):
-        self.__param["top"] = state
-        self.update()
-
-    def toggle_bottoms(self, state):
-        self.__param["bottom"] = state
-        self.update()
-
-    def toggle_sections(self, state):
-        self.__param["section"] = state
-        self.update()
-
     def toggle_volumes(self, state):
         self.__param["volume"] = state
+        self.update()
+
+    def set_graph(self, graph_id):
+        self.__param["graph_id"] = graph_id
         self.update()
 
     def resizeGL(self, width, height):
@@ -214,30 +205,12 @@ class Viewer3d(QGLWidget):
             self.update()
 
 class ViewerWindow(QMainWindow):
-    def __init__(self, conn_info=None, parent=None):
+    def __init__(self, project=None, parent=None):
         super(ViewerWindow, self).__init__(parent)
         self.resize(900,400)
-        self.viewer = Viewer3d(conn_info, self)
+        self.viewer = Viewer3d(project, self)
         self.viewer.show()
         self.setCentralWidget(self.viewer)
         self.controls = QDockWidget(self)
         self.controls.setWidget(ViewerControls(self.viewer, self))
         self.addDockWidget(Qt.RightDockWidgetArea, self.controls)
-
-if __name__ == "__main__":
-
-    from PyQt4.QtGui import *
-    from PyQt4.QtCore import *
-    import sys
-
-    app = QApplication(sys.argv)
-
-    QCoreApplication.setOrganizationName("QGIS")
-    QCoreApplication.setApplicationName("QGIS2")
-
-    assert len(sys.argv) >= 2
-    win = ViewerWindow()
-    win.viewer.resetScene(sys.argv[1], 'tarat_u1' )
-    win.show()
-
-    sys.exit(app.exec_())

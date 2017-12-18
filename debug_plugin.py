@@ -5,7 +5,7 @@ from qgis.core import *
 from PyQt4.QtCore import QObject, Qt
 from PyQt4.QtGui import QComboBox, \
         QShortcut, QKeySequence, QToolBar, QIcon, QMenu, QFileDialog, QInputDialog, \
-        QLineEdit, QMessageBox, QProgressBar, QApplication
+        QLineEdit, QMessageBox, QProgressBar, QApplication, QDockWidget
 
 import psycopg2
 import os
@@ -14,6 +14,8 @@ from .project import ProgressBar, Project
 from .mineralization import MineralizationDialog
 
 from .axis_layer import AxisLayer, AxisLayerType
+from .viewer_3d.viewer_3d import Viewer3d
+from .viewer_3d.viewer_controls import ViewerControls
 
 import atexit
 
@@ -77,7 +79,7 @@ class Plugin(QObject):
         self.__menu.addAction('Create cells').triggered.connect(self.__create_cells)
         self.__menu.addAction('Create sections').triggered.connect(self.__create_sections)
         self.__menu.addAction('Auto graph')#.triggered.connect(self.__auto_graph)
-        self.__menu.addAction('Create volumes')#.triggered.connect(self.__create_volumes)
+        self.__menu.addAction('Create volumes').triggered.connect(self.__create_volumes)
         self.__menu.addSeparator()
         self.__menu.addAction('Toggle axis').triggered.connect(self.__toggle_axis)
         self.__iface.mainWindow().menuBar().addMenu(self.__menu)
@@ -86,7 +88,7 @@ class Plugin(QObject):
         self.__iface.addToolBar(self.__toolbar)
 
         self.__toolbar.addWidget(self.__current_graph)
-        #self.__current_graph.currentIndexChanged.connect(self.__current_graph_changed)
+        self.__current_graph.currentIndexChanged[unicode].connect(self.__current_graph_changed)
 
         self.__toolbar.addWidget(self.__current_section)
         self.__current_section.currentIndexChanged[unicode].connect(self.__current_section_changed)
@@ -94,6 +96,20 @@ class Plugin(QObject):
         self.__toolbar.addAction(icon('previous_line.svg'), 'previous section').triggered.connect(self.__previous_section)
 
         self.__toolbar.addAction(icon('next_line.svg'), 'next section').triggered.connect(self.__next_section)
+
+        self.__viewer3d = QDockWidget('3D')
+        self.__viewer3d.setWidget(Viewer3d())
+        self.__iface.addDockWidget(Qt.LeftDockWidgetArea, self.__viewer3d)
+        self.__iface.mainWindow().tabifyDockWidget(
+                self.__iface.mainWindow().findChild(QDockWidget, "Layers"),
+                self.__viewer3d)
+
+        self.__viewer3d_ctrl = QDockWidget('3D controls')
+        self.__viewer3d_ctrl.setWidget(ViewerControls(self.__viewer3d.widget()))
+        self.__iface.addDockWidget(Qt.LeftDockWidgetArea, self.__viewer3d_ctrl)
+        self.__iface.mainWindow().tabifyDockWidget(
+                self.__iface.mainWindow().findChild(QDockWidget, "Layers"),
+                self.__viewer3d_ctrl)
         
         QgsProject.instance().readProject.connect(self.__qgis__project__loaded)
         self.__qgis__project__loaded() # case of reload
@@ -103,7 +119,14 @@ class Plugin(QObject):
             s.setParent(None)
         self.__toolbar and self.__toolbar.setParent(None)
         self.__menu and self.__menu.setParent(None)
+        self.__viewer3d and self.__viewer3d.setParent(None)
+        self.__viewer3d_ctrl and self.__viewer3d_ctrl.setParent(None)
         
+    def __current_graph_changed(self, graph_id):
+        if self.project is None:
+            return
+        self.__viewer3d.widget().set_graph(graph_id)
+
     def __getattr__(self, name):
         if name == "project":
             project_name = QgsProject.instance().readEntry("albion", "project_name", "")[0]
@@ -111,12 +134,19 @@ class Plugin(QObject):
         else:
             raise AttributeError(name)
 
+    def __create_volumes(self):
+        if self.project is None:
+            return
+        self.project.create_volumes(self.__current_graph.currentText())
+        self.__viewer3d.widget().refresh_data()
+
     def __next_section(self):
         print "next"
         if self.project is None:
             return
         self.project.next_section(self.__current_section.currentText())
         self.__refresh_layers('section')
+        self.__viewer3d.widget().update()
 
     def __previous_section(self):
         print "previous"
@@ -124,12 +154,13 @@ class Plugin(QObject):
             return
         self.project.previous_section(self.__current_section.currentText())
         self.__refresh_layers('section')
+        self.__viewer3d.widget().update()
 
     def __refresh_layers(self, name=None):
         for layer in self.__iface.mapCanvas().layers():
             if name is None or layer.name().find(name) != -1:
                 layer.triggerRepaint()
-
+        
     def __current_section_changed(self, section_id):
         layers = QgsMapLayerRegistry.instance().mapLayersByName(u"group_cell")
         if len(layers):
@@ -166,7 +197,7 @@ class Plugin(QObject):
         if len(layers):
             layers[0].editingStopped.connect(self.__update_section_list)
 
-        #self.__viewer3d.widget().resetScene(self.project, self.__current_graph.currentText())
+        self.__viewer3d.widget().resetScene(self.project)
 
     def __update_section_list(self):
         self.__current_section.clear()

@@ -48,7 +48,6 @@ class Project(object):
         self.__conn_info = "dbname={} {}".format(project_name, cluster_params())
 
     def connect(self):
-        print "connect conn_info", self.__conn_info
         return psycopg2.connect(self.__conn_info)
 
 
@@ -382,10 +381,25 @@ class Project(object):
             cur = con.cursor()
             cur.execute("""
                 select albion.to_obj(st_collectionhomogenize(st_collect(geom)))
-                from albion.volume
+                from albion.dynamic_volume
                 where graph_id='{}'
                 and geom is not null --not st_isempty(geom)
                 """.format(graph_id))
             open(filename, 'w').write(cur.fetchone()[0])
+
+    def create_volumes(self, graph_id):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""
+                delete from albion.volume where graph_id='{}'
+                """.format(graph_id))
+            cur.execute("""
+                insert into albion.volume(graph_id, cell_id, triangulation)
+                select graph_id, cell_id, geom
+                from albion.dynamic_volume
+                where graph_id='{}'
+                and geom is not null --not st_isempty(geom)
+                """.format(graph_id))
+            con.commit()
 
 

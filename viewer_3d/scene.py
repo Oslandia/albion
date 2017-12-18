@@ -8,65 +8,57 @@ from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 
 from .utility import computeNormals
-import psycopg2
 from shapely import wkb
 
 class Scene(QObject):
     
     def __del__(self):
-        self.__con.close()
+        pass
 
-    def __init__(self, conn_info, graph_id, param, texture_binder, parent=None):
+    def __init__(self, project, param, texture_binder, parent=None):
         super(Scene, self).__init__(parent)
-        self.__zScale = 1. # must be one here
         self.__textureBinder = texture_binder
         self.__old_param = {
                 "label": False,
                 "node": False,
                 "edge": False,
-                "top": False,
-                "bottom": False,
-                "section": False,
                 "volume": False,
-                "z_scale": 1
+                "z_scale": 1,
+                "graph_id": "330"
                 }
         self.__param = param
 
-        self.graph_id = graph_id
-        self.conn_info = conn_info
+        self.__project = project
 
-        self.__con = psycopg2.connect(self.conn_info)
-        self.__cur = self.__con.cursor()
-        self.__cur.execute("""
-            select st_3dextent(geom)
-            from albion.collar
-            """)
+        with project.connect() as con:
+            cur = con.cursor()
+            cur.execute("""
+                select st_3dextent(geom)
+                from albion.collar
+                """)
 
-        ext = self.__cur.fetchone()[0].replace('BOX3D(','').replace(')','').split(',')
-        ext = [[float(c) for c in ext[0].split()],[float(c) for c in ext[1].split()]]
-        self.extent = (ext[0][0], ext[0][1], ext[1][0], ext[1][1])
+            ext = cur.fetchone()[0].replace('BOX3D(','').replace(')','').split(',')
+            ext = [[float(c) for c in ext[0].split()],[float(c) for c in ext[1].split()]]
+            self.__offset = -numpy.array((
+                    .5*(ext[0][0]+ext[1][0]), 
+                    .5*(ext[0][1]+ext[1][1]),
+                    .5*(ext[0][2]+ext[1][2])))
 
-        self.center = QVector3D(
-                .5*(ext[0][0]+ext[1][0]), 
-                .5*(ext[0][1]+ext[1][1]),
-                .5*(ext[0][2]+ext[1][2]))
+            self.extent = (
+                    ext[0][0] + self.__offset[0], ext[0][1] + self.__offset[1], 
+                    ext[1][0] + self.__offset[0], ext[1][1] + self.__offset[1])
+
+            self.center = QVector3D(0, 0, 0)
 
         self.vtx = {
                 "node":None,
                 "edge":None,
-                "top":None,
-                "bottom":None,
-                "section":None,
                 "volume":None}
         self.idx = {
                 "node":None,
                 "edge":None,
-                "top":None,
-                "bottom":None,
-                "section":None,
                 "volume":None}
         self.nrml = {
-                "section":None,
                 "volume":None}
 
         self.__labels = []
@@ -76,19 +68,23 @@ class Scene(QObject):
 
         glEnable(GL_DEPTH_TEST)
         glLightModelfv(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE)
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [1., 1., 1., 1.])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [1., 1., 1., 1.])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [1., 1., 1., 1.])
-        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 50)
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [.5, .5, .5, 1.])
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [.3, .3, .3, 1.])
+        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [.2, .2, .2, 1.])
+        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 0)
 
         glEnableClientState(GL_VERTEX_ARRAY)
         glDisableClientState(GL_TEXTURE_COORD_ARRAY)
         glEnableClientState(GL_NORMAL_ARRAY)
 
+        if self.__param["graph_id"] != self.__old_param["graph_id"]:
+            self.setGraph(self.__param["graph_id"])
+
+
         if self.__param["z_scale"] != self.__old_param["z_scale"]:
             self.setZscale(self.__param["z_scale"])
 
-        for layer in ['section', 'volume']:
+        for layer in ['volume']:
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
                     self.__update(layer)
@@ -100,11 +96,9 @@ class Scene(QObject):
         glDisableClientState(GL_NORMAL_ARRAY)
         color = {'node':[0.,0.,0.,1.], 
                   'edge':[0.,1.,0.,1.],
-                  'top':[0.,1.,1.,1.],
-                  'bottom':[1.,0.,0.,1.]
                   }
         glLineWidth(1)
-        for layer in ['node', 'edge', 'top', 'bottom']:
+        for layer in ['node', 'edge']:
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
                     self.__update(layer)
@@ -116,35 +110,38 @@ class Scene(QObject):
                     glDrawElementsui(GL_LINES, self.idx[layer])
         
         # current section, highlight nodes
-        self.__cur.execute("""
-            select coalesce(st_collect(n.geom), 'GEOMETRYCOLLECTION EMPTY'::geometry)
-            from albion.node as n join albion.hole as h on h.id=n.hole_id, albion.grid as s
-            where n.graph_id='{}'
-            and s.id = albion.current_section_id()
-            and h.geom && s.geom
-            and st_intersects(st_startpoint(h.geom), s.geom)
-            """.format(self.graph_id)
-            )
-        lines = wkb.loads(self.__cur.fetchone()[0], True)
-        vtx = []
-        idx = []
-        for line in lines:
-            idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
-            vtx += list(line.coords)
-        vtx = numpy.array(vtx, dtype=numpy.float32)
-        if len(vtx):
-            vtx[:,2] *= self.__zScale
-        idx = numpy.array(idx, dtype=numpy.int32)
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [1., 1., 0., 1.])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [1., 1., 0., 1.])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [1., 1., 0., 1.])
-        glDisable(GL_DEPTH_TEST)
-        glLineWidth(4)
-        glPointSize(4)
-        if len(vtx):
-            glVertexPointerf(vtx)
-            glDrawElementsui(GL_LINES, idx)
-            glDrawArrays(GL_POINTS, 0, len(vtx))
+        with self.__project.connect() as con:
+            cur = con.cursor()
+            cur.execute("""
+                select coalesce(st_collect(n.geom), 'GEOMETRYCOLLECTION EMPTY'::geometry)
+                from albion.section as s
+                join albion.collar as c on st_intersects(s.geom, c.geom)
+                join albion.hole as h on h.collar_id=c.id
+                join albion.node as n on n.hole_id=h.id
+                where n.graph_id='{}'
+                """.format(self.__param["graph_id"])
+                )
+            lines = wkb.loads(cur.fetchone()[0], True)
+            vtx = []
+            idx = []
+            for line in lines:
+                idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
+                vtx += list(line.coords)
+            vtx = numpy.array(vtx, dtype=numpy.float32)
+            if len(vtx):
+                vtx[:,2] *= self.__param['z_scale']
+                vtx += self.__offset
+            idx = numpy.array(idx, dtype=numpy.int32)
+            glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [1., 1., 0., 1.])
+            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [1., 1., 0., 1.])
+            glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [1., 1., 0., 1.])
+            glDisable(GL_DEPTH_TEST)
+            glLineWidth(4)
+            glPointSize(4)
+            if len(vtx):
+                glVertexPointerf(vtx)
+                glDrawElementsui(GL_LINES, idx)
+                glDrawArrays(GL_POINTS, 0, len(vtx))
 
 
         glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [0., 0., 0., 1.])
@@ -202,124 +199,94 @@ class Scene(QObject):
 
     def __update(self, layer):
 
-        if layer=='label':
-            self.__labels = []
-            self.__cur.execute("""
-                select hole_id, st_x(geom), st_y(geom), st_z(geom)
-                from (select hole_id, st_startpoint(geom) as geom from albion.node where graph_id='{}' ) as t
-                """.format(self.graph_id))
-            for id_, x, y, z in self.__cur.fetchall():
-                scene = QGraphicsScene()
-                scene.setSceneRect(scene.itemsBoundingRect())
-                scene.addText(id_)#, QFont('Arial', 32))
-                image = QImage(scene.sceneRect().size().toSize(), QImage.Format_ARGB32)
-                image.fill(Qt.transparent)
-                painter = QPainter(image)
-                image.save('/tmp/test.png')
-                scene.render(painter)
-                del painter
-                scat = {'point': [x,y,self.__zScale], 'image': image}
-                scat['texture'] = self.__textureBinder(scat['image'])
-                self.__labels.append(scat)
+        with self.__project.connect() as con:
+            cur = con.cursor()
+            if layer=='label':
+                self.__labels = []
+                cur.execute("""
+                    select hole_id, st_x(geom), st_y(geom), st_z(geom)
+                    from (select hole_id, st_startpoint(geom) as geom from albion.node where graph_id='{}' ) as t
+                    """.format(self.__param["graph_id"]))
+                for id_, x, y, z in cur.fetchall():
+                    scene = QGraphicsScene()
+                    scene.setSceneRect(scene.itemsBoundingRect())
+                    scene.addText(id_)#, QFont('Arial', 32))
+                    image = QImage(scene.sceneRect().size().toSize(), QImage.Format_ARGB32)
+                    image.fill(Qt.transparent)
+                    painter = QPainter(image)
+                    image.save('/tmp/test.png')
+                    scene.render(painter)
+                    del painter
+                    scat = {'point': [x+self.__offset[0], y+self.__offset[1], (z+self.__offset[2])*self.__param["z_scale"]], 'image': image}
+                    scat['texture'] = self.__textureBinder(scat['image'])
+                    self.__labels.append(scat)
 
-        elif layer=='node':
-            self.__cur.execute("""
-                select coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.node where graph_id='{}'
-                """.format(self.graph_id))
-            lines = wkb.loads(self.__cur.fetchone()[0], True)
-            vtx = []
-            idx = []
-            for line in lines:
-                idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
-                vtx += list(line.coords)
-            self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
-            if len(vtx):
-                self.vtx[layer][:,2] *= self.__zScale
-            self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
+            elif layer=='node':
+                cur.execute("""
+                    select coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.node where graph_id='{}'
+                    """.format(self.__param["graph_id"]))
+                lines = wkb.loads(cur.fetchone()[0], True)
+                vtx = []
+                idx = []
+                for line in lines:
+                    idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
+                    vtx += list(line.coords)
+                self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
+                if len(vtx):
+                    self.vtx[layer][:,2] *= self.__param["z_scale"]
+                    self.vtx[layer] += self.__offset
+                self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
 
-        elif layer=='edge':
-            self.__cur.execute("""
-                select coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
-                """.format(self.graph_id))
-            lines = wkb.loads(self.__cur.fetchone()[0], True)
-            vtx = []
-            idx = []
-            for line in lines:
-                idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
-                vtx += list(line.coords)
-            self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
-            if len(vtx):
-                self.vtx[layer][:,2] *= self.__zScale
-            self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
-        
-        elif layer=='top':
-            self.__cur.execute("""
-                select coalesce(st_collect(top), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
-                """.format(self.graph_id))
-            lines = wkb.loads(self.__cur.fetchone()[0], True)
-            vtx = []
-            idx = []
-            for line in lines:
-                idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
-                vtx += list(line.coords)
-            self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
-            if len(vtx):
-                self.vtx[layer][:,2] *= self.__zScale
-            self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
+            elif layer=='edge':
+                cur.execute("""
+                    select coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
+                    """.format(self.__param["graph_id"]))
+                lines = wkb.loads(cur.fetchone()[0], True)
+                vtx = []
+                idx = []
+                for line in lines:
+                    idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
+                    vtx += list(line.coords)
+                self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
+                if len(vtx):
+                    self.vtx[layer][:,2] *= self.__param["z_scale"]
+                    self.vtx[layer] += self.__offset
+                self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
+            
+            elif layer=='volume':
+                cur.execute("""
+                    select st_collectionhomogenize(st_collect(triangulation))
+                    from albion.volume
+                    where graph_id='{}'
+                    """.format(self.__param["graph_id"]))
+                geom = wkb.loads(cur.fetchone()[0], True)
+                self.vtx[layer] = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
+                if len(self.vtx[layer]):
+                    self.vtx[layer][:,2] *= self.__param["z_scale"]
+                    self.vtx[layer] += self.__offset
+                self.idx[layer] = numpy.require(numpy.arange(len(self.vtx[layer])).reshape((-1,3)), numpy.int32, 'C')
+                self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
 
-        elif layer=='bottom':
-            self.__cur.execute("""
-                select coalesce(st_collect(bottom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
-                """.format(self.graph_id))
-            lines = wkb.loads(self.__cur.fetchone()[0], True)
-            vtx = []
-            idx = []
-            for line in lines:
-                idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
-                vtx += list(line.coords)
-            self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
-            if len(vtx):
-                self.vtx[layer][:,2] *= self.__zScale
-            self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
+            self.__old_param[layer] = self.__param[layer]
 
-        elif layer=='section':
-            self.__cur.execute("""
-                select coalesce(st_collectionhomogenize(st_collect(triangulation)), 'GEOMETRYCOLLECTION EMPTY'::geometry)
-                from albion.section where graph_id='{}'
-                """.format(self.graph_id))
-            geom = wkb.loads(self.__cur.fetchone()[0], True)
-            self.vtx[layer] = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
-            if len(self.vtx[layer]):
-                self.vtx[layer][:,2] *= self.__zScale
-            self.idx[layer] = numpy.require(numpy.arange(len(self.vtx[layer])).reshape((-1,3)), numpy.int32, 'C')
-            self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
-
-        elif layer=='volume':
-            self.__cur.execute("""
-                select coalesce(st_collectionhomogenize(st_collect(triangulation)), 'GEOMETRYCOLLECTION EMPTY'::geometry)
-                from albion.volume where graph_id='{}'
-                """.format(self.graph_id))
-            geom = wkb.loads(self.__cur.fetchone()[0], True)
-            self.vtx[layer] = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
-            if len(self.vtx[layer]):
-                self.vtx[layer][:,2] *= self.__zScale
-            self.idx[layer] = numpy.require(numpy.arange(len(self.vtx[layer])).reshape((-1,3)), numpy.int32, 'C')
-            self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
-
-        self.__old_param[layer] = self.__param[layer]
+    def setGraph(self, graph_id):
+        for layer in ['node', 'edge', 'volume']:
+            self.__update(layer)
+        self.__old_param["graph_id"] = graph_id
 
 
     def setZscale(self, scale):
-        factor = float(scale)/self.__zScale
+        factor = float(scale)/self.__old_param["z_scale"]
 
-        for layer in ['node', 'edge', 'top', 'bottom', 'section', 'volume']:
+        print "factor", factor
+        for layer in ['node', 'edge', 'volume']:
             if self.vtx[layer] is not None:
                 self.vtx[layer][:,2] *= factor
-                if layer in ['section', 'volume']:
+                if layer in ['volume']:
                     self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
 
         for scatter in self.__labels:
             scatter['point'][2] *= factor
 
-        self.__zScale = scale
+        self.__old_param["z_scale"] = scale
 
