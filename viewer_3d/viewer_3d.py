@@ -51,11 +51,11 @@ class Viewer3d(QGLWidget):
                 ext_y = self.scene.extent[3] - self.scene.extent[1]
                 eye = at + QVector3D(0, -1.5*ext_y , 0.5*ext_y)
                 self.camera = Camera(eye, at)
-
         else:
             self.scene and self.scene.setParent(None)
             self.scene = None
             self.camera = Camera(QVector3D(10, 10, -10), QVector3D(0, 0, 0))
+        self.__project = project
 
     def setZscale(self, value):
         self.__param["z_scale"]=value

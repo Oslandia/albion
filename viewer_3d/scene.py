@@ -129,8 +129,8 @@ class Scene(QObject):
                 vtx += list(line.coords)
             vtx = numpy.array(vtx, dtype=numpy.float32)
             if len(vtx):
-                vtx[:,2] *= self.__param['z_scale']
                 vtx += self.__offset
+                vtx[:,2] *= self.__param['z_scale']
             idx = numpy.array(idx, dtype=numpy.int32)
             glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [1., 1., 0., 1.])
             glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [1., 1., 0., 1.])
@@ -233,8 +233,8 @@ class Scene(QObject):
                     vtx += list(line.coords)
                 self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
                 if len(vtx):
-                    self.vtx[layer][:,2] *= self.__param["z_scale"]
                     self.vtx[layer] += self.__offset
+                    self.vtx[layer][:,2] *= self.__param["z_scale"]
                 self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
 
             elif layer=='edge':
@@ -249,8 +249,8 @@ class Scene(QObject):
                     vtx += list(line.coords)
                 self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
                 if len(vtx):
-                    self.vtx[layer][:,2] *= self.__param["z_scale"]
                     self.vtx[layer] += self.__offset
+                    self.vtx[layer][:,2] *= self.__param["z_scale"]
                 self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
             
             elif layer=='volume':
@@ -262,8 +262,8 @@ class Scene(QObject):
                 geom = wkb.loads(cur.fetchone()[0], True)
                 self.vtx[layer] = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
                 if len(self.vtx[layer]):
-                    self.vtx[layer][:,2] *= self.__param["z_scale"]
                     self.vtx[layer] += self.__offset
+                    self.vtx[layer][:,2] *= self.__param["z_scale"]
                 self.idx[layer] = numpy.require(numpy.arange(len(self.vtx[layer])).reshape((-1,3)), numpy.int32, 'C')
                 self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
 
