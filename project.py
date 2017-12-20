@@ -301,6 +301,8 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("refresh materialized view albion.section_geom")
+            cur.execute("refresh materialized view albion.radiometry_section")
+            cur.execute("refresh materialized view albion.resistivity_section")
             con.commit()
 
     def execute_script(self, file_):
@@ -525,8 +527,6 @@ class Project(object):
                     y=ext[0][1]-50-z_scale*ext[1][2],
                     xleft=ext[0][0],
                     xright=ext[1][0]))
-            print ext
-
             con.commit()
 
 
