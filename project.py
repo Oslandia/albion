@@ -529,3 +529,25 @@ class Project(object):
 
             con.commit()
 
+
+    def closest_hole_id(self, x, y):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select srid from albion.metadata")
+            srid, = cur.fetchone()
+            cur.execute("""
+                select id from albion.hole
+                where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 25)
+                order by st_distance('SRID={srid} ;POINT({x} {y})'::geometry, geom)
+                limit 1""".format(srid=srid, x=x, y=y))
+            res = cur.fetchone()
+            if not res:
+                cur.execute("""
+                    select hole_id from albion.current_hole_section
+                    where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 25)
+                    order by st_distance('SRID={srid} ;POINT({x} {y})'::geometry, geom)
+                    limit 1""".format(srid=srid, x=x, y=y))
+                res = cur.fetchone()
+
+            return res[0] if res else None
+

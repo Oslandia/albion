@@ -1,6 +1,7 @@
 # coding: utf-8
 
 from qgis.core import *
+from qgis.gui import *
 
 from PyQt4.QtCore import QObject, Qt
 from PyQt4.QtGui import QComboBox, \
@@ -18,6 +19,7 @@ from .mineralization import MineralizationDialog
 from .axis_layer import AxisLayer, AxisLayerType
 from .viewer_3d.viewer_3d import Viewer3d
 from .viewer_3d.viewer_controls import ViewerControls
+from .log_strati import BoreHoleWindow
 
 import atexit
 
@@ -48,6 +50,7 @@ class Plugin(QObject):
         self.__toolbar = None
         self.__axis_layer = None
         self.__menu = None
+        self.__log_strati = None
 
     def initGui(self):
 
@@ -80,6 +83,8 @@ class Plugin(QObject):
         self.__toolbar.addAction(icon('previous_line.svg'), 'previous section').triggered.connect(self.__previous_section)
 
         self.__toolbar.addAction(icon('next_line.svg'), 'next section').triggered.connect(self.__next_section)
+
+        self.__toolbar.addAction(icon('log_strati.svg'), 'stratigraphic log').triggered.connect(self.__log_strati_clicked)
 
         self.__viewer3d = QDockWidget('3D')
         self.__viewer3d.setWidget(Viewer3d())
@@ -498,3 +503,34 @@ class Plugin(QObject):
         if self.project is None:
             return
         self.project.create_section_view_0_90()
+
+    def __log_strati_clicked(self):
+        #@todo switch behavior when in section view -> ortho
+        self.__click_tool = QgsMapToolEmitPoint(self.__iface.mapCanvas())
+        self.__iface.mapCanvas().setMapTool(self.__click_tool)
+        self.__click_tool.canvasClicked.connect(self.__map_log_clicked)
+
+    def __map_log_clicked(self, point, button):
+        self.__click_tool.setParent(None)
+        self.__click_tool = None
+
+        if self.project is None:
+            self.__log_strati and self.__log_strati.setParent(None)
+            self.__log_strati = None
+            return
+
+        if self.__log_strati is None:
+            self.__log_strati = QDockWidget('Stratigraphic Log')
+            self.__log_strati.setWidget(BoreHoleWindow(self.project))
+            self.__iface.addDockWidget(Qt.LeftDockWidgetArea, self.__log_strati)
+            self.__iface.mainWindow().tabifyDockWidget(
+                    self.__iface.mainWindow().findChild(QDockWidget, "Layers"),
+                    self.__log_strati)
+
+        res = self.project.closest_hole_id(point.x(), point.y())
+        if res:
+            self.__log_strati.widget().scene.set_current_id(res)
+            self.__log_strati.show()
+            self.__log_strati.raise_()
+
+
