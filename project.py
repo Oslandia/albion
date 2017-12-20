@@ -5,8 +5,10 @@ import psycopg2
 import os
 import sys
 import atexit
+from shapely import wkb
+from dxfwrite import DXFEngine as dxf
 
-from pglite import start_cluster, stop_cluster, init_cluster, check_cluster, cluster_params
+from pglite import start_cluster, stop_cluster, init_cluster, check_cluster, cluster_params, export_db, import_db
 
 if not check_cluster():
     init_cluster()
@@ -45,6 +47,7 @@ class Project(object):
 
     def __init__(self, project_name):
         #assert Project.exists(project_name)
+        self.__name = project_name
         self.__conn_info = "dbname={} {}".format(project_name, cluster_params())
 
     def connect(self):
@@ -112,7 +115,61 @@ class Project(object):
                 #print statement.replace('$SRID', str(srid))
                 cur.execute(statement.replace('$SRID', str(srid)))
             con.commit()
-        
+
+    def __getattr__(self, name):
+        if name == "has_collar":
+            return self.__has_collar()
+        elif name == "has_hole":
+            return self.__has_hole()
+        elif name == "has_section":
+            return self.__has_section()
+        elif name == "has_group_cell":
+            return self.__has_group_cell()
+        elif name == "has_radiometry":
+            return self.__has_radiometry()
+        elif name == "has_cell":
+            return self.__has_cell()
+        elif name == "name":
+            return self.__name
+        else:
+            raise AttributeError(name)
+
+    def __has_cell(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.cell")
+            return cur.fetchone()[0] > 1
+
+    def __has_collar(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.collar")
+            return cur.fetchone()[0] > 1
+
+    def __has_hole(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.hole")
+            return cur.fetchone()[0] > 1
+
+    def __has_section(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.section_geom")
+            return cur.fetchone()[0] > 1
+
+    def __has_group_cell(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.group_cell")
+            return cur.fetchone()[0] > 1
+
+    def __has_radiometry(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.radiometry")
+            return cur.fetchone()[0] > 1
+
     def import_data(self, dir_, progress=None):
         progress = progress if progress is not None else DummyProgress()
         with self.connect() as con:
@@ -232,6 +289,12 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select albion.triangulate()")
+            con.commit()
+
+    def refresh_all_edge(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("refresh materialized view albion.all_edge")
             con.commit()
 
     def create_sections(self):
@@ -387,6 +450,21 @@ class Project(object):
                 """.format(graph_id))
             open(filename, 'w').write(cur.fetchone()[0])
 
+    def export_dxf(self, graph_id, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""
+                select st_collectionhomogenize(st_collect(triangulation))
+                from albion.volume
+                where graph_id='{}'
+                """.format(graph_id))
+            drawing = dxf.drawing(filename)
+            m = wkb.loads(cur.fetchone()[0], True)
+            for p in m:
+                r = p.exterior.coords
+                drawing.add(dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1))
+            drawing.save()
+
     def create_volumes(self, graph_id):
         with self.connect() as con:
             cur = con.cursor()
@@ -402,4 +480,52 @@ class Project(object):
                 """.format(graph_id))
             con.commit()
 
+    def export(self, filename):
+        export_db(self.name, filename)
+
+    @staticmethod
+    def import_(name, filename):
+        import_dw(filename, name)
+        return Project(name)
+
+    def create_section_view_0_90(self, z_scale):
+        """create default WE and SN section views with magnifications
+
+        we position anchors south and east in order to have the top of
+        the section with a 50m margin from the extent of the holes
+        """
+
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""
+                select st_3dextent(geom)
+                from albion.hole
+                """)
+            ext = cur.fetchone()[0].replace('BOX3D(','').replace(')','').split(',')
+            ext = [[float(c) for c in ext[0].split()],[float(c) for c in ext[1].split()]]
+
+            cur.execute("select srid from albion.metadata")
+            srid, = cur.fetchone()
+            cur.execute("""
+                insert into albion.section(id, anchor, scale)
+                values('SN x{z_scale}', 'SRID={srid};LINESTRING({x} {ybottom}, {x} {ytop})'::geometry, {z_scale})
+                """.format(
+                    z_scale=z_scale, 
+                    srid=srid, 
+                    x=ext[1][0]+50+z_scale*ext[1][2],
+                    ybottom=ext[0][1],
+                    ytop=ext[1][1]))
+
+            cur.execute("""
+                insert into albion.section(id, anchor, scale)
+                values('WE x{z_scale}', 'SRID={srid};LINESTRING({xleft} {y}, {xright} {y})'::geometry, {z_scale})
+                """.format(
+                    z_scale=z_scale, 
+                    srid=srid, 
+                    y=ext[0][1]-50-z_scale*ext[1][2],
+                    xleft=ext[0][0],
+                    xright=ext[1][0]))
+            print ext
+
+            con.commit()
 

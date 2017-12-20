@@ -23,6 +23,7 @@ class Scene(QObject):
                 "node": False,
                 "edge": False,
                 "volume": False,
+                "section": False,
                 "z_scale": 1,
                 "graph_id": "330"
                 }
@@ -53,10 +54,12 @@ class Scene(QObject):
         self.vtx = {
                 "node":None,
                 "edge":None,
+                "section":None,
                 "volume":None}
         self.idx = {
                 "node":None,
                 "edge":None,
+                "section":None,
                 "volume":None}
         self.nrml = {
                 "volume":None}
@@ -87,7 +90,7 @@ class Scene(QObject):
         for layer in ['volume']:
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
-                    self.__update(layer)
+                    self.update(layer)
                 if len(self.vtx[layer]):
                     glVertexPointerf(self.vtx[layer])
                     glNormalPointerf(self.nrml[layer])
@@ -95,13 +98,12 @@ class Scene(QObject):
 
         glDisableClientState(GL_NORMAL_ARRAY)
         color = {'node':[0.,0.,0.,1.], 
-                  'edge':[0.,1.,0.,1.],
-                  }
+                 'edge':[0.,1.,0.,1.]}
         glLineWidth(1)
         for layer in ['node', 'edge']:
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
-                    self.__update(layer)
+                    self.update(layer)
                 glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  color[layer])
                 glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  color[layer])
                 glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  color[layer])
@@ -110,38 +112,18 @@ class Scene(QObject):
                     glDrawElementsui(GL_LINES, self.idx[layer])
         
         # current section, highlight nodes
-        with self.__project.connect() as con:
-            cur = con.cursor()
-            cur.execute("""
-                select coalesce(st_collect(n.geom), 'GEOMETRYCOLLECTION EMPTY'::geometry)
-                from albion.section as s
-                join albion.collar as c on st_intersects(s.geom, c.geom)
-                join albion.hole as h on h.collar_id=c.id
-                join albion.node as n on n.hole_id=h.id
-                where n.graph_id='{}'
-                """.format(self.__param["graph_id"])
-                )
-            lines = wkb.loads(cur.fetchone()[0], True)
-            vtx = []
-            idx = []
-            for line in lines:
-                idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
-                vtx += list(line.coords)
-            vtx = numpy.array(vtx, dtype=numpy.float32)
-            if len(vtx):
-                vtx += self.__offset
-                vtx[:,2] *= self.__param['z_scale']
-            idx = numpy.array(idx, dtype=numpy.int32)
-            glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [1., 1., 0., 1.])
-            glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [1., 1., 0., 1.])
-            glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [1., 1., 0., 1.])
-            glDisable(GL_DEPTH_TEST)
-            glLineWidth(4)
-            glPointSize(4)
-            if len(vtx):
-                glVertexPointerf(vtx)
-                glDrawElementsui(GL_LINES, idx)
-                glDrawArrays(GL_POINTS, 0, len(vtx))
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [1., 1., 0., 1.])
+        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [1., 1., 0., 1.])
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [1., 1., 0., 1.])
+        glDisable(GL_DEPTH_TEST)
+        glLineWidth(2)
+        glPointSize(3)
+        if self.__param['section'] != self.__old_param['section']:
+            self.update('section')
+        if len(self.vtx['section']):
+            glVertexPointerf(self.vtx['section'])
+            glDrawElementsui(GL_LINES, self.idx['section'])
+            glDrawArrays(GL_POINTS, 0, len(self.vtx['section']))
 
 
         glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [0., 0., 0., 1.])
@@ -149,7 +131,7 @@ class Scene(QObject):
         # render labels
         if self.__param['label']:
             if self.__param['label'] != self.__old_param['label']:
-                self.__update('label')
+                self.update('label')
             glEnable(GL_BLEND)
             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
             glDisableClientState(GL_VERTEX_ARRAY)
@@ -197,7 +179,7 @@ class Scene(QObject):
                 glEnd()
             glDisable(GL_TEXTURE_2D)
 
-    def __update(self, layer):
+    def update(self, layer):
 
         with self.__project.connect() as con:
             cur = con.cursor()
@@ -237,6 +219,30 @@ class Scene(QObject):
                     self.vtx[layer][:,2] *= self.__param["z_scale"]
                 self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
 
+            elif layer=='section':
+
+                cur.execute("""
+                    select coalesce(st_collect(n.geom), 'GEOMETRYCOLLECTION EMPTY'::geometry)
+                    from albion.section as s
+                    join albion.collar as c on st_intersects(s.geom, c.geom)
+                    join albion.hole as h on h.collar_id=c.id
+                    join albion.node as n on n.hole_id=h.id
+                    where n.graph_id='{}'
+                    """.format(self.__param["graph_id"])
+                    )
+                lines = wkb.loads(cur.fetchone()[0], True)
+                vtx = []
+                idx = []
+                for line in lines:
+                    idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
+                    vtx += list(line.coords)
+                vtx = numpy.array(vtx, dtype=numpy.float32)
+                if len(vtx):
+                    vtx += self.__offset
+                    vtx[:,2] *= self.__param['z_scale']
+                self.vtx[layer] = vtx
+                self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
+
             elif layer=='edge':
                 cur.execute("""
                     select coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
@@ -255,7 +261,7 @@ class Scene(QObject):
             
             elif layer=='volume':
                 cur.execute("""
-                    select st_collectionhomogenize(st_collect(triangulation))
+                    select st_collectionhomogenize(coalesce(st_collect(triangulation), 'GEOMETRYCOLLECTION EMPTY'::geometry))
                     from albion.volume
                     where graph_id='{}'
                     """.format(self.__param["graph_id"]))
@@ -270,16 +276,15 @@ class Scene(QObject):
             self.__old_param[layer] = self.__param[layer]
 
     def setGraph(self, graph_id):
-        for layer in ['node', 'edge', 'volume']:
-            self.__update(layer)
+        for layer in ['node', 'edge', 'volume', 'section']:
+            self.update(layer)
         self.__old_param["graph_id"] = graph_id
 
 
     def setZscale(self, scale):
         factor = float(scale)/self.__old_param["z_scale"]
 
-        print "factor", factor
-        for layer in ['node', 'edge', 'volume']:
+        for layer in ['node', 'edge', 'volume', 'section']:
             if self.vtx[layer] is not None:
                 self.vtx[layer][:,2] *= factor
                 if layer in ['volume']:

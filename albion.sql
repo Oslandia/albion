@@ -111,7 +111,7 @@ $$
 create view albion.collar as select id, geom, date_, comments from _albion.collar
 ;
 
-create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_distance, end_angle, correlation_distance, correlation_angle from _albion.metadata
+create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_distance, end_angle, correlation_distance, correlation_angle, parent_correlation_angle from _albion.metadata
 ;
 
 create view albion.hole as select id, collar_id, depth_, geom::geometry('LINESTRINGZ', $SRID) from _albion.hole
@@ -160,9 +160,9 @@ $$
         if tg_op in ('INSERT', 'UPDATE') then
             if (select parent is not null from _albion.graph where id=new.graph_id) then
                 new.parent := coalesce(new.parent,
-                    (select id from _albion.node 
-                    where .5*(new.from_+new.to_) between from_ and to_ 
-                    and hole_id=new.hole_id and 
+                    (select id from _albion.node as n
+                    where .5*(new.from_+new.to_) between n.from_ and n.to_ 
+                    and n.hole_id=new.hole_id and 
                     n.graph_id=(select g.parent from _albion.graph as g where g.id=new.graph_id)));
             end if;
         end if;
@@ -538,7 +538,7 @@ select s.id, (albion.first_section(s.anchor))::geometry('LINESTRING', $SRID) as 
 where not exists (select 1 from sorted as st where st.section_id=s.id) 
 ;
 
-create or replace function albion.to_section(geom geometry, anchor geometry, z_scale integer default 1.)
+create or replace function albion.to_section(geom geometry, anchor geometry, z_scale real)
 returns geometry
 language plpython3u immutable
 as
@@ -730,7 +730,7 @@ $$
 
 create view albion.current_node_section as
 select row_number() over() as id, n.id as node_id, h.collar_id, n.from_, n.to_, n.graph_id, s.id as section_id, 
-    (albion.to_section(n.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+    (albion.to_section(n.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.node as n
 join _albion.hole as h on h.id=n.hole_id
 join _albion.collar as c on c.id=h.collar_id
@@ -739,14 +739,14 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 
 create view albion.hole_section as
 select row_number() over() as id, h.id as hole_id, h.collar_id, h.depth_, s.id as section_id, 
-    (albion.to_section(h.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+    (albion.to_section(h.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.hole as h
 join _albion.collar as c on c.id=h.collar_id, _albion.section as s
 ;
 
 create view albion.current_hole_section as
 select row_number() over() as id, h.id as hole_id, h.collar_id, h.depth_, s.id as section_id, 
-    (albion.to_section(h.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+    (albion.to_section(h.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.hole as h
 join _albion.collar as c on c.id=h.collar_id
 join _albion.section as s on st_intersects(s.geom, c.geom)
@@ -754,7 +754,7 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 
 create view albion.current_mineralization_section as
 select row_number() over() as id, m.hole_id as hole_id, h.collar_id, m.level_, m.oc, m.accu, m.grade, s.id as section_id, 
-    (albion.to_section(m.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+    (albion.to_section(m.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.mineralization as m
 join _albion.hole as h on h.id=m.hole_id
 join _albion.collar as c on c.id=h.collar_id
@@ -763,7 +763,7 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 
 create view albion.current_radiometry_section as
 select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.gamma, s.id as section_id, 
-    (albion.to_section(r.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+    (albion.to_section(r.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.radiometry as r
 join _albion.hole as h on h.id=r.hole_id
 join _albion.collar as c on c.id=h.collar_id
@@ -772,7 +772,7 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 
 create view albion.current_formation_section as
 select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.code, r.comments, s.id as section_id, 
-    (albion.to_section(r.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+    (albion.to_section(r.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.formation as r
 join _albion.hole as h on h.id=r.hole_id
 join _albion.collar as c on c.id=h.collar_id
@@ -981,7 +981,7 @@ update albion.test_mineralization set geom=albion.hole_piece(from_, to_, hole_id
 
 create view albion.current_test_mineralization_section as
 select row_number() over() as id, m.hole_id, h.collar_id, m.level_, m.oc, m.accu, m.grade, s.id as section_id, 
-    (albion.to_section(m.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+    (albion.to_section(m.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from albion.test_mineralization as m
 join _albion.hole as h on h.id=m.hole_id
 join _albion.collar as c on c.id=h.collar_id
@@ -1102,7 +1102,7 @@ with collar_idx as (
     join _albion.collar as c on st_intersects(s.geom, c.geom) and st_intersects(s.geom, c.geom)
 )
 select row_number() over() as id, e.id as edge_id, e.start_, e.end_, e.graph_id, s.id as section_id, 
-    (albion.to_section(e.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom
+    (albion.to_section(e.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.edge as e
 join _albion.node as ns on ns.id=e.start_
 join _albion.node as ne on ne.id=e.end_
@@ -1168,7 +1168,7 @@ create trigger current_edge_section_instead_trig
 
 create view albion.current_possible_edge_section as
 select row_number() over() as id, e.start_, e.end_, e.graph_id, s.id as section_id, 
-    (albion.to_section(e.geom, s.anchor))::geometry('LINESTRING', $SRID) as geom, e.parent
+    (albion.to_section(e.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom, e.parent
 from albion.possible_edge as e
 join _albion.node as ns on ns.id=e.start_
 join _albion.node as ne on ne.id=e.end_

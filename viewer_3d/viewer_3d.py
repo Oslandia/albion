@@ -32,6 +32,7 @@ class Viewer3d(QGLWidget):
                 "node": False,
                 "edge": False,
                 "volume": False,
+                "section": True,
                 "z_scale": 1,
                 "graph_id": "330"
                 }
@@ -39,12 +40,12 @@ class Viewer3d(QGLWidget):
         self.resetScene(project)
 
     def refresh_data(self):
-        if self.scene:
+        if self.scene and self.__project.has_collar:
             self.resetScene(self.__project, False)
             self.update()
 
     def resetScene(self, project, resetCamera=True):
-        if project:
+        if project and project.has_collar:
             self.scene = Scene(project, self.__param, self.bindTexture, self)
             if resetCamera:
                 at = self.scene.center

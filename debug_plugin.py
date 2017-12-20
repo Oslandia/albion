@@ -1,4 +1,4 @@
-# coding = utf-8
+# coding: utf-8
 
 from qgis.core import *
 
@@ -9,8 +9,10 @@ from PyQt4.QtGui import QComboBox, \
 
 import psycopg2
 import os
+import zipfile
+import tempfile
 
-from .project import ProgressBar, Project
+from .project import ProgressBar, Project, find_in_dir
 from .mineralization import MineralizationDialog
 
 from .axis_layer import AxisLayer, AxisLayerType
@@ -63,25 +65,7 @@ class Plugin(QObject):
 
 
         self.__menu = QMenu("Albion")
-        self.__menu.addAction('New &Project').triggered.connect(self.__new_project)
-        self.__menu.addAction('Upgrade Project').triggered.connect(self.__upgrade_project)
-        self.__menu.addAction('&Import Data').triggered.connect(self.__import_data)
-        self.__menu.addAction('Compute &Mineralization').triggered.connect(self.__compute_mineralization)
-        self.__menu.addSeparator()
-        self.__menu.addAction('New &Graph').triggered.connect(self.__new_graph)
-        self.__menu.addAction('Delete Graph').triggered.connect(self.__delete_graph)
-        self.__menu.addSeparator()
-        self.__menu.addAction('&Export Project')#.triggered.connect(self.__export_projecGt)
-        self.__menu.addAction('Import Project')#.triggered.connect(self.__import_project)
-        self.__menu.addAction('Export sections')#.triggered.connect(self.__export_sections)
-        self.__menu.addAction('Export volume')#.triggered.connect(self.__export_volume)
-        self.__menu.addSeparator()
-        self.__menu.addAction('Create cells').triggered.connect(self.__create_cells)
-        self.__menu.addAction('Create sections').triggered.connect(self.__create_sections)
-        self.__menu.addAction('Auto graph')#.triggered.connect(self.__auto_graph)
-        self.__menu.addAction('Create volumes').triggered.connect(self.__create_volumes)
-        self.__menu.addSeparator()
-        self.__menu.addAction('Toggle axis').triggered.connect(self.__toggle_axis)
+        self.__menu.aboutToShow.connect(self.__create_menu_entries)
         self.__iface.mainWindow().menuBar().addMenu(self.__menu)
 
         self.__toolbar = QToolBar('Albion')
@@ -121,6 +105,83 @@ class Plugin(QObject):
         self.__menu and self.__menu.setParent(None)
         self.__viewer3d and self.__viewer3d.setParent(None)
         self.__viewer3d_ctrl and self.__viewer3d_ctrl.setParent(None)
+
+    def __add_menu_entry(self, name, callback, enabled=True, help_str=''):
+        act = self.__menu.addAction(name)
+        if callback is not None:
+            act.triggered.connect(callback)
+            act.setEnabled(enabled)
+            act.setToolTip(help_str)
+        else:
+            act.setEnabled(False)
+            act.setToolTip("NOT INMPLEMENTED "+help_str)
+        return act
+
+    def __create_menu_entries(self):
+        self.__menu.clear()
+        self.__add_menu_entry('New &Project', self.__new_project)
+        self.__add_menu_entry('Import Project', self.__import_project)
+        self.__add_menu_entry('Upgrade Project', self.__upgrade_project)
+
+        self.__menu.addSeparator()
+        
+        self.__add_menu_entry('&Import Data', self.__import_data, 
+                self.project is not None,
+                "Import data from directory. The data files are in ")
+        
+        self.__menu.addSeparator()
+        
+        self.__add_menu_entry('Create cells', self.__create_cells,
+                self.project is not None and self.project.has_collar,
+                "Create Delaunay triangulation of collar layer.")
+
+        self.__add_menu_entry('Refresh all edges', self.__refresh_all_edge,
+                self.project is not None and self.project.has_cell,
+                "Refresh materialized view of all cell edges used by graph possible edges.")
+        
+        self.__menu.addSeparator()
+        
+        #self.__add_menu_entry(u'Create section views 0° and 90°', self.__create_section_view_0_90, 
+        #        False and self.project is not None and self.project.has_hole, 
+        #        "Create section views (i.e. cut directions) to work West-East and South-North for this project")
+        #self.__add_menu_entry(u'Create section views -45° and 45°', None, 
+        #        False and self.project is not None and self.project.has_hole, 
+        #        "Create section views (i.e. cut directions) to work SE-NW and SW-NE for this project")
+        #
+        #self.__menu.addSeparator()
+        
+        self.__add_menu_entry('Create sections', self.__create_sections,
+                self.project is not None and self.project.has_group_cell,
+                "Once cell groups have been defined, create section lines.")
+        
+        self.__menu.addSeparator()
+
+        self.__add_menu_entry('Compute &Mineralization', self.__compute_mineralization,
+                self.project is not None and self.project.has_radiometry,
+                "")
+        self.__menu.addSeparator()
+        self.__add_menu_entry('New &Graph', self.__new_graph,
+                self.project is not None,
+                "Create a new grap.h")
+        self.__add_menu_entry('Delete Graph', self.__delete_graph,
+                self.project is not None)
+        self.__menu.addSeparator()
+        self.__add_menu_entry('Create volumes', self.__create_volumes,
+                 self.project is not None and bool(self.__current_graph.currentText()),
+                 "Create voulmes associated with current graph.")
+        self.__menu.addSeparator()
+        self.__add_menu_entry('Toggle axis', self.__toggle_axis)
+
+        self.__menu.addSeparator()
+        
+        self.__add_menu_entry('Export Project', self.__export_project, 
+                self.project is not None)
+        self.__add_menu_entry('Export Sections', None, 
+                self.project is not None and self.project.has_section, 
+                "Export triangulated section in .obj or .dxf format")
+        self.__add_menu_entry('Export Volume', self.__export_volume, 
+                self.project is not None and bool(self.__current_graph.currentText()), 
+                "Export volume of current graph in .obj or .dxf format")
         
     def __current_graph_changed(self, graph_id):
         if self.project is None:
@@ -134,6 +195,12 @@ class Plugin(QObject):
         else:
             raise AttributeError(name)
 
+    def __refresh_all_edge(self):
+        if self.project is None:
+            return
+        self.project.refresh_all_edge()
+
+
     def __create_volumes(self):
         if self.project is None:
             return
@@ -146,6 +213,7 @@ class Plugin(QObject):
             return
         self.project.next_section(self.__current_section.currentText())
         self.__refresh_layers('section')
+        self.__viewer3d.widget().scene.update('section')
         self.__viewer3d.widget().update()
 
     def __previous_section(self):
@@ -154,6 +222,7 @@ class Plugin(QObject):
             return
         self.project.previous_section(self.__current_section.currentText())
         self.__refresh_layers('section')
+        self.__viewer3d.widget().scene.update('section')
         self.__viewer3d.widget().update()
 
     def __refresh_layers(self, name=None):
@@ -278,6 +347,7 @@ class Plugin(QObject):
         
         self.project.import_data(dir_, ProgressBar(progress))
         self.project.triangulate()
+        self.project.create_section_view_0_90(4)
 
         self.__iface.messageBar().clearWidgets()
 
@@ -291,6 +361,10 @@ class Plugin(QObject):
         self.__iface.zoomToActiveLayer()
 
         self.__iface.actionSaveProject().trigger()
+
+        self.__viewer3d.widget().resetScene(self.project)
+        self.__current_section.clear()
+        self.__current_section.addItems(self.project.sections())
     
     def __new_graph(self):
 
@@ -350,3 +424,77 @@ class Plugin(QObject):
     def __compute_mineralization(self):
         MineralizationDialog(self.project).exec_()
 
+    def __export_volume(self):
+        if self.project is None:
+            return
+        
+        fil = QFileDialog.getSaveFileName(None,
+                u"Export volume for current graph",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "File formats (*.dxf *.obj)")
+        if not fil:
+            return
+
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+
+        if fil[-4:] == '.obj':
+            self.project.export_obj(self.__current_graph.currentText(), fil)
+        elif fil[-4:] == '.dxf':
+            self.project.export_dxf(self.__current_graph.currentText(), fil)
+        else:
+            self.__iface.messageBar().pushWarning('Albion', 'unsupported extension for volume export')
+
+    
+    def __import_project(self):
+        fil = QFileDialog.getOpenFileName(None,
+                u"Import project from file",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "File formats (*.zip")
+        if not fil:
+            return
+
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+        
+        if fil[-4:] != '.zip':
+            self.__iface.messageBar().pushWarning('Albion', 'unsupported extension for import')
+
+        project_name = os.path.split(fil)[1][:-4]
+        dir_ = tempfile.gettempdir()
+        with zipfile.ZipFile(fil, "r") as z:
+            z.extractall(dir_)
+            
+        dump = find_in_dir(dir_, '.dump')
+        prj = find_in_dir(dir_, '.qgs')
+
+        self.__iface.messageBar().pushNotice('Albion', 'loading {} from {}'.format(project_name, dump))
+        project = Project.import_(project_name, dump)
+        
+        QgsProject.instance().read(QFileInfo(prj))
+
+    def __export_project(self):
+        if self.project is None:
+            return
+
+        fil = QFileDialog.getSaveFileName(None,
+                u"Export project",
+                QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+                "Data files(*.zip)")
+        if not fil:
+            return
+
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+
+        if os.path.exists(fil):
+            os.remove(fil)
+
+        with zipfile.ZipFile(fil, 'w') as project:
+            dump = tempfile.mkstemp()[1]
+            self.project.export(dump)
+            project.write(dump, self.project.name+'.dump')
+            project.write(QgsProject.instance().fileName())
+            os.remove(dump)
+
+    def __create_section_view_0_90(self):
+        if self.project is None:
+            return
+        self.project.create_section_view_0_90()
