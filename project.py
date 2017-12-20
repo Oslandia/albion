@@ -551,3 +551,14 @@ class Project(object):
 
             return res[0] if res else None
 
+    def set_section_geom(self, section_id, geom):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select srid from albion.metadata")
+            srid, = cur.fetchone()
+            cur.execute("""
+                update albion.section set geom=ST_SetSRID('{wkb_hex}'::geometry, {srid}) where id='{id_}'
+                """.format(srid=srid, wkb_hex=geom.wkb_hex, id_=section_id))
+            con.commit()
+
+

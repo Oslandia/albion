@@ -21,6 +21,10 @@ from .viewer_3d.viewer_3d import Viewer3d
 from .viewer_3d.viewer_controls import ViewerControls
 from .log_strati import BoreHoleWindow
 
+from shapely.geometry import LineString
+import numpy
+import math
+
 import atexit
 
 AXIS_LAYER_TYPE = AxisLayerType()
@@ -74,6 +78,8 @@ class Plugin(QObject):
         self.__toolbar = QToolBar('Albion')
         self.__iface.addToolBar(self.__toolbar)
 
+        self.__toolbar.addAction(icon('log_strati.svg'), 'stratigraphic log').triggered.connect(self.__log_strati_clicked)
+
         self.__toolbar.addWidget(self.__current_graph)
         self.__current_graph.currentIndexChanged[unicode].connect(self.__current_graph_changed)
 
@@ -84,7 +90,8 @@ class Plugin(QObject):
 
         self.__toolbar.addAction(icon('next_line.svg'), 'next section').triggered.connect(self.__next_section)
 
-        self.__toolbar.addAction(icon('log_strati.svg'), 'stratigraphic log').triggered.connect(self.__log_strati_clicked)
+        self.__toolbar.addAction(icon('line_from_selected.svg'), 'grid from selected collar').triggered.connect(self.__section_from_selection)
+
 
         self.__viewer3d = QDockWidget('3D')
         self.__viewer3d.setWidget(Viewer3d())
@@ -533,4 +540,39 @@ class Plugin(QObject):
             self.__log_strati.show()
             self.__log_strati.raise_()
 
+    def __section_from_selection(self):
+        if self.project is None:
+            return
+
+        if self.__iface.activeLayer() and self.__iface.activeLayer().name() == u"collar" \
+                and self.__iface.activeLayer().selectedFeatures():
+            collar = self.__iface.activeLayer()
+            selection = collar.selectedFeatures()
+
+            if len(selection) < 2:
+                return
+
+            def align(l):
+                assert len(l) >= 2
+                res = numpy.array(l[:2])
+                for p in l[2:]:
+                    u, v = res[0] - res[1], p - res[1]
+                    if numpy.dot(u,v) < 0:
+                        res[1] = p
+                    elif numpy.dot(u, u) < numpy.dot(v,v):
+                        res[0] = p
+                # align with ref direction
+                sqrt2 = math.sqrt(2.)/2
+                l =  l[numpy.argsort(numpy.dot(l-res[0], res[1]-res[0]))]
+                d = numpy.array(l[-1] - l[0])
+                dr = numpy.array([(0,1),(sqrt2, sqrt2),(1,0), (sqrt2, -sqrt2)])
+                i = numpy.argmax(numpy.abs(dr.dot(d)))
+                return l if (dr.dot(d))[i] > 0 else l[::-1]
+
+            line = LineString(align(numpy.array([f.geometry().asPoint() for f in selection])))
+            collar.removeSelection()
+            self.project.set_section_geom(self.__current_section.currentText(), line)
+            self.__refresh_layers('section')
+            self.__viewer3d.widget().scene.update('section')
+            self.__viewer3d.widget().update()
 
