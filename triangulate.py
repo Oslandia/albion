@@ -45,6 +45,7 @@ def triangulate(poly):
                     angle[i] = INF
                     break
 
+    print('angles', angle)
     triangles = []
     step = 0
     while len(triangles) < n-2:
@@ -136,6 +137,7 @@ p = (
 (36.269241, -2.242697),
 (0.0, 0.0))
 
+p = list(reversed(((0.56620402601374009, 0.45425343959035636), (1.0, 0.0), (0.0, 0.0), (0.0092680361819599405, 0.61786907879732933))))
 
 triangles = triangulate(p)
 
@@ -150,6 +152,7 @@ if True:
         ring_patch = PolygonPatch(Polygon(t))
         ax.add_patch(ring_patch)
         print(t, Polygon(t).area)
+    ax.plot([x[0] for x in p], [x[1] for x in p])
 
     ax.set_title('Filled Polygon')
     xrange = [min(x[0] for x in t for t in triangles)-5, max(x[0] for x in t for t in triangles)+5]

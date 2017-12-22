@@ -301,8 +301,6 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("refresh materialized view albion.section_geom")
-            cur.execute("refresh materialized view albion.radiometry_section")
-            cur.execute("refresh materialized view albion.resistivity_section")
             con.commit()
 
     def execute_script(self, file_):
@@ -445,7 +443,7 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("""
-                select albion.to_obj(st_collectionhomogenize(st_collect(geom)))
+                select albion.to_obj(albion.volume_union(st_collectionhomogenize(st_collect(geom))))
                 from albion.dynamic_volume
                 where graph_id='{}'
                 and geom is not null --not st_isempty(geom)
@@ -456,7 +454,7 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("""
-                select st_collectionhomogenize(st_collect(triangulation))
+                select albion.volume_union(st_collectionhomogenize(st_collect(triangulation)))
                 from albion.volume
                 where graph_id='{}'
                 """.format(graph_id))
@@ -527,6 +525,9 @@ class Project(object):
                     y=ext[0][1]-50-z_scale*ext[1][2],
                     xleft=ext[0][0],
                     xright=ext[1][0]))
+
+            cur.execute("refresh materialized view albion.radiometry_section")
+            cur.execute("refresh materialized view albion.resistivity_section")
             con.commit()
 
 
