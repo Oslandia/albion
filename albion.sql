@@ -1115,122 +1115,10 @@ $$
 
     from cgal import delaunay as triangulate
     
-    def triangulate_shapely(poly, debug=False, edge_swap=False):
-        triangles = delaunay(MultiPoint([Point(p) for p in poly]))
-        return [tuple((tuple(x) for x in p.exterior.coords[:-1])) for p in triangles]
-
-
-    def triangulate_old(poly, debug=False, edge_swap=False):
-        """
-        simple earclip implementation
-        the case where a reflex vertex lies on the boundary of a condidate triangle
-
-        algoriyjm is described in 
-        Ear-clipping Based Algorithms of Generating High-quality Polygon Triangulation, Gang Mei 1 , John C.Tipper 1 and Nengxiong Xu 2
-
-        the input polygon is assumed ccw
-        """
-
-        def is_inside(p, t):
-            def sign (p1, p2, p3):
-                return (p1[0] - p3[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p3[1])
-            l = max(norm(t[1]-t[0]), norm(t[2]-t[1]), norm(t[0]-t[2]))
-            if norm(p-t[0])/l < 1e-3 or norm(p-t[1])/l < 1e-3 or norm(p-t[2])/l < 1e-3:
-                return False
-            l2 = l*l
-            b1 = sign(p, t[0], t[1])/l2 > -1e-6
-            b2 = sign(p, t[1], t[2])/l2 > -1e-6
-            b3 = sign(p, t[2], t[0])/l2 > -1e-6
-            return b1 and b2 and b3
-
-        vtx = array(poly if poly[0] != poly[-1] else poly[:-1])
-        n = len(vtx)
-        prv = (indices((n,))[0] + n - 1) % n 
-        nxt = (indices((n,))[0] + 1) % n
-
-        reflex = cross(vtx[nxt]-vtx, vtx[prv]-vtx, 1) < 0
-        
-        angle = arccos(einsum('ij,ij->i',vtx[nxt]-vtx, vtx[prv]-vtx)/(norm(vtx[nxt]-vtx, axis=1)*norm(vtx[prv]-vtx, axis=1))) *180 / PI
-        angle[reflex] = INF
-         
-        reflex_vtx = vtx[reflex]
-        for i in range(n):
-            if angle[i] != INF:
-                for r in reflex_vtx:
-                    if is_inside(r, vtx[array((prv[i], i, nxt[i]))]):
-                        angle[i] = INF
-                        break
-
-        triangles = []
-        aspect_ratios = []
-        step = 0
-        while len(triangles) < n-2:
-            step += 1
-            i = argmin(angle)
-            pi, ni = prv[i], nxt[i]
-            triangles.append((pi, i, ni))
-            if edge_swap:
-                a, b, c = norm(vtx[i]-vtx[pi]), norm(vtx[ni]-vtx[i]), norm(vtx[pi]-vtx[ni])
-                s = (a+b+c)/2
-                aspect_ratios.append(a*b*c/(8*(s-a)*(s-b)*(s-c)))
-            # update angles
-            angle[pi] = arccos(dot(vtx[prv[pi]] - vtx[pi], 
-                                   vtx[ni] - vtx[pi])
-                            /(norm(vtx[prv[pi]] - vtx[pi])
-                             *norm(vtx[ni] - vtx[pi]))) *180 / pi \
-                    if cross(vtx[prv[pi]] - vtx[pi], vtx[ni] - vtx[pi]) < 0 \
-                    else INF
-            angle[i] = INF
-            angle[ni] = arccos(dot(vtx[pi] - vtx[ni],
-                                   vtx[nxt[ni]] - vtx[ni])
-                            /(norm(vtx[pi] - vtx[ni])
-                             *norm(vtx[nxt[ni]] - vtx[ni]))) *180 / pi \
-                    if cross(vtx[pi] - vtx[ni], vtx[nxt[ni]] - vtx[ni]) < 0 \
-                    else INF
-            # update connectivity info
-            prv[ni], nxt[pi] = pi, ni
-
-            # udate eartip status
-            for j in (pi, ni):
-                for r in reflex_vtx:
-                    if is_inside(r, vtx[array((prv[j], j, nxt[j]))]):
-                        angle[j] = INF
-                        break
-
-        if debug:
-            plpy.notice("poly ", poly)
-            plpy.notice("triangles ", triangles)
-
-        if edge_swap:
-            idx = argmax(array(aspect_ratios))
-            if aspect_ratios[idx] > 50: # attempt edge swap on longest edge
-                t = triangles[idx]
-                s = argmax(array((norm(vtx[t[1]]-vtx[t[0]]), norm(vtx[t[2]]-vtx[t[1]]), norm(vtx[t[0]]-vtx[t[2]]))))
-                e = (t[(s+1)%3], t[s])
-                for i, ot in enumerate(triangles):
-                    if e == (ot[0], ot[1]):
-                        triangles[idx] = (ot[1], ot[2], t[(s+2)%3])
-                        triangles[i] = (t[(s+2)%3], ot[2], ot[0])
-                        break
-                    elif e == (ot[1], ot[2]):
-                        triangles[idx] = (ot[2], ot[0], t[(s+2)%3])
-                        triangles[i] = (t[(s+2)%3], ot[2], ot[1])
-                        break
-                    elif e == (ot[2], ot[0]):
-                        triangles[idx] = (ot[0], ot[1], t[(s+2)%3])
-                        triangles[i] = (t[(s+2)%3], ot[1], ot[2])
-                        break
-
-        return [(tuple(vtx[t[0]]), tuple(vtx[t[1]]), tuple(vtx[t[2]])) for t in triangles]
-
     def interpolate_point(A, B, C, D):
         l = norm(A-B)
         r = norm(C-D)
         i = (r*A+r*B+l*C+l*D)/(2*(r+l))
-        #if norm(i - .5*(A+C)) < .1:
-        #    i = .5*(A+C)
-        #elif norm(i - .5*(B+D)) < .1:
-        #    i = .5*(B+D)
         return i
 
 
@@ -1248,6 +1136,9 @@ $$
                     l2.insert(-i, tuple(interpolated))
                     break
 
+    def middle_point(A, B):
+        return (.5*(A[0]+B[0]), .5*(A[1]+B[1]), .5*(A[2]+B[2]))
+
     nodes = {id_: geom for id_, geom in zip(node_ids_, wkb.loads(nodes_, True))}
     holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
     edges = [(s, e) for s, e in zip(starts_, ends_)]
@@ -1261,14 +1152,8 @@ $$
     # /!\ do not do that for complex trousers configuration, this will
     # connect things that should not be connected
     #
-    # indead it ss stupid to do that here
+    # indead it is stupid to do that here
     #
-    #for n in graph.keys():
-    #    neighbors = list(graph[n])
-    #    if len(neighbors) == 2 and len(graph[neighbors[0]]) == 1 and len(graph[neighbors[1]]) == 1 \
-    #        and holes[n] != holes[neighbors[0]] and holes[n] != holes[neighbors[1]] and holes[neighbors[0]] != holes[neighbors[1]]:
-    #        graph[neighbors[0]].add(neighbors[1])
-    #        graph[neighbors[1]].add(neighbors[0])
 
     triangles = set()
     triangle_edges = set()
@@ -1313,52 +1198,37 @@ $$
               + [[tuple(nodes[e[0]].coords[1]), 
                   #tuple(average(array([nodes[e[0]].coords[1], nodes[e[1]].coords[1]]), (0,))), 
                   tuple(nodes[e[1]].coords[1])] for e in face_edges]
-        vertical_midlines = [tuple(average(array([nodes[e[0]].coords[0], nodes[e[1]].coords[0]]), (0,))) for e in face_edges] \
-                          + [tuple(average(array([nodes[e[0]].coords[1], nodes[e[1]].coords[1]]), (0,))) for e in face_edges]
-        vertical_midlines = [v for _,v in sorted(zip([v[2] for v in vertical_midlines], vertical_midlines), reverse=True)]
 
         # split lines 
         for i, j in combinations(range(len(lines)), 2):
             sym_split(lines[i], lines[j])
 
-        # snap verical midlines to existing poins
-        #for i in range(len(vertical_midlines)):
+        # split line at center if line has 2 points or closest point to center except end points
+        # if line has more than two points
+        vertical_midline = []
+        for i in range(len(lines)):
+            if len(lines[i]) == 2:
+                vertical_midline.append(middle_point(lines[i][0], lines[i][1]))
+                lines[i] = [lines[i][0], vertical_midline[-1], lines[i][1]]
+            else:
+                midpoint = middle_point(lines[i][0], lines[i][1])
+                closest_idx = 1+argmin(dot(array(lines[i][1:len(lines[i])-1]), array(midpoint)))
+                vertical_midline.append(lines[i][closest_idx])
+        assert(len(vertical_midline)>=2)
+        vertical_midline = [p for _, p in sorted(zip([x[2] for x in vertical_midline], vertical_midline), reversed=True)]
 
-
-
+        vertical_lines = list(set([(tuple(nodes[e[0]].coords[0]), tuple(nodes[e[0]].coords[1])) for e in face_edges]
+                       + [(tuple(nodes[e[1]].coords[0]), tuple(nodes[e[1]].coords[1])) for e in face_edges]))
 
         # add vertical lines
-        linework = [(a, b)  for l in lines for a, b in zip(l[:-1], l[1:])] \
-                 + list(set( 
-                        [(tuple(nodes[e[0]].coords[0]), tuple(nodes[e[0]].coords[1])) for e in face_edges]
-                      + [(tuple(nodes[e[1]].coords[0]), tuple(nodes[e[1]].coords[1])) for e in face_edges]))
-                 #+ [(a, b)  for a, b in zip(vertical_midlines[:-1], vertical_midlines[1:])] \
+        linework = [(a, b)  for l in lines for a, b in zip(l[:-1], l[1:])] + vertical_lines + [vertical_midline]
 
-
-        # cleanup linework points
-        #idx = index.Index()
-        #eps = 1e-3
-        #for i, e in enumerate(linework):
-        #    idx.insert(2*i  , (e[0][0]-eps, e[0][1]-eps, e[0][2]-eps, e[0][0]+eps, e[0][1]+eps, e[0][2]+eps))
-        #    idx.insert(2*i+1, (e[1][0]-eps, e[1][1]-eps, e[1][2]-eps, e[1][0]+eps, e[1][1]+eps, e[1][2]+eps))
-        #clusters = []
-        #for i, e in enumerate(linework):
-        #    for j in idx.intersection((e[0][0]-eps, e[0][1]-eps, e[0][2]-eps, e[0][0]+eps, e[0][1]+eps, e[0][2]+eps)):
-        #        if e[0] != linework[j//2][j%2]:
-        #            clusters 
-
-        #to_remove = []
-        #for i in range(len(linework)):
-        #    linework[i] = ((round(linework[i][0][0], 2), round(linework[i][0][1], 2), round(linework[i][0][2], 2)),
-        #                   (round(linework[i][1][0], 2), round(linework[i][1][1], 2), round(linework[i][1][2], 2)))
-        #    if linework[i][0] == linework[i][1]:
-        #        to_remove.append(i)
-        #linework = set([l for i,l in enumerate(linework) if i not in to_remove])
-
-
-
-        rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in linework]).wkt))
-        open("/tmp/face_{}.vtk".format(face_idx), 'w').write(rv[0]['vtk'])
+        try:
+            rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in linework]).wkt))
+            open("/tmp/face_{}.vtk".format(face_idx), 'w').write(rv[0]['vtk'])
+        except:
+            open('/tmp/debug', 'a').write(str(vertical_midline)+'\n\n'+str(linework))
+            raise
 
         origin = array(nodes[face_edges[0][0]].coords[0])
         u = array(nodes[face_edges[0][1]].coords[0]) - origin
@@ -1399,6 +1269,7 @@ $$
     open("/tmp/faces.obj", 'w').write(rv[0]['obj'])
 
 
+
     # find openfaces (top and bottom)
     edges = set()
     for t in result:
@@ -1414,6 +1285,7 @@ $$
             bottom_linework.append((tuple(e[0]), tuple(e[1])))
         else:
             top_linework.append((tuple(e[0]), tuple(e[1])))
+
 
     # linemerge top and bottom, there will be open rings that need to be closed
     # since we did only add linework for faces
@@ -1465,6 +1337,8 @@ $$
         #open("/tmp/debug.txt", "a").write("\n")
     
     #open("/tmp/debug.txt", "a").write("\n\n")
+
+
 
     # check generated volume is closed
     edges = set()
