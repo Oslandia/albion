@@ -1105,14 +1105,22 @@ $$
     from numpy.linalg import norm
     from collections import defaultdict
     from itertools import product
-    from shapely.geometry import MultiPolygon, Polygon, LineString, MultiLineString, Point
+    from shapely.geometry import MultiPolygon, Polygon, LineString, MultiLineString, Point, MultiPoint
     from shapely import wkb
     from shapely.ops import unary_union, polygonize
     from shapely.ops import transform 
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
+    from rtree import index
 
-    def triangulate(poly, debug=False, edge_swap=False):
+    from cgal import delaunay as triangulate
+    
+    def triangulate_shapely(poly, debug=False, edge_swap=False):
+        triangles = delaunay(MultiPoint([Point(p) for p in poly]))
+        return [tuple((tuple(x) for x in p.exterior.coords[:-1])) for p in triangles]
+
+
+    def triangulate_old(poly, debug=False, edge_swap=False):
         """
         simple earclip implementation
         the case where a reflex vertex lies on the boundary of a condidate triangle
@@ -1130,9 +1138,9 @@ $$
             if norm(p-t[0])/l < 1e-3 or norm(p-t[1])/l < 1e-3 or norm(p-t[2])/l < 1e-3:
                 return False
             l2 = l*l
-            b1 = sign(p, t[0], t[1])/l2 > -1e-3
-            b2 = sign(p, t[1], t[2])/l2 > -1e-3
-            b3 = sign(p, t[2], t[0])/l2 > -1e-3
+            b1 = sign(p, t[0], t[1])/l2 > -1e-6
+            b2 = sign(p, t[1], t[2])/l2 > -1e-6
+            b3 = sign(p, t[2], t[0])/l2 > -1e-6
             return b1 and b2 and b3
 
         vtx = array(poly if poly[0] != poly[-1] else poly[:-1])
@@ -1218,7 +1226,13 @@ $$
     def interpolate_point(A, B, C, D):
         l = norm(A-B)
         r = norm(C-D)
-        return (r*A+r*B+l*C+l*D)/(2*(r+l))
+        i = (r*A+r*B+l*C+l*D)/(2*(r+l))
+        #if norm(i - .5*(A+C)) < .1:
+        #    i = .5*(A+C)
+        #elif norm(i - .5*(B+D)) < .1:
+        #    i = .5*(B+D)
+        return i
+
 
     def sym_split(l1, l2):
         if (l1[0][2] < l2[0][2] and l1[-1][2] > l2[-1][2]) \
@@ -1293,19 +1307,55 @@ $$
         domain = [Polygon([nodes[e[0]].coords[0], nodes[e[0]].coords[1],
                            nodes[e[1]].coords[1], nodes[e[1]].coords[0]]) for e in triangle_edges if e in face_edges]
 
-        lines = [[tuple(nodes[e[0]].coords[0]), tuple(nodes[e[1]].coords[0])] for e in face_edges] \
-                 + [[tuple(nodes[e[0]].coords[1]), tuple(nodes[e[1]].coords[1])] for e in face_edges]
+        lines = [[tuple(nodes[e[0]].coords[0]),
+                  #tuple(average(array([nodes[e[0]].coords[0], nodes[e[1]].coords[0]]), (0,))), 
+                  tuple(nodes[e[1]].coords[0])] for e in face_edges] \
+              + [[tuple(nodes[e[0]].coords[1]), 
+                  #tuple(average(array([nodes[e[0]].coords[1], nodes[e[1]].coords[1]]), (0,))), 
+                  tuple(nodes[e[1]].coords[1])] for e in face_edges]
+        vertical_midlines = [tuple(average(array([nodes[e[0]].coords[0], nodes[e[1]].coords[0]]), (0,))) for e in face_edges] \
+                          + [tuple(average(array([nodes[e[0]].coords[1], nodes[e[1]].coords[1]]), (0,))) for e in face_edges]
+        vertical_midlines = [v for _,v in sorted(zip([v[2] for v in vertical_midlines], vertical_midlines), reverse=True)]
 
         # split lines 
         for i, j in combinations(range(len(lines)), 2):
             sym_split(lines[i], lines[j])
 
+        # snap verical midlines to existing poins
+        #for i in range(len(vertical_midlines)):
+
+
+
+
         # add vertical lines
-        linework = [(a, b)  for l in lines for a, b in zip(l[:-1], l[1:])] + list(set( 
+        linework = [(a, b)  for l in lines for a, b in zip(l[:-1], l[1:])] \
+                 + list(set( 
                         [(tuple(nodes[e[0]].coords[0]), tuple(nodes[e[0]].coords[1])) for e in face_edges]
                       + [(tuple(nodes[e[1]].coords[0]), tuple(nodes[e[1]].coords[1])) for e in face_edges]))
+                 #+ [(a, b)  for a, b in zip(vertical_midlines[:-1], vertical_midlines[1:])] \
 
-        
+
+        # cleanup linework points
+        #idx = index.Index()
+        #eps = 1e-3
+        #for i, e in enumerate(linework):
+        #    idx.insert(2*i  , (e[0][0]-eps, e[0][1]-eps, e[0][2]-eps, e[0][0]+eps, e[0][1]+eps, e[0][2]+eps))
+        #    idx.insert(2*i+1, (e[1][0]-eps, e[1][1]-eps, e[1][2]-eps, e[1][0]+eps, e[1][1]+eps, e[1][2]+eps))
+        #clusters = []
+        #for i, e in enumerate(linework):
+        #    for j in idx.intersection((e[0][0]-eps, e[0][1]-eps, e[0][2]-eps, e[0][0]+eps, e[0][1]+eps, e[0][2]+eps)):
+        #        if e[0] != linework[j//2][j%2]:
+        #            clusters 
+
+        #to_remove = []
+        #for i in range(len(linework)):
+        #    linework[i] = ((round(linework[i][0][0], 2), round(linework[i][0][1], 2), round(linework[i][0][2], 2)),
+        #                   (round(linework[i][1][0], 2), round(linework[i][1][1], 2), round(linework[i][1][2], 2)))
+        #    if linework[i][0] == linework[i][1]:
+        #        to_remove.append(i)
+        #linework = set([l for i,l in enumerate(linework) if i not in to_remove])
+
+
 
         rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in linework]).wkt))
         open("/tmp/face_{}.vtk".format(face_idx), 'w').write(rv[0]['vtk'])
@@ -1318,22 +1368,23 @@ $$
         v = cross(w, z)
         
         linework = [array(e) for e in linework]
-        node_map = {(round(dot(p-origin, v), 6), round(dot(p-origin, z), 6)): p for e in linework for p in e}
-        linework = [LineString([(round(dot(e[0]-origin, v), 6), round(dot(e[0]-origin, z), 6)),
-                                (round(dot(e[1]-origin, v), 6), round(dot(e[1]-origin, z), 6))])
+        node_map = {(round(dot(p-origin, v), 9), round(dot(p-origin, z), 9)): p for e in linework for p in e}
+        linework = [LineString([(round(dot(e[0]-origin, v), 9), round(dot(e[0]-origin, z), 9)),
+                                (round(dot(e[1]-origin, v), 9), round(dot(e[1]-origin, z), 9))])
                    for e in linework]
-        #open("/tmp/linework_face_%d"%(face_idx), "w").write(MultiLineString(linework).wkt)
+        open("/tmp/linework_face_%d"%(face_idx), "w").write(MultiLineString(linework).wkt)
         polygons = list(polygonize(linework))
+        open("/tmp/polygons_face_%d"%(face_idx), "w").write(MultiPolygon(polygons).wkt)
 
 
         #plpy.notice("face ", face_idx, "has", len(polygons), "polygons") 
-        domain = unary_union([Polygon([(round(dot(p-origin, v), 6), round(dot(p-origin, z), 6))
+        domain = unary_union([Polygon([(round(dot(p-origin, v), 9), round(dot(p-origin, z), 9))
                 for p in array(dom.exterior.coords)]) for dom in domain])
 
         for p in polygons:
             p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
             assert(p.exterior.is_ccw)
-            for tri in triangulate(p.exterior.coords):
+            for tri in triangulate(list(p.exterior.coords)):
                 assert(len(tri)==3)
                 if Point(average(tri, (0,))).intersects(domain):
                     q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]])
@@ -1395,16 +1446,21 @@ $$
         #open("/tmp/debug.txt", "a").write(str(merged))
         rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in merged]).wkt))
         open("/tmp/linework_%s.vtk"%(face), 'w').write(rv[0]['vtk'])
+        face_tri = []
         for m in merged:
             node_map = {(x[0], x[1]): x for x in m}
             p = Polygon([(x[0], x[1]) for x in m])
             p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
             assert(p.exterior.is_ccw)
-            for tri in triangulate(p.exterior.coords, edge_swap=True):
+            for tri in triangulate(list(p.exterior.coords)):
                 q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]])
                 q = q if face=='top' else Polygon(q.exterior.coords[::-1])
                 result.append(q)
+                face_tri.append(q)
       
+        rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(MultiPolygon(face_tri).wkb_hex))
+        open("/tmp/face_tri_{}.obj".format(face), 'w').write(rv[0]['obj'])
+
         #open("/tmp/debug.txt", "a").write(str(merged))
         #open("/tmp/debug.txt", "a").write("\n")
     

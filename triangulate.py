@@ -2,7 +2,19 @@ from numpy import array, roll, cross, arccos, einsum, argmin, logical_not, indic
 from numpy.linalg import norm
 from math import pi as PI, inf as INF
 
-def triangulate(poly):
+def triangulate(poly, debug=False, edge_swap=False):
+    """
+    triangulation of convex polygon, we take the flatest angle and fan frmo there
+    """
+    vtx = array(poly if poly[0] != poly[-1] else poly[:-1])
+    n = len(vtx)
+    prv = (indices((n,))[0] + n - 1) % n 
+    nxt = (indices((n,))[0] + 1) % n
+    angle = arccos(einsum('ij,ij->i',vtx[nxt]-vtx, vtx[prv]-vtx)/(norm(vtx[nxt]-vtx, axis=1)*norm(vtx[prv]-vtx, axis=1))) *180 / PI
+    print(angle)
+
+
+def triangulate_old(poly):
     """
     simple earclip implementation
     the case where a reflex vertex lies on the boundary of a condidate triangle
