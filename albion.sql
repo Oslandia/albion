@@ -1092,7 +1092,7 @@ join _albion.section as s on st_intersects(s.geom, cs.geom) and st_intersects(s.
 ;
 
 
-create or replace function albion.elementary_volumes(starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry)
+create or replace function albion.elementary_volumes(starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry[])
 returns geometry
 language plpython3u immutable
 as
@@ -1114,6 +1114,8 @@ $$
     from rtree import index
 
     from cgal import delaunay as triangulate
+
+    DEBUG=False
     
     def interpolate_point(A, B, C, D):
         l = norm(A-B)
@@ -1139,7 +1141,7 @@ $$
     def middle_point(A, B):
         return (.5*(A[0]+B[0]), .5*(A[1]+B[1]), .5*(A[2]+B[2]))
 
-    nodes = {id_: geom for id_, geom in zip(node_ids_, wkb.loads(nodes_, True))}
+    nodes = {id_: wkb.loads(geom, True) for id_, geom in zip(node_ids_, nodes_)}
     holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
     edges = [(s, e) for s, e in zip(starts_, ends_)]
 
@@ -1157,6 +1159,7 @@ $$
 
     triangles = set()
     triangle_edges = set()
+    used_nodes = set()
     for e in edges:
         common_neigbors = graph[e[0]].intersection(graph[e[1]])
         for n in common_neigbors:
@@ -1165,6 +1168,8 @@ $$
             triangle_edges.add(tri[0:2])
             triangle_edges.add(tri[1:3])
             triangle_edges.add(tri[0:1]+tri[2:3])
+            for i in range(3):
+                used_nodes.add(tri[i])
 
     if not len(triangles):
         return None
@@ -1181,7 +1186,9 @@ $$
 
     sorted_holes = sorted(set(holes.values()))
     face_idx = -1
-    for hl, hr in ((sorted_holes[0], sorted_holes[1]), (sorted_holes[1], sorted_holes[2]), (sorted_holes[0], sorted_holes[2])):
+    for hl, hr in ((sorted_holes[0], sorted_holes[1]), 
+                   (sorted_holes[1], sorted_holes[2]),
+                   (sorted_holes[0], sorted_holes[2])):
         face_idx += 1
 
         face_edges = list(set([(s, e) if holes[s] == hl else (e, s) 
@@ -1192,12 +1199,8 @@ $$
         domain = [Polygon([nodes[e[0]].coords[0], nodes[e[0]].coords[1],
                            nodes[e[1]].coords[1], nodes[e[1]].coords[0]]) for e in triangle_edges if e in face_edges]
 
-        lines = [[tuple(nodes[e[0]].coords[0]),
-                  #tuple(average(array([nodes[e[0]].coords[0], nodes[e[1]].coords[0]]), (0,))), 
-                  tuple(nodes[e[1]].coords[0])] for e in face_edges] \
-              + [[tuple(nodes[e[0]].coords[1]), 
-                  #tuple(average(array([nodes[e[0]].coords[1], nodes[e[1]].coords[1]]), (0,))), 
-                  tuple(nodes[e[1]].coords[1])] for e in face_edges]
+        lines = [[tuple(nodes[e[0]].coords[0]), tuple(nodes[e[1]].coords[0])] for e in face_edges] \
+              + [[tuple(nodes[e[0]].coords[1]), tuple(nodes[e[1]].coords[1])] for e in face_edges]
 
         # split lines 
         for i, j in combinations(range(len(lines)), 2):
@@ -1215,7 +1218,7 @@ $$
                 closest_idx = 1+argmin(dot(array(lines[i][1:len(lines[i])-1]), array(midpoint)))
                 vertical_midline.append(lines[i][closest_idx])
         assert(len(vertical_midline)>=2)
-        vertical_midline = [p for _, p in sorted(zip([x[2] for x in vertical_midline], vertical_midline), reversed=True)]
+        vertical_midline = [p for _, p in sorted(zip([x[2] for x in vertical_midline], vertical_midline), reverse=True)]
 
         vertical_lines = list(set([(tuple(nodes[e[0]].coords[0]), tuple(nodes[e[0]].coords[1])) for e in face_edges]
                        + [(tuple(nodes[e[1]].coords[0]), tuple(nodes[e[1]].coords[1])) for e in face_edges]))
@@ -1223,12 +1226,9 @@ $$
         # add vertical lines
         linework = [(a, b)  for l in lines for a, b in zip(l[:-1], l[1:])] + vertical_lines + [vertical_midline]
 
-        try:
+        if DEBUG:
             rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in linework]).wkt))
             open("/tmp/face_{}.vtk".format(face_idx), 'w').write(rv[0]['vtk'])
-        except:
-            open('/tmp/debug', 'a').write(str(vertical_midline)+'\n\n'+str(linework))
-            raise
 
         origin = array(nodes[face_edges[0][0]].coords[0])
         u = array(nodes[face_edges[0][1]].coords[0]) - origin
@@ -1242,9 +1242,11 @@ $$
         linework = [LineString([(round(dot(e[0]-origin, v), 9), round(dot(e[0]-origin, z), 9)),
                                 (round(dot(e[1]-origin, v), 9), round(dot(e[1]-origin, z), 9))])
                    for e in linework]
-        open("/tmp/linework_face_%d"%(face_idx), "w").write(MultiLineString(linework).wkt)
+        if DEBUG:
+            open("/tmp/linework_face_%d"%(face_idx), "w").write(MultiLineString(linework).wkt)
         polygons = list(polygonize(linework))
-        open("/tmp/polygons_face_%d"%(face_idx), "w").write(MultiPolygon(polygons).wkt)
+        if DEBUG:
+            open("/tmp/polygons_face_%d"%(face_idx), "w").write(MultiPolygon(polygons).wkt)
 
 
         #plpy.notice("face ", face_idx, "has", len(polygons), "polygons") 
@@ -1265,10 +1267,9 @@ $$
                     assert(len(q.exterior.coords)==4)
                     result.append(q)
 
-    rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(MultiPolygon(result).wkt))
-    open("/tmp/faces.obj", 'w').write(rv[0]['obj'])
-
-
+    if DEBUG:
+        rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(MultiPolygon(result).wkt))
+        open("/tmp/faces.obj", 'w').write(rv[0]['obj'])
 
     # find openfaces (top and bottom)
     edges = set()
@@ -1286,13 +1287,9 @@ $$
         else:
             top_linework.append((tuple(e[0]), tuple(e[1])))
 
-
     # linemerge top and bottom, there will be open rings that need to be closed
     # since we did only add linework for faces
     for face, side in zip(('top', 'bottom'), (top_linework, bottom_linework)):
-        open("/tmp/debug.txt", "a").write(face+'\n')
-        #open("/tmp/debug.txt", "a").write(str(side))
-        #open("/tmp/debug.txt", "a").write("\n")
         merged = [list(side.pop())]
         while len(side):
             handled = False
@@ -1316,8 +1313,9 @@ $$
                 merged.append(list(side.pop()))
 
         #open("/tmp/debug.txt", "a").write(str(merged))
-        rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in merged]).wkt))
-        open("/tmp/linework_%s.vtk"%(face), 'w').write(rv[0]['vtk'])
+        if DEBUG:
+            rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in merged]).wkt))
+            open("/tmp/linework_%s.vtk"%(face), 'w').write(rv[0]['vtk'])
         face_tri = []
         for m in merged:
             node_map = {(x[0], x[1]): x for x in m}
@@ -1330,15 +1328,14 @@ $$
                 result.append(q)
                 face_tri.append(q)
       
-        rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(MultiPolygon(face_tri).wkb_hex))
-        open("/tmp/face_tri_{}.obj".format(face), 'w').write(rv[0]['obj'])
+        if DEBUG:
+            rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(MultiPolygon(face_tri).wkb_hex))
+            open("/tmp/face_tri_{}.obj".format(face), 'w').write(rv[0]['obj'])
 
-        #open("/tmp/debug.txt", "a").write(str(merged))
-        #open("/tmp/debug.txt", "a").write("\n")
-    
-    #open("/tmp/debug.txt", "a").write("\n\n")
-
-
+    # find nodes that where no used
+    for id_, geom in nodes.items():
+        if id_ not in used_nodes:
+            open("/tmp/unused_nodes", 'a').write(str(id_)+'\n')
 
     # check generated volume is closed
     edges = set()
@@ -1349,8 +1346,9 @@ $$
             else:
                 edges.add((s, e))
     if (len(edges)):
-        #rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(result.wkb_hex))
-        #open("/tmp/unclosed_volume.obj", 'w').write(rv[0]['obj'])
+        if DEBUG:
+            rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(result.wkb_hex))
+            open("/tmp/unclosed_volume.obj", 'w').write(rv[0]['obj'])
         plpy.error("elementary volume is not closed")
     assert(len(edges)==0)
 
@@ -1361,23 +1359,31 @@ $$
 $$
 ;
 
-
 create or replace view albion.dynamic_volume as
 with res as (
 select
-c.id as cell_id, e.graph_id, array_agg(e.start_) as starts_, array_agg(e.end_) as ends_, array_agg(ARRAY[ns.hole_id, ne.hole_id]) as hole_ids,  array_agg(ARRAY[ns.id, ne.id]) as node_ids, array_agg(ARRAY[ns.geom, ne.geom]) as nodes
+c.id as cell_id, ed.graph_id, ed.starts, ed.ends, nd.hole_ids as hole_ids, nd.ids as node_ids, nd.geoms node_geoms
 from _albion.cell as c
 join _albion.hole as ha on ha.collar_id = c.a
 join _albion.hole as hb on hb.collar_id = c.b
-join _albion.hole as hc on hc.collar_id = c.c,
-_albion.edge as e
-join _albion.node as ns on ns.id = e.start_
-join _albion.node as ne on ne.id = e.end_
-where ns.hole_id in (ha.id, hb.id, hc.id) and ne.hole_id in (ha.id, hb.id, hc.id)
---and c.id in ('278416'/*, '278418'*/) and e.graph_id='min300'
-group by c.id, e.graph_id
+join _albion.hole as hc on hc.collar_id = c.c
+join lateral (
+    select n.graph_id, array_agg(n.id) as ids, array_agg(n.hole_id) as hole_ids, array_agg(n.geom) as geoms
+    from _albion.node as n
+    where n.hole_id in (ha.id, hb.id, hc.id)
+    group by n.graph_id
+
+) as nd on true
+join lateral (   
+    select e.graph_id, array_agg(e.start_) as starts, array_agg(e.end_) as ends
+    from _albion.edge as e
+    join _albion.node as ns on ns.id=e.start_
+    join _albion.node as ne on ne.id=e.end_
+    where ne.hole_id in (ha.id, hb.id, hc.id) and ns.hole_id in (ha.id, hb.id, hc.id)
+    group by e.graph_id
+) as ed on  ed.graph_id=nd.graph_id
 )
-select row_number() over() as id, cell_id, graph_id, albion.elementary_volumes(starts_, ends_, (select array_agg(t) from unnest(hole_ids) as t), (select array_agg(t) from unnest(node_ids) as t), (select st_collect(t) from unnest(nodes) as t))::geometry('MULTIPOLYGONZ', $SRID) as geom
+select row_number() over() as id, cell_id, graph_id, albion.elementary_volumes(starts, ends, hole_ids, node_ids, node_geoms)::geometry('MULTIPOLYGONZ', $SRID) as geom
 from res
 ;
 
@@ -1530,26 +1536,127 @@ $$
 $$
 ;
 
+-- view of termination edges
+create or replace view albion.half_edge as
+select n.id as node_id, n.graph_id, h.collar_id, case when ae.start_=h.collar_id then ae.end_ else ae.start_ end as other
+from _albion.node as n
+join _albion.hole as h on h.id=n.hole_id
+join albion.all_edge as ae on (ae.start_=h.collar_id or ae.end_=h.collar_id)
+except
+select n.id, n.graph_id, h.collar_id, case when e.start_=n.id then he.collar_id else hs.collar_id end as other
+from _albion.node as n
+join _albion.hole as h on h.id=n.hole_id
+join _albion.edge as e on (e.start_=n.id or e.end_=n.id)
+join _albion.node as ns on ns.id=e.start_
+join _albion.node as ne on ne.id=e.end_
+join _albion.hole as hs on hs.id=ns.hole_id
+join _albion.hole as he on he.id=ne.hole_id
+;
+
+create function albion.termination_node(node_geom_ geometry, collar_geom_ geometry)
+returns geometry
+language plpython3u
+as
+$$
+    from numpy import array
+    from shapely import wkb
+    from shapely.geometry import LineString
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    node_geom = wkb.loads(node_geom_, True)
+    collar_geom = wkb.loads(collar_geom_, True)
+
+    node_coords = array(node_geom.coords)
+    center = .5*(node_coords[0] + node_coords[1])
+    dir = array(collar_geom.coords[0]) - center
+    dir[2] = 0
+    dir *= .5
+    h = 1.
+    top = center + dir + array([0,0,.5*h])
+    bottom = center + dir - array([0,0,.5*h])
+    result = LineString([tuple(top), tuple(bottom)])
+    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(node_geom._geom))
+    return result.wkb_hex
+$$
+;
+
+create view albion.termination_node_temp as
+select row_number() over() as id, he.graph_id, n.id as node_id, albion.termination_node(n.geom, c.geom)::geometry('LINESTRINGZ', $SRID) as geom, c.geom as collar_geom
+from albion.half_edge as he
+join _albion.node as n on n.id=he.node_id
+join _albion.hole as h on h.id=he.other
+join _albion.collar as c on c.id=h.collar_id
+;
+
+
+create view albion.current_termination_node_section as
+select row_number() over() as id, n.id as node_id, tn.graph_id, s.id as section_id, 
+    (albion.to_section(tn.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom,
+    n.geom as node_geom
+from albion.termination_node_temp as tn
+join albion.current_node_section as n on n.node_id=tn.node_id
+join _albion.section as s on (s.id=n.section_id and st_intersects(tn.collar_geom, s.geom))
+;
+
+--create or replace view albion.current_section_terminations as
+--with half_edge as (
+--    select 
+--    from albion.current_node_section as ns
+--    join albion.half_edge he on he.node_id=ns.node_id
+--    join albion.current_hole_section as ho on h.collar_id=he.other 
+--    join albion.current_hole_section as hn on h.id=ns.collar_id
+--)
+--
+--select row_number() over() as id, st_union(
+--    ('SRID=$SRID; POLYGON(('||
+--                st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||','||
+--                st_x(st_endpoint(ns.geom))   ||' '||st_y(st_endpoint(ns.geom))  ||','||
+--                st_x(st_endpoint(ne.geom))   ||' '||st_y(st_endpoint(ne.geom))  ||','||
+--                st_x(st_startpoint(ne.geom)) ||' '||st_y(st_startpoint(ne.geom))||','||
+--                st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||
+--                '))')::geometry
+--) as geom, e.graph_id, e.section_id
+--from edge as e
+--join node as ns on ns.node_id=e.start_ and ns.section_id=e.section_id
+--join node as ne on ne.node_id=e.end_ and ne.section_id=e.section_id
+
+
 create or replace view albion.current_section_polygon as
 with node as (
     select node_id, section_id, geom from albion.current_node_section
 ),
 edge as (
     select graph_id, section_id, start_, end_ from albion.current_edge_section
+),
+poly as (
+    select st_union(
+        ('SRID=$SRID; POLYGON(('||
+                    st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||','||
+                    st_x(st_endpoint(ns.geom))   ||' '||st_y(st_endpoint(ns.geom))  ||','||
+                    st_x(st_endpoint(ne.geom))   ||' '||st_y(st_endpoint(ne.geom))  ||','||
+                    st_x(st_startpoint(ne.geom)) ||' '||st_y(st_startpoint(ne.geom))||','||
+                    st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||
+                    '))')::geometry
+    ) as geom, e.graph_id, e.section_id
+    from edge as e
+    join node as ns on ns.node_id=e.start_ and ns.section_id=e.section_id
+    join node as ne on ne.node_id=e.end_ and ne.section_id=e.section_id
+    group by e.graph_id, e.section_id
+),
+term as (
+    select ('SRID=$SRID; POLYGON(('||
+                    st_x(st_startpoint(t.node_geom)) ||' '||st_y(st_startpoint(t.node_geom))||','||
+                    st_x(st_endpoint(t.node_geom))   ||' '||st_y(st_endpoint(t.node_geom))  ||','||
+                    st_x(st_endpoint(t.geom))   ||' '||st_y(st_endpoint(t.geom))  ||','||
+                    st_x(st_startpoint(t.geom)) ||' '||st_y(st_startpoint(t.geom))||','||
+                    st_x(st_startpoint(t.node_geom)) ||' '||st_y(st_startpoint(t.node_geom))||
+                    '))')::geometry as geom,
+        t.graph_id, t.section_id
+        from albion.current_termination_node_section as t
 )
-select row_number() over() as id, st_union(
-    ('SRID=$SRID; POLYGON(('||
-                st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||','||
-                st_x(st_endpoint(ns.geom))   ||' '||st_y(st_endpoint(ns.geom))  ||','||
-                st_x(st_endpoint(ne.geom))   ||' '||st_y(st_endpoint(ne.geom))  ||','||
-                st_x(st_startpoint(ne.geom)) ||' '||st_y(st_startpoint(ne.geom))||','||
-                st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||
-                '))')::geometry
-) as geom, e.graph_id, e.section_id
-from edge as e
-join node as ns on ns.node_id=e.start_ and ns.section_id=e.section_id
-join node as ne on ne.node_id=e.end_ and ne.section_id=e.section_id
-group by e.graph_id, e.section_id
+select row_number() over() as id, geom, graph_id, section_id
+from (select * from poly union all select * from term) as t
 ;
 
 --select albion.to_obj(albion.elementary_volumes(
