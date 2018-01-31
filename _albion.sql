@@ -332,49 +332,45 @@ create index group_cell_groupe_id_idx on _albion.group_cell(group_id)
 
 create table _albion.end_node(
     id varchar primary key,
-    graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
-        unique(id, graph_id),
-    from_ real,
-    to_ real,
-    geom geometry('LINESTRINGZ', $SRID) not null check (st_numpoints(geom)=2)
+    geom geometry('LINESTRINGZ', $SRID) not null check (st_numpoints(geom)=2),
+    node_id varchar not null references _albion.node(id) on delete cascade on update cascade,
+    collar_id varchar not null references _albion.collar(id) on delete cascade on update cascade,
+    graph_id varchar references _albion.graph(id) on delete cascade
 )
 ;
 
 create index end_node_geom_idx on _albion.end_node using gist(geom)
 ;
 
-create index end_node_graph_id_idx on _albion.end_node(graph_id)
-;
-
 alter table _albion.end_node alter column id set default _albion.unique_id()::varchar
 ;
 
-create table _albion.end_edge(
-    id varchar primary key,
-    start_ varchar not null ,
-        foreign key (graph_id, start_) references _albion.end_node(graph_id, id) on delete cascade on update cascade,
-    end_ varchar not null,
-    foreign key (graph_id, end_) references _albion.end_node(graph_id, id) on delete cascade on update cascade,
-        unique (start_, end_),
-        check (start_ < end_),
-    graph_id varchar references _albion.graph(id) on delete cascade,
-    geom geometry('LINESTRINGZ', $SRID) not null check (st_isvalid(geom))
-)
-;
-
-create index end_edge_geom_idx on _albion.end_edge using gist(geom)
-;
-
-create index end_edge_graph_id_idx on _albion.end_edge(graph_id)
-;
-
-create index end_edge_start__idx on _albion.end_edge(start_)
-;
-
-create index end_edge_end__idx on _albion.end_edge(end_)
-;
-
-alter table _albion.end_edge alter column id set default _albion.unique_id()::varchar
-;
+--create table _albion.end_edge(
+--    id varchar primary key,
+--    start_ varchar not null ,
+--        foreign key (graph_id, start_) references _albion.end_node(graph_id, id) on delete cascade on update cascade,
+--    end_ varchar not null,
+--    foreign key (graph_id, end_) references _albion.end_node(graph_id, id) on delete cascade on update cascade,
+--        unique (start_, end_),
+--        check (start_ < end_),
+--    graph_id varchar references _albion.graph(id) on delete cascade,
+--    geom geometry('LINESTRINGZ', $SRID) not null check (st_isvalid(geom))
+--)
+--;
+--
+--create index end_edge_geom_idx on _albion.end_edge using gist(geom)
+--;
+--
+--create index end_edge_graph_id_idx on _albion.end_edge(graph_id)
+--;
+--
+--create index end_edge_start__idx on _albion.end_edge(start_)
+--;
+--
+--create index end_edge_end__idx on _albion.end_edge(end_)
+--;
+--
+--alter table _albion.end_edge alter column id set default _albion.unique_id()::varchar
+--;
 
 

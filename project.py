@@ -482,6 +482,20 @@ class Project(object):
                 """.format(graph_id))
             con.commit()
 
+    def create_terminations(self, graph_id):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""
+                delete from albion.end_node where graph_id='{}'
+                """.format(graph_id))
+            cur.execute("""
+                insert into albion.end_node(geom, node_id, collar_id, graph_id)
+                select geom, node_id, collar_id, graph_id
+                from albion.dynamic_end_node
+                where graph_id='{}'
+                """.format(graph_id))
+            con.commit()
+
     def export(self, filename):
         export_db(self.name, filename)
 

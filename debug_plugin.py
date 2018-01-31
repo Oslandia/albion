@@ -180,7 +180,11 @@ class Plugin(QObject):
         self.__menu.addSeparator()
         self.__add_menu_entry('Create volumes', self.__create_volumes,
                  self.project is not None and bool(self.__current_graph.currentText()),
-                 "Create voulmes associated with current graph.")
+                 "Create volumes associated with current graph.")
+        self.__menu.addSeparator()
+        self.__add_menu_entry('Create terminations', self.__create_terminations,
+                 self.project is not None and bool(self.__current_graph.currentText()),
+                 "Create terminations associated with current graph.")
         self.__menu.addSeparator()
         self.__add_menu_entry('Toggle axis', self.__toggle_axis)
 
@@ -212,6 +216,13 @@ class Plugin(QObject):
             return
         self.project.refresh_all_edge()
 
+
+    def __create_terminations(self):
+        if self.project is None:
+            return
+        self.project.create_terminations(self.__current_graph.currentText())
+        self.__viewer3d.widget().refresh_data()
+        self.__refresh_layers('section')
 
     def __create_volumes(self):
         if self.project is None:
