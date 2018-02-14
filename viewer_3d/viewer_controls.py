@@ -27,6 +27,7 @@ class ViewerControls(QWidget):
         self.nodesCheckBox.toggled.connect(self.__viewer.toggle_nodes)
         self.edgesCheckBox.toggled.connect(self.__viewer.toggle_edges)
         self.volumesCheckBox.toggled.connect(self.__viewer.toggle_volumes)
+        self.errorCheckBox.toggled.connect(self.__viewer.toggle_errors)
 
         self.refreshButton.clicked.connect(self.__viewer.refresh_data)
 

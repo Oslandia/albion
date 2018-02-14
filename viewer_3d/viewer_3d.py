@@ -32,6 +32,7 @@ class Viewer3d(QGLWidget):
                 "node": False,
                 "edge": False,
                 "volume": False,
+                "error": False,
                 "section": True,
                 "z_scale": 1,
                 "graph_id": "330"
@@ -47,6 +48,7 @@ class Viewer3d(QGLWidget):
 
     def refresh_data(self):
         if self.scene and self.__project.has_collar:
+            self.__project.create_volumes(self.__param["graph_id"])
             self.resetScene(self.__project, False)
             self.update()
 
@@ -83,6 +85,11 @@ class Viewer3d(QGLWidget):
     def toggle_volumes(self, state):
         self.__param["volume"] = state
         self.update()
+
+    def toggle_errors(self, state):
+        self.__param["error"] = state
+        self.update()
+
 
     def set_delete_tool(self, state):
         if state:
@@ -215,13 +222,16 @@ class Viewer3d(QGLWidget):
         highlighted = self.highlight(event.x(), event.y())
         if highlighted:
             if self.tool == "delete":
-                self.scene.delete_highlighted("edge")
-                self.refresh_data()
+                if QMessageBox.Ok == QMessageBox.question(self, "Delete one edge", "Do you want to delete selectd edge ?", QMessageBox.Ok|QMessageBox.Cancel):
+                    self.scene.delete_highlighted("edge")
+                    self.scene.update("edge")
+                    self.update()
             if self.tool == "add":
                 if self.previous_pick:
                     self.scene.add_edge(self.previous_pick, highlighted)
                     self.previous_pick = None
-                    self.refresh_data()
+                    self.scene.update("edge")
+                    self.update()
                 else:
                     self.previous_pick = highlighted
         else:

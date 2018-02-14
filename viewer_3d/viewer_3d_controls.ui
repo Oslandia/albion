@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>399</width>
+    <width>608</width>
     <height>279</height>
    </rect>
   </property>
@@ -14,7 +14,7 @@
    <string>Form</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="8" column="0" colspan="2">
+   <item row="9" column="0" colspan="2">
     <widget class="QScrollArea" name="scrollArea">
      <property name="frameShadow">
       <enum>QFrame::Plain</enum>
@@ -27,8 +27,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>325</width>
-        <height>79</height>
+        <width>534</width>
+        <height>51</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout_2">
@@ -74,7 +74,7 @@
       <number>1</number>
      </property>
      <property name="maximum">
-      <number>100</number>
+      <number>20</number>
      </property>
      <property name="value">
       <number>1</number>
@@ -97,7 +97,7 @@
      </property>
     </widget>
    </item>
-   <item row="7" column="1" colspan="2">
+   <item row="8" column="1" colspan="2">
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <widget class="QPushButton" name="addButton">
@@ -156,6 +156,13 @@
      </property>
      <property name="checked">
       <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="1">
+    <widget class="QCheckBox" name="errorCheckBox">
+     <property name="text">
+      <string>Errors</string>
      </property>
     </widget>
    </item>
