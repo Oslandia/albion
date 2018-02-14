@@ -61,31 +61,99 @@ class Scene(QObject):
                 "edge":None,
                 "section":None,
                 "volume":None}
+        self.idx_to_id_map = {
+                "node":{},
+                "edge":{},
+                "section":{},
+                "volume":{}}
+        self.pick_color = {
+                "node":None,
+                "edge":None,
+                "section":None,
+                "volume":None}
         self.nrml = {
                 "volume":None}
 
         self.__labels = []
 
+        self.highlighted_idx = {
+                "node": None,
+                "edge": None}
+
+    def highlight(self, layer, color):
+        idx = 0
+        for b in color[:3]:
+            idx = idx * 256 + int(b)
+        if idx < len(self.idx[layer]):
+            self.highlighted_idx[layer] = idx
+            return self.idx_to_id_map[layer][idx]
+        else:
+            self.highlighted_idx[layer] = None
+            return None
+
+    def delete_highlighted(self, layer):
+        if self.highlighted_idx[layer] in  self.idx_to_id_map[layer]:
+            print("delete", layer, self.idx_to_id_map[layer][self.highlighted_idx[layer]])
+            with self.__project.connect() as con:
+                cur = con.cursor()
+                if layer == "edge":
+                    cur.execute("""
+                        delete from albion.edge where id='{}'
+                    """.format( self.idx_to_id_map[layer][self.highlighted_idx[layer]]))
+                    con.commit()
+
+    def add_edge(self, start, end):
+        with self.__project.connect() as con:
+            cur = con.cursor()
+            cur.execute("""
+                insert into albion.edge(start_, end_, graph_id) values('{}', '{}', '{}')
+            """.format(start, end, self.__param["graph_id"]))
+            con.commit()
+        print("add edge", start, end)
+
+    def pickrendergl(self, layer):
+        glDisable(GL_COLOR_MATERIAL)
+        glDisable(GL_LIGHTING)
+        glDisable(GL_TEXTURE_2D)
+        glEnableClientState(GL_VERTEX_ARRAY)
+        glEnableClientState(GL_COLOR_ARRAY)
+        glDisableClientState(GL_NORMAL_ARRAY)
+        if self.__param[layer]:
+            if self.__param[layer] != self.__old_param[layer]:
+                self.update(layer)
+            glLineWidth(8)
+            glColorPointer(4, GL_UNSIGNED_BYTE, 0, self.pick_color[layer])
+            glVertexPointerf(self.vtx[layer])
+            glDrawElementsui(GL_LINES, self.idx[layer])
+        glDisableClientState(GL_COLOR_ARRAY)
+        glDisableClientState(GL_VERTEX_ARRAY)
 
     def rendergl(self, leftv, upv, eye, height, context):
 
+        glDisable(GL_TEXTURE_2D)
         glEnable(GL_DEPTH_TEST)
-        glLightModelfv(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE)
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [.5, .5, .5, 1.])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [.3, .3, .3, 1.])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [.2, .2, .2, 1.])
-        glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 0)
-
         glEnableClientState(GL_VERTEX_ARRAY)
         glDisableClientState(GL_TEXTURE_COORD_ARRAY)
+        glDisableClientState(GL_COLOR_ARRAY)
         glEnableClientState(GL_NORMAL_ARRAY)
 
         if self.__param["graph_id"] != self.__old_param["graph_id"]:
             self.setGraph(self.__param["graph_id"])
 
-
         if self.__param["z_scale"] != self.__old_param["z_scale"]:
             self.setZscale(self.__param["z_scale"])
+
+        glEnable(GL_LIGHTING)
+        glEnable(GL_LIGHT0)
+        glLightModelfv(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE)
+        glEnable(GL_COLOR_MATERIAL)
+        #glColor4f(1.,1.,1.,1.)
+        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [.5, .5, .5, 1.])
+        glColorMaterial(GL_FRONT, GL_DIFFUSE)
+        #glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [.3, .0, .0, 1.])
+        #glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, [.2, .2, .2, 1.])
+        #glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 0)
+        glColor4f(.8, .8, .8, 1.)
 
         for layer in ['volume']:
             if self.__param[layer]:
@@ -96,25 +164,28 @@ class Scene(QObject):
                     glNormalPointerf(self.nrml[layer])
                     glDrawElementsui(GL_TRIANGLES, self.idx[layer])
 
+        glDisable(GL_COLOR_MATERIAL)
+        glDisable(GL_LIGHTING)
         glDisableClientState(GL_NORMAL_ARRAY)
         color = {'node':[0.,0.,0.,1.], 
                  'edge':[0.,1.,0.,1.]}
-        glLineWidth(1)
         for layer in ['node', 'edge']:
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
                     self.update(layer)
-                glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  color[layer])
-                glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  color[layer])
-                glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  color[layer])
+                glLineWidth(1)
+                #glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  color[layer])
+                glColor4f(*color[layer])
                 if len(self.vtx[layer]):
                     glVertexPointerf(self.vtx[layer])
                     glDrawElementsui(GL_LINES, self.idx[layer])
+                    glDisableClientState(GL_COLOR_ARRAY)
+                    if self.highlighted_idx[layer] is not None:
+                        glLineWidth(4)
+                        a = numpy.array(self.idx[layer][self.highlighted_idx[layer]])
+                        glDrawElementsui(GL_LINES, a)
         
         # current section, highlight nodes
-        glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [1., 1., 0., 1.])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [1., 1., 0., 1.])
-        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [1., 1., 0., 1.])
         glDisable(GL_DEPTH_TEST)
         glLineWidth(2)
         glPointSize(3)
@@ -124,6 +195,9 @@ class Scene(QObject):
             glVertexPointerf(self.vtx['section'])
             glDrawElementsui(GL_LINES, self.idx['section'])
             glDrawArrays(GL_POINTS, 0, len(self.vtx['section']))
+        
+
+        
 
 
         glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [0., 0., 0., 1.])
@@ -145,7 +219,7 @@ class Scene(QObject):
             for scatter in self.__labels:
                 pt = scatter['point']
                 point = QVector3D(pt[0], pt[1], pt[2])
-                glColor4f(0, 0, 0, 1)
+                #glColor4f(0, 0, 0, 1)
                 glPointSize(4)
                 glBegin(GL_POINTS)
                 glVertex3f(point.x(), point.y(), point.z())
@@ -159,7 +233,7 @@ class Scene(QObject):
                 w = dist*scatter['image'].width()
                 h = dist*scatter['image'].height()
                 glBindTexture(GL_TEXTURE_2D, scatter['texture'])
-                glColor4f(1, 1, 1, 1);
+                #glColor4f(1, 1, 1, 1);
                 glBegin(GL_QUADS)
                 glNormal3f(0, 0, 1)
                 glTexCoord2f(0, 0)
@@ -205,12 +279,18 @@ class Scene(QObject):
 
             elif layer=='node':
                 cur.execute("""
-                    select coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.node where graph_id='{}'
+                    select array_agg(id), coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.node where graph_id='{}'
                     """.format(self.__param["graph_id"]))
-                lines = wkb.loads(cur.fetchone()[0], True)
+                res = cur.fetchone()
+                lines = wkb.loads(res[1], True)
+                lines_ids = res[0]
                 vtx = []
                 idx = []
-                for line in lines:
+                colors = []
+                for line, id_ in zip(lines, lines_ids):
+                    elt = len(idx)
+                    self.idx_to_id_map[layer][elt] = id_
+                    colors += [(elt >> 16 & 0xff, elt >>  8 & 0xff, elt >>  0 & 0xff, 255)]*len(line.coords)
                     idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
                     vtx += list(line.coords)
                 self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
@@ -218,6 +298,7 @@ class Scene(QObject):
                     self.vtx[layer] += self.__offset
                     self.vtx[layer][:,2] *= self.__param["z_scale"]
                 self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
+                self.pick_color[layer] = numpy.array(colors, dtype=numpy.uint8)
 
             elif layer=='section':
 
@@ -245,12 +326,19 @@ class Scene(QObject):
 
             elif layer=='edge':
                 cur.execute("""
-                    select coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
+                    select array_agg(id), coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
                     """.format(self.__param["graph_id"]))
-                lines = wkb.loads(cur.fetchone()[0], True)
+                res = cur.fetchone()
+                lines = wkb.loads(res[1], True)
+                lines_ids = res[0]
                 vtx = []
                 idx = []
-                for line in lines:
+                colors = []
+                for line, id_ in zip(lines, lines_ids):
+                    new_idx = [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
+                    elt = len(idx)
+                    self.idx_to_id_map[layer][elt] = id_
+                    colors += [(elt >> 16 & 0xff, elt >>  8 & 0xff, elt >>  0 & 0xff, 255)]*len(line.coords)
                     idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
                     vtx += list(line.coords)
                 self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
@@ -258,6 +346,7 @@ class Scene(QObject):
                     self.vtx[layer] += self.__offset
                     self.vtx[layer][:,2] *= self.__param["z_scale"]
                 self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
+                self.pick_color[layer] = numpy.array(colors, dtype=numpy.uint8)
             
             elif layer=='volume':
                 cur.execute("""

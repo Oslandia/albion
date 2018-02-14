@@ -99,9 +99,10 @@ class Project(object):
             cur.execute("create extension plpython3u")
             cur.execute("create extension hstore")
             cur.execute("create extension hstore_plpython3u")
+            include_elementary_volume = open(os.path.join(os.path.dirname(__file__), 'elementary_volume', '__init__.py')).read()
             for file_ in ('_albion.sql', 'albion.sql'):
                 for statement in open(os.path.join(os.path.dirname(__file__), file_)).read().split('\n;\n')[:-1]:
-                    cur.execute(statement.replace('$SRID', str(srid)))
+                    cur.execute(statement.replace('$SRID', str(srid)).replace('$INCLUDE_ELEMENTARY_VOLUME', include_elementary_volume))
             con.commit()
         return project
 
@@ -113,9 +114,10 @@ class Project(object):
             cur.execute("select srid from albion.metadata")
             srid, = cur.fetchone()
             cur.execute("drop schema if exists albion cascade")
+            include_elementary_volume = open(os.path.join(os.path.dirname(__file__), 'elementary_volume', '__init__.py')).read()
             for statement in open(os.path.join(os.path.dirname(__file__), 'albion.sql')).read().split('\n;\n')[:-1]:
                 #print statement.replace('$SRID', str(srid))
-                cur.execute(statement.replace('$SRID', str(srid)))
+                cur.execute(statement.replace('$SRID', str(srid)).replace('$INCLUDE_ELEMENTARY_VOLUME', include_elementary_volume))
             con.commit()
 
     def __getattr__(self, name):
@@ -445,12 +447,24 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("""
-                select albion.to_obj(albion.volume_union(st_collectionhomogenize(st_collect(geom))))
-                from albion.dynamic_volume
+                select albion.to_obj(albion.volume_union(st_collectionhomogenize(st_collect(triangulation))))
+                from albion.volume
                 where graph_id='{}'
-                and geom is not null --not st_isempty(geom)
+                and albion.is_closed_volume(triangulation)
                 """.format(graph_id))
             open(filename, 'w').write(cur.fetchone()[0])
+
+    def errors_obj(self, graph_id, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""
+                select albion.to_obj(st_collectionhomogenize(st_collect(triangulation)))
+                from albion.volume
+                where graph_id='{}'
+                and not albion.is_closed_volume(triangulation)
+                """.format(graph_id))
+            open(filename, 'w').write(cur.fetchone()[0])
+
 
     def export_dxf(self, graph_id, filename):
         with self.connect() as con:
@@ -459,6 +473,7 @@ class Project(object):
                 select albion.volume_union(st_collectionhomogenize(st_collect(triangulation)))
                 from albion.volume
                 where graph_id='{}'
+                and albion.is_closed_volume(triangulation)
                 """.format(graph_id))
             drawing = dxf.drawing(filename)
             m = wkb.loads(cur.fetchone()[0], True)

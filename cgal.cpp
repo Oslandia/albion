@@ -9,6 +9,12 @@
 #include <string>
 #include <boost/python.hpp>
 
+#include <CGAL/Simple_cartesian.h>
+#include <CGAL/Surface_mesh.h>
+#include <CGAL/Polygon_mesh_processing/corefinement.h>
+
+namespace delaunay
+{
 struct FaceInfo2
 {
   FaceInfo2(){}
@@ -110,12 +116,64 @@ boost::python::list delaunay(const python_iterable &polygon)
 
     return list;
 }
+}
+
+namespace boolean 
+{
+typedef CGAL::Simple_cartesian<double> K;
+typedef K::Point_3 Point;
+typedef CGAL::Surface_mesh<Point> Mesh;
+namespace PMP = CGAL::Polygon_mesh_processing;
+
+Mesh create_mesh(const boost::python::list &vtx, const boost::python::list &idx)
+{
+    Mesh out;
+    std::vector<Mesh::Vertex_index> vtx_idx; 
+    for (int i=0; i<len(vtx); i++)
+    {
+        vtx_idx.push_back(out.add_vertex(Point(
+            boost::python::extract<double>(vtx[i][0]),
+            boost::python::extract<double>(vtx[i][1]),
+            boost::python::extract<double>(vtx[i][2]))));
+    }
+
+    for (int i=0; i<len(idx); i++)
+    {
+          const int a = boost::python::extract<int>(idx[i][0]);
+          const int b = boost::python::extract<int>(idx[i][1]);
+          const int c = boost::python::extract<int>(idx[i][2]);
+          std::cout << a << " " << b << " " << c << "\n";
+          out.add_face(vtx_idx[a], vtx_idx[b], vtx_idx[c]);
+    }
+    return out;
+}
+
+Mesh union_(Mesh &a, Mesh &b)
+{
+    Mesh out;
+    const bool valid_union = PMP::corefine_and_compute_union(a, b, out);
+    if (!valid_union)
+        throw std::runtime_error("union could not be computed");
+    return out;
+}
+
+}
+
+void translator(std::exception const& e) {
+    PyErr_SetString(PyExc_UserWarning, e.what());
+}
 
 BOOST_PYTHON_MODULE(cgal)
 {
     using namespace boost::python;
-    def("delaunay", delaunay<boost::python::list>);
-    def("delaunay", delaunay<boost::python::tuple>);
+    def("delaunay", delaunay::delaunay<boost::python::list>);
+    def("delaunay", delaunay::delaunay<boost::python::tuple>);
+    class_<boolean::Mesh>("Mesh", init<>())
+        .add_property("number_of_vertices", &boolean::Mesh::number_of_vertices)
+        .add_property("number_of_faces", &boolean::Mesh::number_of_faces);
+    def("union", boolean::union_);
+    def("create_mesh", boolean::create_mesh);
+    register_exception_translator<std::exception>(translator);
 }
 
 

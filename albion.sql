@@ -8,6 +8,41 @@ create schema albion
 -------------------------------------------------------------------------------
 -- UTILITY FUNCTIONS
 -------------------------------------------------------------------------------
+create or replace function st_3dlineinterpolatepoint(line_ geometry, sigma_ float)
+returns geometry
+language plpython3u immutable
+as
+$$
+    from shapely import wkb
+    from shapely import geos
+    from shapely.geometry import Point
+    from numpy import array
+    from numpy.linalg import norm
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    assert(sigma_ >=0 and sigma_ <=1)
+
+    if line_ is None:
+        return None
+
+    line = wkb.loads(line_, True)
+    l = array(line.coords)
+    line_length = norm(l[1:] - l[:-1], 1)
+    target_length = line_length*sigma_
+    current_length = 0
+    for s, e in zip(l[:-1], l[1:]):
+        segment_length = norm(e-s) 
+        current_length += segment_length
+        if current_length > target_length:
+            #interpolate point
+            overshoot = current_length - target_length
+            a = overshoot/segment_length
+            result = Point(s*a + e*(1.-a))
+            geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(line._geom))
+            return result.wkb_hex
+    assert(False) # we should never reach here
+$$
+;
 
 --create or replace function albion.srid()
 --returns integer
@@ -974,6 +1009,8 @@ returns trigger
 language plpgsql
 as
 $$
+    declare
+        edge_ok integer;
     begin
         if tg_op in ('INSERT', 'UPDATE') then
             new.start_ := coalesce(new.start_, (select id from _albion.node where st_intersects(geom, new.geom) and st_centroid(geom)::varchar=st_startpoint(new.geom)::varchar));
@@ -981,6 +1018,20 @@ $$
             if new.start_ > new.end_ then
                 select new.start_, new.end_ into new.end_, new.start_;
             end if;
+            -- @todo check that edge is in all_edge
+            select count(1) 
+            from albion.all_edge as ae 
+            join _albion.hole as hs on hs.collar_id=ae.start_
+            join _albion.hole as he on he.collar_id=ae.end_
+            join _albion.node as ns on (ns.hole_id in (hs.id, he.id) and ns.id=new.start_)
+            join _albion.node as ne on (ne.hole_id in (hs.id, he.id) and ne.id=new.end_)
+            into edge_ok;
+            if edge_ok = 0 then
+                raise EXCEPTION 'impossible edge (not a cell edge)';
+            end if;
+            new.geom := st_makeline(
+                st_3dlineinterpolatepoint((select geom from _albion.node where id=new.start_), .5), 
+                st_3dlineinterpolatepoint((select geom from _albion.node where id=new.end_), .5));
         end if;
 
         if tg_op = 'INSERT' then
@@ -1092,289 +1143,27 @@ join _albion.section as s on st_intersects(s.geom, cs.geom) and st_intersects(s.
 ;
 
 
-create or replace function albion.elementary_volumes(starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry[], end_ids_ varchar[], end_geoms_ geometry[])
-returns geometry
+create or replace function albion.elementary_volumes(cell_id_ varchar, graph_id_ varchar, geom_ geometry, holes_ varchar[], starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry[], end_ids_ varchar[], end_geoms_ geometry[])
+returns setof geometry
 language plpython3u immutable
 as
 $$
-    import plpy
-    import random
-    from itertools import combinations
-    from math import pi as PI, inf as INF
-    from numpy import array, roll, cross, arccos, einsum, argmin, argmax, logical_not, indices, dot, average
-    from numpy.linalg import norm
-    from collections import defaultdict
-    from itertools import product
-    from shapely.geometry import MultiPolygon, Polygon, LineString, MultiLineString, Point, MultiPoint
-    from shapely import wkb
-    from shapely.ops import unary_union, polygonize
-    from shapely.ops import transform 
-    from shapely import geos
-    geos.WKBWriter.defaults['include_srid'] = True
-    from rtree import index
-
-    from cgal import delaunay as triangulate
-
-    DEBUG=False
-    
-    def interpolate_point(A, B, C, D):
-        l = norm(A-B)
-        r = norm(C-D)
-        i = (r*A+r*B+l*C+l*D)/(2*(r+l))
-        return i
-
-
-    def sym_split(l1, l2):
-        if (l1[0][2] < l2[0][2] and l1[-1][2] > l2[-1][2]) \
-            or (l1[0][2] > l2[0][2] and l1[-1][2] < l2[-1][2]):
-            A, B, C, D = array(l1[0]), array(l2[0]), array(l1[-1]), array(l2[-1])
-            interpolated = interpolate_point(A, B, C, D)
-            for i, p in enumerate(reversed(l1)):
-                if norm(interpolated - A) > norm(array(p) - A):
-                    l1.insert(-i, tuple(interpolated))
-                    break
-            for i, p in enumerate(reversed(l2)):
-                if norm(interpolated - B) > norm(array(p) - B):
-                    l2.insert(-i, tuple(interpolated))
-                    break
-
-    def middle_point(A, B):
-        return (.5*(A[0]+B[0]), .5*(A[1]+B[1]), .5*(A[2]+B[2]))
-
-    nodes = {id_: wkb.loads(geom, True) for id_, geom in zip(node_ids_, nodes_)}
-    ends = defaultdict(list)
-    for id_, geom in zip(end_ids_, end_geoms_):
-        ends[id_].append(wkb.loads(geom, True))
-    holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
-    edges = [(s, e) for s, e in zip(starts_, ends_)]
-
-    graph = defaultdict(set) # undirected (edge in both directions)
-    for e in edges:
-        graph[e[0]].add(e[1])
-        graph[e[1]].add(e[0])
-
-    # two connected edges form a ring
-    # /!\ do not do that for complex trousers configuration, this will
-    # connect things that should not be connected
-    #
-    # indead it is stupid to do that here
-    #
-
-    triangles = set()
-    triangle_edges = set()
-    used_nodes = set()
-    for e in edges:
-        common_neigbors = graph[e[0]].intersection(graph[e[1]])
-        for n in common_neigbors:
-            tri = tuple((i for _, i in sorted(zip((holes[e[0]], holes[e[1]], holes[n]), (e[0], e[1], n)))))
-            triangles.add(tri)
-            triangle_edges.add(tri[0:2])
-            triangle_edges.add(tri[1:3])
-            triangle_edges.add(tri[0:1]+tri[2:3])
-            for i in range(3):
-                used_nodes.add(tri[i])
-
-    result = []
-
-    if len(triangles):
-        a_triangle = next(iter(triangles))
-        interior_point = (array(nodes[a_triangle[0]].coords[0]) 
-                         +array(nodes[a_triangle[1]].coords[0])
-                         +array(nodes[a_triangle[2]].coords[0]))/3
-
-        #rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(MultiPolygon([Polygon([nodes[n].coords[0] for n in t]) for t in triangles]).wkt))
-        #open("/tmp/top_faces.obj", 'w').write(rv[0]['obj'])
-        
-
-        sorted_holes = sorted(set(holes.values()))
-        face_idx = -1
-        for hl, hr in ((sorted_holes[0], sorted_holes[1]), 
-                       (sorted_holes[1], sorted_holes[2]),
-                       (sorted_holes[0], sorted_holes[2])):
-            face_idx += 1
-
-            face_edges = list(set([(s, e) if holes[s] == hl else (e, s) 
-                for s in graph.keys() for e in graph[s] if holes[s] in (hl, hr) and holes[e] in (hl, hr)]))
-
-            assert(len(face_edges))
-
-            domain = [Polygon([nodes[e[0]].coords[0], nodes[e[0]].coords[1],
-                               nodes[e[1]].coords[1], nodes[e[1]].coords[0]]) for e in triangle_edges if e in face_edges]
-
-            lines = [[tuple(nodes[e[0]].coords[0]), tuple(nodes[e[1]].coords[0])] for e in face_edges] \
-                  + [[tuple(nodes[e[0]].coords[1]), tuple(nodes[e[1]].coords[1])] for e in face_edges]
-
-            # split lines 
-            for i, j in combinations(range(len(lines)), 2):
-                sym_split(lines[i], lines[j])
-
-            # split line at center if line has 2 points or closest point to center except end points
-            # if line has more than two points
-            #vertical_midline = []
-            #for i in range(len(lines)):
-            #    if len(lines[i]) == 2:
-            #        vertical_midline.append(middle_point(lines[i][0], lines[i][1]))
-            #        lines[i] = [lines[i][0], vertical_midline[-1], lines[i][1]]
-            #    else:
-            #        midpoint = middle_point(lines[i][0], lines[i][1])
-            #        closest_idx = 1+argmin(dot(array(lines[i][1:len(lines[i])-1]), array(midpoint)))
-            #        vertical_midline.append(lines[i][closest_idx])
-            #assert(len(vertical_midline)>=2)
-            #vertical_midline = [p for _, p in sorted(zip([x[2] for x in vertical_midline], vertical_midline), reverse=True)]
-
-            vertical_lines = list(set([(tuple(nodes[e[0]].coords[0]), tuple(nodes[e[0]].coords[1])) for e in face_edges]
-                           + [(tuple(nodes[e[1]].coords[0]), tuple(nodes[e[1]].coords[1])) for e in face_edges]))
-
-            # add vertical lines
-            linework = [(a, b)  for l in lines for a, b in zip(l[:-1], l[1:])] + vertical_lines #+ [vertical_midline]
-
-            if DEBUG:
-                rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in linework]).wkt))
-                open("/tmp/face_{}.vtk".format(face_idx), 'w').write(rv[0]['vtk'])
-
-            origin = array(nodes[face_edges[0][0]].coords[0])
-            u = array(nodes[face_edges[0][1]].coords[0]) - origin
-            z = array((0, 0, 1))
-            w = cross(z, u)
-            w /= norm(w)
-            v = cross(w, z)
-            
-            linework = [array(e) for e in linework]
-            node_map = {(round(dot(p-origin, v), 9), round(dot(p-origin, z), 9)): p for e in linework for p in e}
-            linework = [LineString([(round(dot(e[0]-origin, v), 9), round(dot(e[0]-origin, z), 9)),
-                                    (round(dot(e[1]-origin, v), 9), round(dot(e[1]-origin, z), 9))])
-                       for e in linework]
-            if DEBUG:
-                open("/tmp/linework_face_%d"%(face_idx), "w").write(MultiLineString(linework).wkt)
-            polygons = list(polygonize(linework))
-            if DEBUG:
-                open("/tmp/polygons_face_%d"%(face_idx), "w").write(MultiPolygon(polygons).wkt)
-
-
-            #plpy.notice("face ", face_idx, "has", len(polygons), "polygons") 
-            domain = unary_union([Polygon([(round(dot(p-origin, v), 9), round(dot(p-origin, z), 9))
-                    for p in array(dom.exterior.coords)]) for dom in domain])
-
-            for p in polygons:
-                p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
-                assert(p.exterior.is_ccw)
-                for tri in triangulate(list(p.exterior.coords)):
-                    assert(len(tri)==3)
-                    if Point(average(tri, (0,))).intersects(domain):
-                        q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]])
-                        if dot(cross(array(q.exterior.coords[1]) - array(q.exterior.coords[0]), 
-                                     array(q.exterior.coords[2]) - array(q.exterior.coords[0])), 
-                                 interior_point -  array(q.exterior.coords[0])) > 0:
-                            q = Polygon(q.exterior.coords[::-1])
-                        assert(len(q.exterior.coords)==4)
-                        result.append(q)
-
-        if DEBUG:
-            rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(MultiPolygon(result).wkt))
-            open("/tmp/faces.obj", 'w').write(rv[0]['obj'])
-
-        # find openfaces (top and bottom)
-        edges = set()
-        for t in result:
-            for s, e in zip(t.exterior.coords[:-1], t.exterior.coords[1:]):
-                if (e, s) in edges:
-                    edges.remove((e, s))
-                else:
-                    edges.add((s, e))
-        top_linework = []
-        bottom_linework = []
-        for e in array(list(edges)):
-            if dot(array((0, 0, 1)), cross(e[0] - interior_point, e[1] - e[0])) > 0:
-                bottom_linework.append((tuple(e[0]), tuple(e[1])))
-            else:
-                top_linework.append((tuple(e[0]), tuple(e[1])))
-
-        # linemerge top and bottom, there will be open rings that need to be closed
-        # since we did only add linework for faces
-        for face, side in zip(('top', 'bottom'), (top_linework, bottom_linework)):
-            merged = [list(side.pop())]
-            while len(side):
-                handled = False
-                for j, b in enumerate(side):
-                    if merged[-1][0] == b[0]:
-                        merged[-1].insert(0, b[1])
-                        handled = True
-                    elif merged[-1][-1] == b[0]:
-                        merged[-1].append(b[1])
-                        handled = True
-                    elif merged[-1][0] == b[1]:
-                        merged[-1].insert(0, b[0])
-                        handled = True
-                    elif merged[-1][-1] == b[1]:
-                        merged[-1].append(b[0])
-                        handled = True
-                    if handled:
-                        del side[j]
-                        break
-                if not handled:
-                    merged.append(list(side.pop()))
-
-            #open("/tmp/debug.txt", "a").write(str(merged))
-            if DEBUG:
-                rv = plpy.execute("SELECT albion.to_vtk('{}'::geometry) as vtk".format(MultiLineString([LineString(e) for e in merged]).wkt))
-                open("/tmp/linework_%s.vtk"%(face), 'w').write(rv[0]['vtk'])
-            face_tri = []
-            for m in merged:
-                node_map = {(x[0], x[1]): x for x in m}
-                p = Polygon([(x[0], x[1]) for x in m])
-                p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
-                assert(p.exterior.is_ccw)
-                for tri in triangulate(list(p.exterior.coords)):
-                    q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]])
-                    q = q if face=='top' else Polygon(q.exterior.coords[::-1])
-                    result.append(q)
-                    face_tri.append(q)
-          
-            if DEBUG:
-                rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(MultiPolygon(face_tri).wkb_hex))
-                open("/tmp/face_tri_{}.obj".format(face), 'w').write(rv[0]['obj'])
-
-    # find nodes that where no used
-    #for id_, geom in nodes.items():
-    #    if id_ not in used_nodes:
-    #        open("/tmp/unused_nodes", 'a').write(str(id_)+'\n')
-
-
-    # create volume for nodes with two ends
-    for id_, geom in ends.items():
-        if len(ends[id_]) == 2:
-            open("/tmp/bug.txt", 'a').write(str(id_)+'end triangle \n')
-            top = Polygon([nodes[id_].coords[0], ends[id_][0].coords[0], ends[id_][1].coords[0]])
-            top = top if top.exterior.is_ccw else Polygon(top.exterior.coords[::-1])
-            bottom = Polygon([nodes[id_].coords[1], ends[id_][0].coords[1], ends[id_][1].coords[1]])
-            bottom = bottom if not bottom.exterior.is_ccw else Polygon(bottom.exterior.coords[::-1])
-            open("/tmp/top.txt", 'a').write(str(id_)+' '+top.wkt+'\n')
-            result.append(top)
-            result.append(bottom)
-
-
-    # check that generated volume is closed
-    edges = set()
-    for p in result:
-        for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
-            if (e, s) in edges:
-                edges.remove((e, s))
-            else:
-                edges.add((s, e))
-    if (len(edges)):
-        if DEBUG:
-            rv = plpy.execute("SELECT albion.to_obj('{}'::geometry) as obj".format(result.wkb_hex))
-            open("/tmp/unclosed_volume.obj", 'w').write(rv[0]['obj'])
-        plpy.warning("elementary volume is not closed")
-    #assert(len(edges)==0)
-
-    if not len(result):
-        return None
-
-    result = MultiPolygon(result)
-    geos.lgeos.GEOSSetSRID(result._geom, $SRID)
-    return result.wkb_hex
-
+open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
+    cell_id_+'\n'+
+    graph_id_+'\n'+
+    geom_+'\n'+
+    ' '.join(holes_)+'\n'+
+    ' '.join(starts_)+'\n'+
+    ' '.join(ends_)+'\n'+
+    ' '.join(hole_ids_)+'\n'+
+    ' '.join(node_ids_)+'\n'+
+    ' '.join(nodes_)+'\n'+
+    ' '.join(end_ids_)+'\n'+
+    ' '.join(end_geoms_)+'\n'
+)
+$INCLUDE_ELEMENTARY_VOLUME
+for v in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, $SRID):
+    yield v
 $$
 ;
 
@@ -1382,6 +1171,27 @@ create or replace view albion.volume as
 select id, graph_id, cell_id, triangulation
 from _albion.volume
 ;
+
+create or replace function albion.is_closed_volume(multipoly geometry)
+returns boolean
+language plpython3u immutable
+as
+$$
+    from shapely import wkb
+
+    m = wkb.loads(multipoly, True)
+
+    edges = set()
+    for p in m:
+        for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
+            if (e, s) in edges:
+                edges.remove((e, s))
+            else:
+                edges.add((s, e))
+    return len(edges)==0
+$$
+;
+
 
 create or replace function albion.volume_union(multipoly geometry)
 returns geometry
@@ -1559,6 +1369,8 @@ $$
     from shapely.geometry import LineString
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
+    
+    REL_DISTANCE = .3
 
     node_geom = wkb.loads(node_geom_, True)
     collar_geom = wkb.loads(collar_geom_, True)
@@ -1567,7 +1379,7 @@ $$
     center = .5*(node_coords[0] + node_coords[1])
     dir = array(collar_geom.coords[0]) - center
     dir[2] = 0
-    dir *= .5
+    dir *= REL_DISTANCE
     h = 1.
     top = center + dir + array([0,0,.5*h])
     bottom = center + dir - array([0,0,.5*h])
@@ -1645,36 +1457,36 @@ from (select * from poly union all select * from term) as t
 create or replace view albion.dynamic_volume as
 with res as (
 select
-c.id as cell_id, nd.graph_id, coalesce(ed.starts, '{}'::varchar[]) as starts, coalesce(ed.ends, '{}'::varchar[]) as ends, nd.hole_ids as hole_ids, nd.ids as node_ids, nd.geoms as node_geoms, coalesce(en.ids, '{}'::varchar[]) as end_ids, coalesce(en.geoms, '{}'::geometry[]) as end_geoms
-from _albion.cell as c
+c.id as cell_id, g.id as graph_id, ed.starts, ed.ends, nd.hole_ids as hole_ids, nd.ids as node_ids, nd.geoms as node_geoms, en.ids as end_ids, en.geoms as end_geoms, c.geom, ARRAY[ha.id, hb.id, hc.id] as holes
+from  _albion.graph as g
+join _albion.cell as c on true
 join _albion.hole as ha on ha.collar_id = c.a
 join _albion.hole as hb on hb.collar_id = c.b
 join _albion.hole as hc on hc.collar_id = c.c
 join lateral (
-    select n.graph_id, array_agg(n.id) as ids, array_agg(n.hole_id) as hole_ids, array_agg(n.geom) as geoms
+    select coalesce(array_agg(n.id), '{}'::varchar[]) as ids, coalesce(array_agg(n.hole_id), '{}'::varchar[]) as hole_ids, coalesce(array_agg(n.geom), '{}'::geometry[]) as geoms
     from _albion.node as n
     where n.hole_id in (ha.id, hb.id, hc.id)
-    group by n.graph_id
-
+    and n.graph_id=g.id
 ) as nd on true
-left join lateral (   
-    select e.graph_id, array_agg(e.start_) as starts, array_agg(e.end_) as ends
+join lateral (   
+    select coalesce(array_agg(e.start_), '{}'::varchar[]) as starts, coalesce(array_agg(e.end_), '{}'::varchar[]) as ends
     from _albion.edge as e
     join _albion.node as ns on ns.id=e.start_
     join _albion.node as ne on ne.id=e.end_
     where ne.hole_id in (ha.id, hb.id, hc.id) and ns.hole_id in (ha.id, hb.id, hc.id)
-    group by e.graph_id
-) as ed on ed.graph_id=nd.graph_id
-left join lateral (
-    select en.graph_id, array_agg(en.node_id) as ids, array_agg(en.geom) as geoms
+    and e.graph_id=g.id
+) as ed on true
+join lateral (
+    select coalesce(array_agg(en.node_id), '{}'::varchar[]) as ids, coalesce(array_agg(en.geom), '{}'::geometry[]) as geoms
     from _albion.end_node as en
     join _albion.node as n on n.id=en.node_id
     where en.collar_id in (c.a, c.b, c.c)
     and n.hole_id in (ha.id, hb.id, hc.id)
-    group by en.graph_id
-) as en on en.graph_id=nd.graph_id
+    and en.graph_id=g.id
+) as en on true
 )
-select row_number() over() as id, cell_id, graph_id, albion.elementary_volumes(starts, ends, hole_ids, node_ids, node_geoms, end_ids, end_geoms)::geometry('MULTIPOLYGONZ', $SRID) as geom
+select cell_id, graph_id, albion.elementary_volumes(cell_id, graph_id, st_force3d(geom), holes, starts, ends, hole_ids, node_ids, node_geoms, end_ids, end_geoms)::geometry('MULTIPOLYGONZ', $SRID) as geom, starts, ends, holes, hole_ids, node_ids, end_ids, end_geoms
 from res
 ;
 

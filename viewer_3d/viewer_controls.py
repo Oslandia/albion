@@ -1,7 +1,7 @@
 # coding=UTF-8
 import os
-from qgis.core import *
-from qgis.gui import *
+#from qgis.core import *
+#from qgis.gui import *
 from PyQt4.QtCore import *
 from PyQt4.QtGui import *
 from PyQt4 import uic
@@ -30,6 +30,12 @@ class ViewerControls(QWidget):
 
         self.refreshButton.clicked.connect(self.__viewer.refresh_data)
 
-        self.__iface = iface
+        self.deleteButton.setCheckable(True)
+        self.addButton.setCheckable(True)
+        self.deleteButton.clicked.connect(partial(self.addButton.setChecked, False))
+        self.addButton.clicked.connect(partial(self.deleteButton.setChecked, False))
+        self.deleteButton.clicked.connect(self.__viewer.set_delete_tool)
+        self.addButton.clicked.connect(self.__viewer.set_add_tool)
 
+        self.__iface = iface
 

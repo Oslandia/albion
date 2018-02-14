@@ -2,8 +2,8 @@
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import sys
-from albion.project import Project
-from albion.viewer_3d import ViewerWindow
+from ..project import Project
+from .viewer_3d import ViewerWindow
 
 app = QApplication(sys.argv)
 
