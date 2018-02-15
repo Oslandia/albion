@@ -48,6 +48,7 @@ class Viewer3d(QGLWidget):
 
     def refresh_data(self):
         if self.scene and self.__project.has_collar:
+            self.__project.create_terminations(self.__param["graph_id"])
             self.__project.create_volumes(self.__param["graph_id"])
             self.resetScene(self.__project, False)
             self.update()
@@ -192,6 +193,9 @@ class Viewer3d(QGLWidget):
             glEnd()
             
     def highlight(self, x, y):
+        if x <=1 or y <=1 or x>=self.width()-1 or y>=self.height()-1:
+            return None
+
         if self.tool == "delete":
             self.paintGL(pick_layer="edge")
             return self.scene.highlight("edge", numpy.frombuffer(

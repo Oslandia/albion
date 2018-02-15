@@ -617,6 +617,49 @@ $$
 $$
 ;
 
+create or replace function albion.from_section(geom_ geometry, anchor_ geometry, section_ geometry, z_scale_ real)
+returns geometry
+language plpython3u immutable
+as
+$$
+    import plpy
+    from shapely.ops import transform 
+    from shapely.geometry import LineString
+    from shapely import wkb
+    from shapely import geos
+    from numpy import array, dot
+    from numpy.linalg import norm
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    if geom_ is None:
+        return None
+    g = wkb.loads(geom_, True)
+    a = wkb.loads(anchor_, True)
+    s = wkb.loads(section_, True)
+
+    orig = array(a.coords[0])
+    dir_ = array(a.coords[-1]) - orig
+    dir_ /= norm(dir_)
+    nrml_ = array([-dir_[1] , dir_[0]])
+
+    if g.type == 'LineString':
+        xy = array(g.coords)
+        points = []
+        for p in xy:
+            z = dot(nrml_, p-orig)/z_scale_
+            big_distance = 100*z_scale_*z
+            # intersection between section geom and line extending from point in the normal direction
+            plpy.warning(big_distance, nrml_, z, p, s.intersection(LineString([p-nrml_*big_distance, p+nrml_*big_distance])).wkt)
+            x, y = s.intersection(LineString([p-nrml_*big_distance, p+nrml_*big_distance])).coords[0]
+            points.append((x,y,z))
+        result = LineString(points)
+    else:
+        assert(False)
+    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(g._geom))
+    return result.wkb_hex
+$$
+;
+
 create /*materialized*/ view albion.radiometry_section as
 select r.id as radiometry_id, s.id as section_id, 
     (albion.to_section(r.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
@@ -1192,6 +1235,30 @@ $$
 $$
 ;
 
+create or replace function albion.volume_of_geom(multipoly geometry)
+returns real
+language plpython3u immutable
+as
+$$
+    from shapely import wkb
+    import plpy
+    from numpy import array, average
+
+    m = wkb.loads(multipoly, True)
+    volume = 0
+    for p in m:
+        r = p.exterior.coords
+        v210 = r[2][0]*r[1][1]*r[0][2];
+        v120 = r[1][0]*r[2][1]*r[0][2];
+        v201 = r[2][0]*r[0][1]*r[1][2];
+        v021 = r[0][0]*r[2][1]*r[1][2];
+        v102 = r[1][0]*r[0][1]*r[2][2];
+        v012 = r[0][0]*r[1][1]*r[2][2];
+        volume += (1./6.)*(-v210 + v120 + v201 - v021 - v102 + v012)
+    return volume
+$$
+;
+
 
 create or replace function albion.volume_union(multipoly geometry)
 returns geometry
@@ -1404,7 +1471,7 @@ with collar_idx as (
     from _albion.section as s
     join _albion.collar as c on st_intersects(s.geom, c.geom)
 )
-select row_number() over() as id, n.id as node_id, tn.graph_id, s.id as section_id, 
+select  tn.id||' '||s.id as id, tn.id as end_node_id, n.id as node_id, tn.graph_id, s.id as section_id, 
     (albion.to_section(tn.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom,
     (albion.to_section(n.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as node_geom
 from _albion.end_node as tn
@@ -1414,6 +1481,40 @@ join _albion.section as s on true
 join collar_idx as cn on (cn.collar_id=h.collar_id and cn.section_id=s.id)
 join collar_idx as cc on (cc.collar_id=tn.collar_id and cc.section_id=s.id)
 where cn.rk=cc.rk+1 or cc.rk=cn.rk+1
+;
+
+create or replace function albion.current_end_node_section_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    declare
+        anchor_ geometry;
+        section_ geometry;
+        z_scale_ real;
+    begin
+        if tg_op = 'INSERT' then
+            raise exception 'cannot insert en new node';
+            return new;
+        elsif tg_op = 'UPDATE' then
+            select anchor, geom, scale from _albion.section 
+            where id=old.section_id into anchor_, section_, z_scale_;
+            raise notice 'update % % %', new.geom, old.section_id, old.end_node_id;
+            update _albion.end_node set 
+                geom=albion.from_section(new.geom, anchor_, section_, z_scale_)
+                where id=old.end_node_id;
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from _albion.end_node where id=old.id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger current_end_node_section_instead_trig
+    instead of insert or update or delete on albion.current_end_node_section
+       for each row execute procedure albion.current_end_node_section_instead_fct()
 ;
 
 
@@ -1453,6 +1554,23 @@ term as (
 select row_number() over() as id, geom, graph_id, section_id
 from (select * from poly union all select * from term) as t
 ;
+
+create or replace view albion.current_section_intersection as
+with inter as (
+    select st_collectionextract((st_dump(st_intersection(a.geom, b.geom))).geom, 3) as geom
+    from albion.current_section_polygon as a, albion.current_section_polygon as b
+    where a.id>b.id
+    and a.graph_id=b.graph_id
+    and a.section_id=b.section_id
+    and st_intersects(a.geom, b.geom)
+    and st_area(st_intersection(a.geom, b.geom)) > 0
+)
+select row_number() over() as id, geom::geometry('POLYGON', $SRID)
+from inter
+where not st_isempty(geom)
+;
+
+
 
 create or replace view albion.dynamic_volume as
 with res as (

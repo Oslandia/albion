@@ -83,6 +83,7 @@ class Scene(QObject):
                 "edge": None}
 
         self.shaders = None
+        self.shaders_color_location = None 
 
         for layer in ['node', 'edge', 'volume', 'section', 'error']:
             self.update(layer)
@@ -90,6 +91,7 @@ class Scene(QObject):
     def compileShaders(self):
         vertex_shader = shaders.compileShader("""
             #extension GL_OES_standard_derivatives : enable
+            uniform vec4 uColor;
             varying vec3 N;
             varying vec3 v;
             varying vec3 vBC;
@@ -105,6 +107,7 @@ class Scene(QObject):
             """, GL_VERTEX_SHADER)
 
         fragment_shader = shaders.compileShader("""
+            uniform vec4 uColor;
             varying vec3 N;
             varying vec3 v;
             varying vec3 vBC;
@@ -117,7 +120,7 @@ class Scene(QObject):
             void main(void)
             {
                 vec3 L = normalize(gl_LightSource[0].position.xyz - v);   
-                vec4 Idiff = gl_FrontLightProduct[0].diffuse * max(dot(N,L), 0.);  
+                vec4 Idiff = gl_FrontLightProduct[0].diffuse * max(dot(N,L), 0.)*uColor;  
                 Idiff = clamp(Idiff, 0.0, 1.0); 
 
                 if (Idiff==vec4(0.))
@@ -141,6 +144,8 @@ class Scene(QObject):
             """, GL_FRAGMENT_SHADER)
 
         self.shaders = shaders.compileProgram(vertex_shader, fragment_shader)
+        self.shaders_color_location = glGetUniformLocation(self.shaders, 'uColor')
+        print(self.shaders_color_location)
 
 
     def highlight(self, layer, color):
@@ -212,9 +217,13 @@ class Scene(QObject):
 
         if not self.shaders:
             self.compileShaders()
+
         glUseProgram(self.shaders)
 
+        color = {'volume':[.7,.7,.7,1.], 
+                 'error':[.8,.5,.5,1.]}
         for layer in ['volume', 'error']:
+            glUniform4fv(self.shaders_color_location, 1, color[layer])
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
                     self.update(layer)
@@ -224,9 +233,6 @@ class Scene(QObject):
                     glColorPointer(3, GL_UNSIGNED_BYTE, 0, texcoord)
                     glNormalPointerf(self.nrml[layer])
                     glDrawElementsui(GL_TRIANGLES, self.idx[layer])
-                    #glLineWidth(1)
-                    #glColor4f(0,0,0,1)
-                    #glDrawElementsui(GL_LINE_LOOP, self.idx[layer])
         glDisableClientState(GL_COLOR_ARRAY)
 
         glUseProgram(0)
@@ -235,8 +241,8 @@ class Scene(QObject):
         glDisable(GL_LIGHTING)
         glDisableClientState(GL_NORMAL_ARRAY)
         glDisableClientState(GL_TEXTURE_COORD_ARRAY)
-        color = {'node':[0.,0.,0.,1.], 
-                 'edge':[0.,0.,.7,1.]}
+        color = {'node':numpy.array([5.,.3,0.,1.]), 
+                 'edge':numpy.array([0.,0.,.7,1.])}
         for layer in ['node', 'edge']:
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
@@ -248,9 +254,12 @@ class Scene(QObject):
                     glDrawElementsui(GL_LINES, self.idx[layer])
                     glDisableClientState(GL_COLOR_ARRAY)
                     if self.highlighted_idx[layer] is not None:
+                        glDisable(GL_DEPTH_TEST)
                         glLineWidth(6)
+                        glColor4f(*(numpy.array([.3,.3,.3, 0.]) + color[layer]))
                         a = numpy.array(self.idx[layer][self.highlighted_idx[layer]])
                         glDrawElementsui(GL_LINES, a)
+                        glEnable(GL_DEPTH_TEST)
         
         # current section, highlight nodes
         glDisable(GL_DEPTH_TEST)
@@ -422,6 +431,7 @@ class Scene(QObject):
                     from albion.volume
                     where graph_id='{}'
                     and albion.is_closed_volume(triangulation)
+                    and albion.volume_of_geom(triangulation) > 1
                     """.format(self.__param["graph_id"]))
                 geom = wkb.loads(cur.fetchone()[0], True)
                 self.vtx[layer] = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
@@ -436,7 +446,7 @@ class Scene(QObject):
                     select st_collectionhomogenize(coalesce(st_collect(triangulation), 'GEOMETRYCOLLECTION EMPTY'::geometry))
                     from albion.volume
                     where graph_id='{}'
-                    and not albion.is_closed_volume(triangulation)
+                    and (not albion.is_closed_volume(triangulation) or albion.volume_of_geom(triangulation) <= 1)
                     """.format(self.__param["graph_id"]))
                 geom = wkb.loads(cur.fetchone()[0], True)
                 self.vtx[layer] = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')

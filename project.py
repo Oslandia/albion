@@ -451,6 +451,7 @@ class Project(object):
                 from albion.volume
                 where graph_id='{}'
                 and albion.is_closed_volume(triangulation)
+                and  albion.volume_of_geom(triangulation) > 1
                 """.format(graph_id))
             open(filename, 'w').write(cur.fetchone()[0])
 
@@ -461,7 +462,8 @@ class Project(object):
                 select albion.to_obj(st_collectionhomogenize(st_collect(triangulation)))
                 from albion.volume
                 where graph_id='{}'
-                and not albion.is_closed_volume(triangulation)
+                and (not albion.is_closed_volume(triangulation) or albion.volume_of_geom(triangulation) <= 1)
+
                 """.format(graph_id))
             open(filename, 'w').write(cur.fetchone()[0])
 
@@ -474,6 +476,7 @@ class Project(object):
                 from albion.volume
                 where graph_id='{}'
                 and albion.is_closed_volume(triangulation)
+                and  albion.volume_of_geom(triangulation) > 1
                 """.format(graph_id))
             drawing = dxf.drawing(filename)
             m = wkb.loads(cur.fetchone()[0], True)
