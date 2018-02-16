@@ -16,20 +16,29 @@ class ViewerControls(QWidget):
 
         self.__viewer.setZscale(self.zScaleSlider.value())
 
-        self.__viewer.toggle_labels(self.labelsCheckBox.isChecked())
-        self.__viewer.toggle_nodes(self.nodesCheckBox.isChecked())
-        self.__viewer.toggle_edges(self.edgesCheckBox.isChecked())
-        self.__viewer.toggle_volumes(self.volumesCheckBox.isChecked())
+        menu = QMenu()
+        for l, c, t in [
+                ('labels', self.__viewer.toggle_labels, False),
+                ('nodes', self.__viewer.toggle_nodes, True),
+                ('edges', self.__viewer.toggle_edges, True),
+                ('ends', self.__viewer.toggle_ends, True),
+                ('volumes', self.__viewer.toggle_volumes, False),
+                ('errors', self.__viewer.toggle_errors, False),
+                ]:
+            a = menu.addAction(l)
+            a.setCheckable(True)
+            a.triggered.connect(c)
+            a.setChecked(t)
+            c(t)
+
+        self.layerButton.setMenu(menu)
 
         self.zScaleSlider.valueChanged.connect(self.__viewer.setZscale)
-
-        self.labelsCheckBox.toggled.connect(self.__viewer.toggle_labels)
-        self.nodesCheckBox.toggled.connect(self.__viewer.toggle_nodes)
-        self.edgesCheckBox.toggled.connect(self.__viewer.toggle_edges)
-        self.volumesCheckBox.toggled.connect(self.__viewer.toggle_volumes)
-        self.errorCheckBox.toggled.connect(self.__viewer.toggle_errors)
+        self.transparencySlider.valueChanged.connect(self.__viewer.setTransparencyPercent)
 
         self.refreshButton.clicked.connect(self.__viewer.refresh_data)
+
+        self.xyButton.clicked.connect(self.__viewer.set_xy_pov)
 
         self.deleteButton.setCheckable(True)
         self.addButton.setCheckable(True)

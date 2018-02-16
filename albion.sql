@@ -1235,6 +1235,31 @@ $$
 $$
 ;
 
+create or replace function albion.mesh_boundarie(multipoly geometry)
+returns geometry
+language plpython3u immutable
+as
+$$
+    from shapely import wkb
+    from shapely.geometry import MultiLineString
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    m = wkb.loads(multipoly, True)
+
+    edges = set()
+    for p in m:
+        for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
+            if (e, s) in edges:
+                edges.remove((e, s))
+            else:
+                edges.add((s, e))
+    result = MultiLineString(list(edges))
+    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(m._geom))
+    return result
+$$
+;
+
 create or replace function albion.volume_of_geom(multipoly geometry)
 returns real
 language plpython3u immutable
@@ -1438,6 +1463,7 @@ $$
     geos.WKBWriter.defaults['include_srid'] = True
     
     REL_DISTANCE = .3
+    HEIGHT = 1.
 
     node_geom = wkb.loads(node_geom_, True)
     collar_geom = wkb.loads(collar_geom_, True)
@@ -1447,9 +1473,8 @@ $$
     dir = array(collar_geom.coords[0]) - center
     dir[2] = 0
     dir *= REL_DISTANCE
-    h = 1.
-    top = center + dir + array([0,0,.5*h])
-    bottom = center + dir - array([0,0,.5*h])
+    top = center + dir + array([0,0,.5*HEIGHT])
+    bottom = center + dir - array([0,0,.5*HEIGHT])
     result = LineString([tuple(top), tuple(bottom)])
     geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(node_geom._geom))
     return result.wkb_hex

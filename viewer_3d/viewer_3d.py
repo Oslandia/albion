@@ -30,12 +30,14 @@ class Viewer3d(QGLWidget):
         self.__param = {
                 "label": False,
                 "node": False,
+                "end": False,
                 "edge": False,
                 "volume": False,
                 "error": False,
                 "section": True,
                 "z_scale": 1,
-                "graph_id": "330"
+                "graph_id": "330",
+                "transparency": 0.
                 }
         self.__project = project
         self.resetScene(project)
@@ -48,8 +50,8 @@ class Viewer3d(QGLWidget):
 
     def refresh_data(self):
         if self.scene and self.__project.has_collar:
-            self.__project.create_terminations(self.__param["graph_id"])
-            self.__project.create_volumes(self.__param["graph_id"])
+            #self.__project.create_terminations(self.__param["graph_id"])
+            #self.__project.create_volumes(self.__param["graph_id"])
             self.resetScene(self.__project, False)
             self.update()
 
@@ -67,6 +69,18 @@ class Viewer3d(QGLWidget):
             self.camera = Camera(QVector3D(10, 10, -10), QVector3D(0, 0, 0))
         self.__project = project
 
+    def set_xy_pov(self):
+        at = self.scene.center
+        ext_y = self.scene.extent[3] - self.scene.extent[1]
+        eye = at + QVector3D(0, 0, 1.5*ext_y)
+        up = QVector3D(0, 1, 0)
+        self.camera.reset(Camera(eye, at, up))
+        
+
+    def setTransparencyPercent(self, value):
+        self.__param["transparency"]=value/100.
+        self.update()
+
     def setZscale(self, value):
         self.__param["z_scale"]=value
         self.update()
@@ -77,6 +91,10 @@ class Viewer3d(QGLWidget):
 
     def toggle_nodes(self, state):
         self.__param["node"] = state
+        self.update()
+
+    def toggle_ends(self, state):
+        self.__param["end"] = state
         self.update()
 
     def toggle_edges(self, state):
@@ -254,6 +272,5 @@ class ViewerWindow(QMainWindow):
         self.viewer = Viewer3d(project, self)
         self.viewer.show()
         self.setCentralWidget(self.viewer)
-        self.controls = QDockWidget(self)
-        self.controls.setWidget(ViewerControls(self.viewer, self))
-        self.addDockWidget(Qt.RightDockWidgetArea, self.controls)
+        self.controls = self.addToolBar("Albion 3D toolbar")
+        self.controls.addWidget(ViewerControls(self.viewer, self))

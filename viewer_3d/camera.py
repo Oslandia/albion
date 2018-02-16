@@ -11,10 +11,15 @@ class Camera(object):
         self.up0 = QVector3D(up)
         self.reset()
 
-    def reset(self):
-        self.at = QVector3D(self.at0)
-        self.eye = QVector3D(self.eye0)
-        self.up = QVector3D(self.up0)
+    def reset(self, other=None):
+        if other is None:
+            self.at = QVector3D(self.at0)
+            self.eye = QVector3D(self.eye0)
+            self.up = QVector3D(self.up0)
+        else:
+            self.at = other.at
+            self.eye = other.eye
+            self.up = other.up
 
     def move(self, delta_x, delta_y, buttons, modifiers):
         # user is dragging

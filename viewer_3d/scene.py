@@ -9,6 +9,7 @@ from PyQt4.QtCore import *
 
 from .utility import computeNormals
 from shapely import wkb
+import traceback
 
 class Scene(QObject):
     
@@ -19,16 +20,6 @@ class Scene(QObject):
         super(Scene, self).__init__(parent)
         self.__textureBinder = texture_binder
         self.__old_param = dict(param)
-        #{
-        #        "label": False,
-        #        "node": False,
-        #        "edge": False,
-        #        "volume": False,
-        #        "error": False,
-        #        "section": False,
-        #        "z_scale": 1,
-        #        "graph_id": "330"
-        #        }
         self.__param = param
 
         self.__project = project
@@ -58,20 +49,25 @@ class Scene(QObject):
                 "edge":None,
                 "section":None,
                 "volume":None,
-                "error":None}
+                "error":None,
+                "end": None,
+                "inconsistency":None}
         self.idx = {
                 "node":None,
                 "edge":None,
                 "section":None,
                 "volume":None,
-                "error":None}
+                "error":None,
+                "end":None}
 
         self.idx_to_id_map = {
                 "node":{},
-                "edge":{}}
+                "edge":{},
+                "end":{}}
         self.pick_color = {
                 "node":None,
-                "edge":None}
+                "edge":None,
+                "end":None}
         self.nrml = {
                 "volume":None,
                 "error":None}
@@ -80,18 +76,17 @@ class Scene(QObject):
 
         self.highlighted_idx = {
                 "node": None,
-                "edge": None}
+                "edge": None,
+                "end":None}
 
         self.shaders = None
         self.shaders_color_location = None 
-
-        for layer in ['node', 'edge', 'volume', 'section', 'error']:
-            self.update(layer)
-
+        
     def compileShaders(self):
         vertex_shader = shaders.compileShader("""
             #extension GL_OES_standard_derivatives : enable
             uniform vec4 uColor;
+            uniform float uTransparency;
             varying vec3 N;
             varying vec3 v;
             varying vec3 vBC;
@@ -108,6 +103,7 @@ class Scene(QObject):
 
         fragment_shader = shaders.compileShader("""
             uniform vec4 uColor;
+            uniform float uTransparency;
             varying vec3 N;
             varying vec3 v;
             varying vec3 vBC;
@@ -125,12 +121,14 @@ class Scene(QObject):
 
                 if (Idiff==vec4(0.))
                 {
-                    Idiff = vec4(1., 0., 0., 0.) * max(dot(-N,L), 0.);  
+                    Idiff = (uTransparency > 0. ? gl_FrontLightProduct[0].diffuse : vec4(1., 0., 0., 0.))
+                        * max(dot(-N,L), 0.);  
                     //Idiff = vec4(1., 0., 0., 0.);
                     Idiff = clamp(Idiff, 0.0, 1.0); 
                 }
 
                 gl_FragColor.rgb = mix(vec3(0.0), Idiff.xyz, edgeFactor());
+                gl_FragColor.a = 1. - uTransparency;
 
                 //if(any(lessThan(vBC, vec3(0.02)))){
                 //    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
@@ -145,6 +143,7 @@ class Scene(QObject):
 
         self.shaders = shaders.compileProgram(vertex_shader, fragment_shader)
         self.shaders_color_location = glGetUniformLocation(self.shaders, 'uColor')
+        self.shaders_transp_location = glGetUniformLocation(self.shaders, 'uTransparency')
         print(self.shaders_color_location)
 
 
@@ -202,8 +201,6 @@ class Scene(QObject):
         glEnable(GL_DEPTH_TEST)
         glEnableClientState(GL_VERTEX_ARRAY)
         glDisableClientState(GL_TEXTURE_COORD_ARRAY)
-        glEnableClientState(GL_COLOR_ARRAY)
-        glEnableClientState(GL_NORMAL_ARRAY)
 
         if self.__param["graph_id"] != self.__old_param["graph_id"]:
             self.setGraph(self.__param["graph_id"])
@@ -211,39 +208,15 @@ class Scene(QObject):
         if self.__param["z_scale"] != self.__old_param["z_scale"]:
             self.setZscale(self.__param["z_scale"])
 
-        glEnable(GL_LIGHTING)
-        glEnable(GL_LIGHT0)
-        glLightModelfv(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE)
-
-        if not self.shaders:
-            self.compileShaders()
-
-        glUseProgram(self.shaders)
-
-        color = {'volume':[.7,.7,.7,1.], 
-                 'error':[.8,.5,.5,1.]}
-        for layer in ['volume', 'error']:
-            glUniform4fv(self.shaders_color_location, 1, color[layer])
-            if self.__param[layer]:
-                if self.__param[layer] != self.__old_param[layer]:
-                    self.update(layer)
-                if len(self.vtx[layer]):
-                    texcoord = numpy.array([((255,0,0),(0,255,0),(0,0,255))]*len(self.vtx[layer]), dtype=numpy.uint8)
-                    glVertexPointerf(self.vtx[layer])
-                    glColorPointer(3, GL_UNSIGNED_BYTE, 0, texcoord)
-                    glNormalPointerf(self.nrml[layer])
-                    glDrawElementsui(GL_TRIANGLES, self.idx[layer])
-        glDisableClientState(GL_COLOR_ARRAY)
-
-        glUseProgram(0)
 
         glDisable(GL_COLOR_MATERIAL)
         glDisable(GL_LIGHTING)
         glDisableClientState(GL_NORMAL_ARRAY)
         glDisableClientState(GL_TEXTURE_COORD_ARRAY)
-        color = {'node':numpy.array([5.,.3,0.,1.]), 
-                 'edge':numpy.array([0.,0.,.7,1.])}
-        for layer in ['node', 'edge']:
+        color = {'node':numpy.array([.5,.2,0.,1.]), 
+                 'edge':numpy.array([0.,0.,.7,1.]),
+                 'end':numpy.array([.5,.4,.7,1.])}
+        for layer in ['node', 'edge', 'end']:
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
                     self.update(layer)
@@ -261,6 +234,40 @@ class Scene(QObject):
                         glDrawElementsui(GL_LINES, a)
                         glEnable(GL_DEPTH_TEST)
         
+        
+        # render volume
+        glDisable(GL_DEPTH_TEST)
+        glEnableClientState(GL_COLOR_ARRAY)
+        glEnableClientState(GL_NORMAL_ARRAY)
+        glEnable(GL_LIGHTING)
+        glEnable(GL_LIGHT0)
+        glLightModelfv(GL_LIGHT_MODEL_TWO_SIDE, GL_TRUE)
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+        if not self.shaders:
+            self.compileShaders()
+
+        glUseProgram(self.shaders)
+
+        color = {'volume':[.7,.7,.7,1.], 
+                 'error':[.8,.5,.5,1.]}
+        for layer in ['volume', 'error']:
+            glUniform4fv(self.shaders_color_location, 1, color[layer])
+            glUniform1f(self.shaders_transp_location, self.__param["transparency"])
+            if self.__param[layer]:
+                if self.__param[layer] != self.__old_param[layer]:
+                    self.update(layer)
+                if len(self.vtx[layer]):
+                    texcoord = numpy.array([((255,0,0),(0,255,0),(0,0,255))]*len(self.vtx[layer]), dtype=numpy.uint8)
+                    glVertexPointerf(self.vtx[layer])
+                    glColorPointer(3, GL_UNSIGNED_BYTE, 0, texcoord)
+                    glNormalPointerf(self.nrml[layer])
+                    glDrawElementsui(GL_TRIANGLES, self.idx[layer])
+        glDisableClientState(GL_COLOR_ARRAY)
+
+        glUseProgram(0)
+
         # current section, highlight nodes
         glDisable(GL_DEPTH_TEST)
         glLineWidth(2)
@@ -268,14 +275,10 @@ class Scene(QObject):
         glColor4f(1., 1., 0., 1.)
         if self.__param['section'] != self.__old_param['section']:
             self.update('section')
-        if len(self.vtx['section']):
+        if self.vtx['section'] and len(self.vtx['section']):
             glVertexPointerf(self.vtx['section'])
             glDrawElementsui(GL_LINES, self.idx['section'])
             glDrawArrays(GL_POINTS, 0, len(self.vtx['section']))
-        
-
-        
-
 
         glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [0., 0., 0., 1.])
 
@@ -377,6 +380,40 @@ class Scene(QObject):
                 self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
                 self.pick_color[layer] = numpy.array(colors, dtype=numpy.uint8)
 
+            elif layer=='end':
+                cur.execute("""
+                    select 
+                        array_agg(n.id),
+                        coalesce(st_collect(e.geom), 'GEOMETRYCOLLECTION EMPTY'::geometry),
+                        coalesce(st_collect(st_makeline(
+                            st_3dlineinterpolatepoint(n.geom,.5), 
+                            st_3dlineinterpolatepoint(e.geom,.5))), 'GEOMETRYCOLLECTION EMPTY'::geometry)
+                    from albion.end_node as e
+                    join albion.node as n on n.id=e.node_id
+                    where e.graph_id='{}'
+                    """.format(self.__param["graph_id"]))
+                res = cur.fetchone()
+                lines = wkb.loads(res[1], True)
+                edges = wkb.loads(res[2], True)
+                lines_ids = res[0]
+                vtx = []
+                idx = []
+                colors = []
+                for line, edge, id_ in zip(lines, edges, lines_ids):
+                    elt = len(idx)
+                    self.idx_to_id_map[layer][elt] = id_
+                    colors += [(elt >> 16 & 0xff, elt >>  8 & 0xff, elt >>  0 & 0xff, 255)]*(len(line.coords)+len(edge.coords))
+                    idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
+                    vtx += list(line.coords)
+                    idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(edge.coords)-1)]
+                    vtx += list(edge.coords)
+                self.vtx[layer] = numpy.array(vtx, dtype=numpy.float32)
+                if len(vtx):
+                    self.vtx[layer] += self.__offset
+                    self.vtx[layer][:,2] *= self.__param["z_scale"]
+                self.idx[layer] = numpy.array(idx, dtype=numpy.int32)
+                self.pick_color[layer] = numpy.array(colors, dtype=numpy.uint8)
+
             elif layer=='section':
 
                 cur.execute("""
@@ -459,15 +496,16 @@ class Scene(QObject):
             self.__old_param[layer] = self.__param[layer]
 
     def setGraph(self, graph_id):
-        for layer in ['node', 'edge', 'volume', 'section', 'error']:
-            self.update(layer)
+        for layer in ['node', 'edge', 'volume', 'section', 'error', 'end']:
+            if self.__param[layer] != self.__old_param[layer]:
+                self.update(layer)
         self.__old_param["graph_id"] = graph_id
 
 
     def setZscale(self, scale):
         factor = float(scale)/self.__old_param["z_scale"]
 
-        for layer in ['node', 'edge', 'volume', 'section', 'error']:
+        for layer in ['node', 'edge', 'volume', 'section', 'error', 'end']:
             if self.vtx[layer] is not None:
                 self.vtx[layer][:,2] *= factor
                 if layer in ['volume', 'error']:

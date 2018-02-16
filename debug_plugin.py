@@ -90,7 +90,7 @@ class Plugin(QObject):
 
         self.__toolbar.addAction(icon('next_line.svg'), 'next section').triggered.connect(self.__next_section)
 
-        self.__toolbar.addAction(icon('line_from_selected.svg'), 'grid from selected collar').triggered.connect(self.__section_from_selection)
+        self.__toolbar.addAction(icon('line_from_selected.svg'), 'create temporary section').triggered.connect(self.__section_from_selection)
 
 
         self.__viewer3d = QDockWidget('3D')
@@ -100,12 +100,9 @@ class Plugin(QObject):
                 self.__iface.mainWindow().findChild(QDockWidget, "Layers"),
                 self.__viewer3d)
 
-        self.__viewer3d_ctrl = QDockWidget('3D controls')
-        self.__viewer3d_ctrl.setWidget(ViewerControls(self.__viewer3d.widget()))
-        self.__iface.addDockWidget(Qt.LeftDockWidgetArea, self.__viewer3d_ctrl)
-        self.__iface.mainWindow().tabifyDockWidget(
-                self.__iface.mainWindow().findChild(QDockWidget, "Layers"),
-                self.__viewer3d_ctrl)
+        self.__viewer3d_ctrl = QToolBar('3D controls')
+        self.__viewer3d_ctrl.addWidget(ViewerControls(self.__viewer3d.widget()))
+        self.__iface.addToolBar(self.__viewer3d_ctrl)
         
         QgsProject.instance().readProject.connect(self.__qgis__project__loaded)
         self.__qgis__project__loaded() # case of reload
