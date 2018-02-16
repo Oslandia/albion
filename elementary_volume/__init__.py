@@ -417,6 +417,13 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     to_vtk(MultiLineString([LineString([k, v]) for k, v in offsets.items()]).wkb_hex))
 
         # create terminations
+        edges = set()
+        for t in term_tri:
+            for s, e in zip(t.exterior.coords[:-1], t.exterior.coords[1:]):
+                if (e, s) in edges:
+                    edges.remove((e, s))
+                else:
+                    edges.add((s, e))
         for t in term_tri:
             share = False
             for d in domain_tri:
@@ -428,12 +435,14 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
             termination.append(t)
             termination.append(Polygon(offset_coords(offsets, t.exterior.coords[::-1])))
             for s in zip(t.exterior.coords[:-1], t.exterior.coords[1:]):
-                if is_segment(s, top_lines) or is_segment(s, bottom_lines) or s in end_lines :
-                    termination.append(Polygon([s[0], offsets[s[1]], s[1]]))
-                    termination.append(Polygon([s[0], offsets[s[0]], offsets[s[1]]]))
-                if (s[1], s[0]) in end_lines:
-                    termination.append(Polygon([s[0], offsets[s[0]], s[1]]))
-                    termination.append(Polygon([offsets[s[0]], offsets[s[1]], s[1]]))
+                if s in edges:
+                    if is_segment(s, top_lines) or is_segment(s, bottom_lines) or s in end_lines :
+                        termination.append(Polygon([offsets[s[0]], s[1], s[0]]))
+                        termination.append(Polygon([offsets[s[0]], offsets[s[1]], s[1]]))
+                    if (s[1], s[0]) in end_lines:
+                        termination.append(Polygon([s[1], s[0], offsets[s[1]]]))
+                        termination.append(Polygon([s[0], offsets[s[0]], offsets[s[1]]]))
+
     if DEBUG:
         open("/tmp/faces.obj", 'w').write(to_obj(MultiPolygon(result).wkb_hex))
         open("/tmp/term.obj", 'w').write(to_obj(MultiPolygon(termination).wkb_hex))

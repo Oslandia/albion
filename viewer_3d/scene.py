@@ -236,7 +236,10 @@ class Scene(QObject):
         
         
         # render volume
-        glDisable(GL_DEPTH_TEST)
+        if self.__param["transparency"] > 0.:
+            glDisable(GL_DEPTH_TEST)
+        else:
+            glEnable(GL_DEPTH_TEST)
         glEnableClientState(GL_COLOR_ARRAY)
         glEnableClientState(GL_NORMAL_ARRAY)
         glEnable(GL_LIGHTING)

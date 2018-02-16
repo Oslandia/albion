@@ -15,6 +15,7 @@ class ViewerControls(QWidget):
         self.__viewer = viewer
 
         self.__viewer.setZscale(self.zScaleSlider.value())
+        self.__viewer.setTransparencyPercent(self.transparencySlider.value())
 
         menu = QMenu()
         for l, c, t in [
