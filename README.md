@@ -1,13 +1,12 @@
-Build 3D geological model from wells information
-################################################
+# Build 3D geological model from wells information
 
 This plugin provides tools to create 3D geological models in QGIS.
 
 **Note** 
   - The created layers are memory layers, the data are not saved, you should use the "save as" qgis function if you plan to store the layer as a shapefile or spatialite layer, you can also cpy/paste the layer feature in a postgis layer that has the right structure. This is intended to maximize flexibility of the source data format.
 
-Quick dev install
-=================
+## Quick dev install
+
 
 You have to install the following dependencies:
 
@@ -33,8 +32,7 @@ pytest
 ```
 
 
-Process
-=======
+## Process
 
 - Create project (no caps, no space, no accents in project name)
 - Import data directory
@@ -45,8 +43,7 @@ Process
 - Check graph, you can extend sections to interpolated either section by section of globaly with the Albion menu entry
 
 
-Interface
-=========
+## Interface
 
 - Albion Menu: 
     - new project (create db and load layers)
