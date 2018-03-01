@@ -159,7 +159,6 @@ class Scene(QObject):
 
     def delete_highlighted(self, layer):
         if self.highlighted_idx[layer] in  self.idx_to_id_map[layer]:
-            print("delete", layer, self.idx_to_id_map[layer][self.highlighted_idx[layer]])
             with self.__project.connect() as con:
                 cur = con.cursor()
                 if layer == "edge":
@@ -175,7 +174,6 @@ class Scene(QObject):
                 insert into albion.edge(start_, end_, graph_id) values('{}', '{}', '{}')
             """.format(start, end, self.__param["graph_id"]))
             con.commit()
-        print("add edge", start, end)
 
     def pickrendergl(self, layer):
         glDisable(GL_COLOR_MATERIAL)

@@ -85,7 +85,6 @@ class Project(object):
     def create(project_name, srid):
         assert(not Project.exists(project_name))
 
-        print "create database", project_name
         with psycopg2.connect("dbname=postgres {}".format(cluster_params())) as con:
             cur = con.cursor()
             con.set_isolation_level(0)
@@ -116,7 +115,6 @@ class Project(object):
             cur.execute("drop schema if exists albion cascade")
             include_elementary_volume = open(os.path.join(os.path.dirname(__file__), 'elementary_volume', '__init__.py')).read()
             for statement in open(os.path.join(os.path.dirname(__file__), 'albion.sql')).read().split('\n;\n')[:-1]:
-                #print statement.replace('$SRID', str(srid))
                 cur.execute(statement.replace('$SRID', str(srid)).replace('$INCLUDE_ELEMENTARY_VOLUME', include_elementary_volume))
             con.commit()
 
@@ -313,7 +311,6 @@ class Project(object):
             cur.execute("select srid from albion.metadata")
             srid, = cur.fetchone()
             for statement in open(file_).read().split('\n;\n')[:-1]:
-                #print statement.replace('$SRID', str(srid))
                 cur.execute(statement.replace('$SRID', str(srid)))
             con.commit()
         
@@ -402,7 +399,6 @@ class Project(object):
                 insert into albion.group default values returning id
                 """)
             group, = cur.fetchone()
-            print "new group", group
             cur.executemany("""
                 insert into albion.group_cell(section_id, cell_id, group_id) values(%s, %s, %s)
                 """,
