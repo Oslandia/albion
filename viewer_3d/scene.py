@@ -269,7 +269,11 @@ class Scene(QObject):
         glUseProgram(0)
 
         # current section, highlight nodes
+        glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [1., 1., 0., 1.])
+        glDisableClientState(GL_COLOR_ARRAY)
+        glDisableClientState(GL_NORMAL_ARRAY)
         glDisable(GL_DEPTH_TEST)
+        glDisable(GL_BLEND)
         glLineWidth(2)
         glPointSize(3)
         glColor4f(1., 1., 0., 1.)

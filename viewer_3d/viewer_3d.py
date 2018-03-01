@@ -34,9 +34,9 @@ class Viewer3d(QGLWidget):
                 "edge": False,
                 "volume": False,
                 "error": False,
-                "section": True,
+                "section": False,
                 "z_scale": 1,
-                "graph_id": "330",
+                "graph_id": None,
                 "transparency": 0.
                 }
         
@@ -65,6 +65,11 @@ class Viewer3d(QGLWidget):
                 ext_y = self.scene.extent[3] - self.scene.extent[1]
                 eye = at + QVector3D(0, -1.5*ext_y , 0.5*ext_y)
                 self.camera = Camera(eye, at)
+
+            if self.__param['graph_id']:
+                for layer in ['node', 'edge', 'volume', 'section', 'error', 'end']:
+                    self.scene.update(layer)
+            self.update()
         else:
             self.scene and self.scene.setParent(None)
             self.scene = None
@@ -126,7 +131,7 @@ class Viewer3d(QGLWidget):
 
     def set_graph(self, graph_id):
         self.__param["graph_id"] = graph_id
-        self.update()
+        self.refresh_data()
 
     def resizeGL(self, width, height):
         height = 1 if not height else height
