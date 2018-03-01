@@ -144,7 +144,6 @@ class Scene(QObject):
         self.shaders = shaders.compileProgram(vertex_shader, fragment_shader)
         self.shaders_color_location = glGetUniformLocation(self.shaders, 'uColor')
         self.shaders_transp_location = glGetUniformLocation(self.shaders, 'uTransparency')
-        print(self.shaders_color_location)
 
 
     def highlight(self, layer, color):
@@ -222,7 +221,7 @@ class Scene(QObject):
                     self.update(layer)
                 glLineWidth(2)
                 glColor4f(*color[layer])
-                if len(self.vtx[layer]):
+                if self.vtx[layer] is not None and len(self.vtx[layer]):
                     glVertexPointerf(self.vtx[layer])
                     glDrawElementsui(GL_LINES, self.idx[layer])
                     glDisableClientState(GL_COLOR_ARRAY)
@@ -261,7 +260,7 @@ class Scene(QObject):
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
                     self.update(layer)
-                if len(self.vtx[layer]):
+                if self.vtx[layer] is not None and len(self.vtx[layer]):
                     texcoord = numpy.array([((255,0,0),(0,255,0),(0,0,255))]*len(self.vtx[layer]), dtype=numpy.uint8)
                     glVertexPointerf(self.vtx[layer])
                     glColorPointer(3, GL_UNSIGNED_BYTE, 0, texcoord)
@@ -278,7 +277,7 @@ class Scene(QObject):
         glColor4f(1., 1., 0., 1.)
         if self.__param['section'] != self.__old_param['section']:
             self.update('section')
-        if self.vtx['section'] and len(self.vtx['section']):
+        if self.vtx['section'] is not None and len(self.vtx['section']) is not None:
             glVertexPointerf(self.vtx['section'])
             glDrawElementsui(GL_LINES, self.idx['section'])
             glDrawArrays(GL_POINTS, 0, len(self.vtx['section']))

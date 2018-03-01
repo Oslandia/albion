@@ -15,7 +15,7 @@ from shapely import geos
 from shapely.affinity import translate
 geos.WKBWriter.defaults['include_srid'] = True
 
-from cgal import delaunay as triangulate
+from fourmy import tessellate
 
 def to_vtk(multiline):
     if multiline is None:
@@ -126,24 +126,11 @@ class Line(object):
             distsq = dot(array(self.points[1:len(self.points)-1]), C)
             closest_idx = 1+argmin(distsq)
             return self.points[closest_idx]
-            #if norm(C - array(self.points[closest_idx])) < 1: # @todo remove hardcoded value
-            #    return self.points[closest_idx]
-            #else:
-            #    if norm(array(self.points[closest_idx]) - A) > norm(C-A):
-            #        self.points.insert(closest_idx, midpoint)
-            #    else:
-            #        self.points.insert(closest_idx+1, midpoint)
-            #    return midpoint
-
 
     def has_segment(self, segment):
         for s, e in zip(self.points[:-1], self.points[1:]):
             if (s, e) == segment or (e, s) == segment:
                 return True
-            if norm(array(s) - array(segment[0])) < 1.e-3 and norm(array(e) - array(segment[1])) < 1.e-3:
-                print("segment is reaaaaaaaaaaaly close", segment, self.points)
-            if norm(array(s) - array(segment[1])) < 1.e-3 and norm(array(e) - array(segment[0])) < 1.e-3:
-                print("reverse segment is reaaaaaaaaaaaly close", segment, self.points)
         return False
 
 def is_segment(segment, lines):
@@ -185,8 +172,6 @@ def has_proper_2d_topology(line):
             u /= norm(u)
             v /= norm(v)
             if norm(cross(u,v)) < SIN_MIN_ANGLE:
-                #print(line)
-                #print("u x v  u.v", cross(u,v), dot(u, v))
                 return False
     return LineString(l).is_ring
 
@@ -207,7 +192,7 @@ def offset_coords(offsets, coords):
 
 def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, srid_=32632):
 
-    DEBUG = True
+    DEBUG = False
     PRECI = 9
     REL_DISTANCE = .3
     HEIGHT = 1.
@@ -336,15 +321,6 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         w = cross(z, u)
         w /= norm(w)
         v = cross(w, z)
-
-        #for id_, es in ends.items():
-        #    for e in es:
-        #        if abs(dot(array(e.coords[0])-origin, w)) < 1: # if end is in face @todo replace that with actual edge in input
-        #            face_lines.append(Line([e.coords[0], nodes[id_].coords[0]], Line.TOP))
-        #            face_lines.append(Line([e.coords[1], nodes[id_].coords[1]], Line.BOTTOM))
-        #            face_lines.append(Line([e.coords[0], e.coords[1]], Line.VERTICAL))
-
-
         
         lines += face_lines 
 
@@ -360,27 +336,28 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                                 (round(dot(e[1]-origin, v), PRECI), round(dot(e[1]-origin, z), PRECI))])
                    for e in linework]
 
-        bug = 0
-        for i, li in enumerate(linework):
-            if li.length <= 0:
-                print('zero length line', i, li.wkt)
-                bug = True
-                break
-            found = False
-            for j, lj in enumerate(linework):
-                if i!=j and (not (lj.coords[0] != li.coords[0] or lj.coords[1] != li.coords[1]) \
-                        or not (lj.coords[0] != li.coords[1] or lj.coords[1] != li.coords[0])):
-                            open("/tmp/dup_line_{}_face_{}.vtk".format(bug, face_idx), 'w').write(to_vtk(MultiLineString([LineString(linework_sav[j])]).wkb_hex))
-                            print('duplicate line', li.wkt, lj.wkt)
-                            bug += 1
-                if i!=j and li.coords[1] == lj.coords[0] or  li.coords[1] == lj.coords[1]:
-                    found = True
-            if not found:
-                print(MultiLineString(linework).wkt)
-                bug += 1
-        if bug:
-            print('open', MultiLineString(linework).wkt)
-            assert(False)
+        if DEBUG:
+            bug = 0
+            for i, li in enumerate(linework):
+                if li.length <= 0:
+                    print('zero length line', i, li.wkt)
+                    bug = True
+                    break
+                found = False
+                for j, lj in enumerate(linework):
+                    if i!=j and (not (lj.coords[0] != li.coords[0] or lj.coords[1] != li.coords[1]) \
+                            or not (lj.coords[0] != li.coords[1] or lj.coords[1] != li.coords[0])):
+                                open("/tmp/dup_line_{}_face_{}.vtk".format(bug, face_idx), 'w').write(to_vtk(MultiLineString([LineString(linework_sav[j])]).wkb_hex))
+                                print('duplicate line', li.wkt, lj.wkt)
+                                bug += 1
+                    if i!=j and li.coords[1] == lj.coords[0] or  li.coords[1] == lj.coords[1]:
+                        found = True
+                if not found:
+                    print(MultiLineString(linework).wkt)
+                    bug += 1
+            if bug:
+                print('open', MultiLineString(linework).wkt)
+                assert(False)
             
 
 
@@ -395,8 +372,8 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         for p in polygons:
             p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
             assert(p.exterior.is_ccw)
-            triangulation = triangulate(list(p.exterior.coords))
-            for tri in triangulation:
+            for t in tessellate(p):
+                tri = t.exterior.coords
                 q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]]) \
                     if direct_orientation else \
                     Polygon([node_map[tri[2]], node_map[tri[1]], node_map[tri[0]]])
@@ -476,17 +453,16 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         for face, side in zip(('top', 'bottom'), (top_linework, bottom_linework)):
             merged = linemerge(side) 
 
-            #open("/tmp/debug.txt", "a").write(str(merged))
             if DEBUG:
                 open("/tmp/linework_%s.vtk"%(face), 'w').write(to_vtk(MultiLineString([LineString(e) for e in merged]).wkb_hex))
             for m in merged:
                 if has_proper_2d_topology(m):
                     node_map = {(round(x[0], PRECI), round(x[1], PRECI)): x for x in m}
                     p = Polygon([(round(x[0], PRECI), round(x[1], PRECI)) for x in m])
-                    open('/tmp/polygon_bug.txt', 'w').write(p.wkt+'\n')
                     p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
                     assert(p.exterior.is_ccw)
-                    for tri in triangulate(list(p.exterior.coords)):
+                    for t in tessellate(p):
+                        tri = t.exterior.coords
                         q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]]) \
                             if face == 'bottom' else \
                             Polygon([node_map[tri[2]], node_map[tri[1]], node_map[tri[0]]])
@@ -508,23 +484,6 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     Polygon([l[0].coords[0], l[0].coords[1], l[1].coords[0]]),
                     Polygon([l[0].coords[1], l[1].coords[1], l[1].coords[0]])
                     ]
-
-#    # check that generated volume is closed
-#    edges = set()
-#    for p in result:
-#        for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
-#            if (e, s) in edges:
-#                edges.remove((e, s))
-#            else:
-#                edges.add((s, e))
-#
-#    # close terminations that are rings
-#    edges = list(edges)
-#    merged = linemerge(edges)
-#    for m in merged:
-#        if m[0] == m[-1] and len(m) == 5:
-#            result.append(Polygon([m[2], m[1], m[0]]))
-#            result.append(Polygon([m[3], m[2], m[0]]))
 
     result += termination
 
@@ -558,40 +517,8 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         geos.lgeos.GEOSSetSRID(r._geom, srid_)
         yield r.wkb_hex
 
-    #if (len(edges)):
-    #    if DEBUG:
-    #        open("/tmp/unclosed_volume.obj", 'w').write(to_obj(MultiPolygon(result).wkb_hex))
-    #    #raise RuntimeError("elementary volume is not closed")
-
     for f in debug_files:
         os.remove(f)
 
 
 
-#    
-#    # offset length is the weighted average of connected termination length
-#    # the weight is the inverse distance in the graph
-#    offset_length = {k:0. for k in offset_direction.keys()}
-#    offset_weight = offset_length
-#    #depth_first(graphe G, sommet s)
-#    #  marquer le sommet s
-#    #  afficher(s)
-#    #  pour tout sommet t voisin du sommet s
-#    #        si t n'est pas marqué alors
-#    #               explorer(G, t);
-#    for n in ends.keys():
-#        d += norm(average(array(ends[n].coords), (0,)) - average(array(nodes[n].coords), (0,)))
-#            def depth_first_dist(g, node, dist, current_dist=1):
-#                dist[node] = current_dist
-#                for ngh in g[node]:
-#                    if ngh not in dist:
-#                        depth_first_dist(g, ngh, dist, current_dist+1)
-#            dist = {}
-#            depth_first_dist(graph, n, dist)
-#            for o in offset_direction.keys():
-#                offset_length[o] += d/dist[o]
-#                offset_weight[o] += 1./dist[o]
-#
-#    for n in offset_direction.keys():
-#        offset_length[n] /= offset_weight[n]
-# 

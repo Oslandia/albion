@@ -25,7 +25,7 @@ class Camera(object):
         # user is dragging
         to = (self.at - self.eye)
         distance = to.length()
-        if int(buttons) & Qt.LeftButton:
+        if int(buttons) & Qt.LeftButton and not int(modifiers) & Qt.ShiftModifier:
             right = QVector3D.crossProduct(to, self.up)
             right = right.normalized()
             up = QVector3D.crossProduct(right, to).normalized()
@@ -38,7 +38,7 @@ class Camera(object):
             self.up = QVector3D.crossProduct(right, to).normalized()
 
        
-        elif int(buttons) & Qt.MiddleButton:
+        elif int(buttons) & Qt.MiddleButton or (int(buttons) & Qt.LeftButton and int(modifiers) & Qt.ShiftModifier):
             right = QVector3D.crossProduct(to, self.up).normalized()
             up = QVector3D.crossProduct(right, to).normalized()
             translation = right*(delta_x*distance)\

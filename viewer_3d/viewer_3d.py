@@ -27,7 +27,7 @@ class Viewer3d(QGLWidget):
         super(Viewer3d, self).__init__(parent)
         self.setFocusPolicy(Qt.StrongFocus)
         self.scene = None
-        self.__param = {
+        self.__default_param = {
                 "label": False,
                 "node": False,
                 "end": False,
@@ -39,6 +39,8 @@ class Viewer3d(QGLWidget):
                 "graph_id": "330",
                 "transparency": 0.
                 }
+        
+        self.__param = self.__default_param
         self.__project = project
         self.resetScene(project)
         self.setMouseTracking(True)
@@ -50,9 +52,9 @@ class Viewer3d(QGLWidget):
 
     def refresh_data(self):
         if self.scene and self.__project.has_collar:
-            #self.__project.create_terminations(self.__param["graph_id"])
-            #self.__project.create_volumes(self.__param["graph_id"])
             self.resetScene(self.__project, False)
+            for layer in ['node', 'edge', 'volume', 'section', 'error', 'end']:
+                self.scene.update(layer)
             self.update()
 
     def resetScene(self, project, resetCamera=True):
