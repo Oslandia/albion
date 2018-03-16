@@ -3,7 +3,7 @@
 from qgis.core import *
 from qgis.gui import *
 
-from PyQt4.QtCore import QObject, Qt
+from PyQt4.QtCore import QObject, Qt, QFileInfo
 from PyQt4.QtGui import QComboBox, \
         QShortcut, QKeySequence, QToolBar, QIcon, QMenu, QFileDialog, QInputDialog, \
         QLineEdit, QMessageBox, QProgressBar, QApplication, QDockWidget
@@ -464,7 +464,7 @@ class Plugin(QObject):
         fil = QFileDialog.getOpenFileName(None,
                 u"Import project from file",
                 QgsProject.instance().readEntry("albion", "last_dir", "")[0],
-                "File formats (*.zip")
+                "File formats (*.zip)")
         if not fil:
             return
 
@@ -481,7 +481,14 @@ class Plugin(QObject):
         dump = find_in_dir(dir_, '.dump')
         prj = find_in_dir(dir_, '.qgs')
 
-        self.__iface.messageBar().pushNotice('Albion', 'loading {} from {}'.format(project_name, dump))
+        self.__iface.messageBar().pushInfo('Albion', 'loading {} from {}'.format(project_name, dump))
+        if Project.exists(project_name):
+            if QMessageBox.Yes != QMessageBox(QMessageBox.Information, 
+                    "Delete existing DB", "Database {} exits, to you want to delete it ?".format(project_name), 
+                    QMessageBox.Yes|QMessageBox.No).exec_():
+                return
+            Project.delete(project_name)
+
         project = Project.import_(project_name, dump)
         
         QgsProject.instance().read(QFileInfo(prj))
@@ -506,7 +513,7 @@ class Plugin(QObject):
             dump = tempfile.mkstemp()[1]
             self.project.export(dump)
             project.write(dump, self.project.name+'.dump')
-            project.write(QgsProject.instance().fileName())
+            project.write(QgsProject.instance().fileName(), os.path.split(QgsProject.instance().fileName())[1])
             os.remove(dump)
 
     def __create_section_view_0_90(self):

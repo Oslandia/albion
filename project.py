@@ -515,7 +515,7 @@ class Project(object):
 
     @staticmethod
     def import_(name, filename):
-        import_dw(filename, name)
+        import_db(filename, name)
         return Project(name)
 
     def create_section_view_0_90(self, z_scale):
