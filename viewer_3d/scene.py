@@ -246,16 +246,19 @@ class Scene(QObject):
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-        if not self.shaders:
+        self.__useProgram = bool(glUseProgram)
+        if not self.shaders and self.__useProgram:
             self.compileShaders()
 
-        glUseProgram(self.shaders)
+        if self.__useProgram:
+            glUseProgram(self.shaders)
 
         color = {'volume':[.7,.7,.7,1.], 
                  'error':[.8,.5,.5,1.]}
         for layer in ['volume', 'error']:
-            glUniform4fv(self.shaders_color_location, 1, color[layer])
-            glUniform1f(self.shaders_transp_location, self.__param["transparency"])
+            if self.__useProgram:
+                glUniform4fv(self.shaders_color_location, 1, color[layer])
+                glUniform1f(self.shaders_transp_location, self.__param["transparency"])
             if self.__param[layer]:
                 if self.__param[layer] != self.__old_param[layer]:
                     self.update(layer)
@@ -265,9 +268,24 @@ class Scene(QObject):
                     glColorPointer(3, GL_UNSIGNED_BYTE, 0, texcoord)
                     glNormalPointerf(self.nrml[layer])
                     glDrawElementsui(GL_TRIANGLES, self.idx[layer])
+                    if not self.__useProgram:
+                        glDisable(GL_LIGHTING)
+                        glDisableClientState(GL_COLOR_ARRAY)
+                        glColor4f(.1, .1, .1, 1.)
+                        glLineWidth(2)
+                        glEnable(GL_CULL_FACE)
+                        glPolygonMode(GL_FRONT,GL_LINE)
+                        glDrawElementsui(GL_TRIANGLES, self.idx[layer])
+                        glPolygonMode(GL_FRONT,GL_FILL)
+                        glDisable(GL_CULL_FACE)
+                        glEnableClientState(GL_COLOR_ARRAY)
+                        glEnable(GL_LIGHTING)
+
+
         glDisableClientState(GL_COLOR_ARRAY)
 
-        glUseProgram(0)
+        if self.__useProgram:
+            glUseProgram(0)
 
         # current section, highlight nodes
         glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [1., 1., 0., 1.])
@@ -369,6 +387,8 @@ class Scene(QObject):
                 res = cur.fetchone()
                 lines = wkb.loads(bytes.fromhex(res[1]))
                 lines_ids = res[0]
+                if lines_ids is None:
+                    return
                 vtx = []
                 idx = []
                 colors = []
@@ -401,6 +421,8 @@ class Scene(QObject):
                 lines = wkb.loads(bytes.fromhex(res[1]))
                 edges = wkb.loads(bytes.fromhex(res[2]))
                 lines_ids = res[0]
+                if lines_ids is None:
+                    return
                 vtx = []
                 idx = []
                 colors = []
@@ -433,6 +455,8 @@ class Scene(QObject):
                 lines = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
                 vtx = []
                 idx = []
+                if not len(lines):
+                    return
                 for line in lines:
                     idx += [(i, i+1) for i in range(len(vtx), len(vtx)+len(line.coords)-1)]
                     vtx += list(line.coords)
@@ -450,6 +474,8 @@ class Scene(QObject):
                 res = cur.fetchone()
                 lines = wkb.loads(bytes.fromhex(res[1]))
                 lines_ids = res[0]
+                if lines_ids is None:
+                    return
                 vtx = []
                 idx = []
                 colors = []
@@ -520,4 +546,5 @@ class Scene(QObject):
             scatter['point'][2] *= factor
 
         self.__old_param["z_scale"] = scale
+
 
