@@ -86,9 +86,9 @@ class Plugin(QObject):
         self.__toolbar.addWidget(self.__current_section)
         self.__current_section.currentIndexChanged[unicode].connect(self.__current_section_changed)
 
-        self.__toolbar.addAction(icon('previous_line.svg'), 'previous section').triggered.connect(self.__previous_section)
+        self.__toolbar.addAction(icon('previous_line.svg'), 'previous section  (Ctrl+Alt+b)').triggered.connect(self.__previous_section)
 
-        self.__toolbar.addAction(icon('next_line.svg'), 'next section').triggered.connect(self.__next_section)
+        self.__toolbar.addAction(icon('next_line.svg'), 'next section (Ctrl+Alt+n)').triggered.connect(self.__next_section)
 
         self.__toolbar.addAction(icon('line_from_selected.svg'), 'create temporary section').triggered.connect(self.__section_from_selection)
 

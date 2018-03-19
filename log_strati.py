@@ -8,6 +8,7 @@ from PyQt4.QtCore import Qt, QObject
 
 from shapely import wkb
 import os
+from builtins import bytes
 
 class BoreHoleScene(QGraphicsScene):
 
@@ -67,7 +68,7 @@ class BoreHoleScene(QGraphicsScene):
                     QGraphicsScene.drawForeground(self, painter, rect)
                     return
 
-                hole = wkb.loads(res[0], True)
+                hole = wkb.loads(bytes.fromhex(res[0]))
                 line = [p[2] for p in hole.coords]
                 tick_width = 20
                 spacing = 5
@@ -133,7 +134,7 @@ class BoreHoleScene(QGraphicsScene):
                 cur.execute("SELECT geom, code FROM albion.formation WHERE hole_id='{}'".format(self.__id))
 
                 for geom, code in cur.fetchall():
-                    line = [p[2] for p in wkb.loads(geom, True).coords]
+                    line = [p[2] for p in wkb.loads(bytes.fromhex(geom)).coords]
                     z_start = (line[0]-zmax)/self.m_per_pixel
                     z_end = (line[-1]-zmax)/self.m_per_pixel
                     brush = QBrush()
@@ -151,7 +152,7 @@ class BoreHoleScene(QGraphicsScene):
                 gamma_max = cur.fetchone()[0]
                 cur.execute("SELECT geom, gamma FROM albion.radiometry WHERE hole_id='{}' AND gamma>=0".format(self.__id))
                 for geom, gamma in cur.fetchall():
-                    line = [p[2] for p in wkb.loads(geom, True).coords]
+                    line = [p[2] for p in wkb.loads(bytes.fromhex(geom)).coords]
                     z_start = (line[0]-zmax)/self.m_per_pixel
                     z_end = (line[-1]-zmax)/self.m_per_pixel
                     brush = QBrush()
@@ -164,7 +165,7 @@ class BoreHoleScene(QGraphicsScene):
                 rho_max = cur.fetchone()[0]
                 cur.execute("SELECT geom, rho FROM albion.resistivity WHERE hole_id='{}' AND rho>=0".format(self.__id))
                 for geom, rho in cur.fetchall():
-                    line = [p[2] for p in wkb.loads(geom, True).coords]
+                    line = [p[2] for p in wkb.loads(bytes.fromhex(geom)).coords]
                     z_start = (line[0]-zmax)/self.m_per_pixel
                     z_end = (line[-1]-zmax)/self.m_per_pixel
                     brush = QBrush()
@@ -176,7 +177,7 @@ class BoreHoleScene(QGraphicsScene):
                 cur.execute("SELECT geom, oc, accu, grade FROM albion.mineralization WHERE hole_id='{}'".format(self.__id))
 
                 for geom, oc, accu, grade in cur.fetchall():
-                    line = [p[2] for p in wkb.loads(geom, True).coords]
+                    line = [p[2] for p in wkb.loads(bytes.fromhex(geom)).coords]
                     z_start = (line[0]-zmax)/self.m_per_pixel
                     z_end = (line[-1]-zmax)/self.m_per_pixel
                     brush = QBrush()

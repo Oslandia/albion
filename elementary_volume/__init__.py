@@ -20,7 +20,7 @@ from fourmy import tessellate
 def to_vtk(multiline):
     if multiline is None:
         return ''
-    m = wkb.loads(multiline, True)
+    m = wkb.loads(bytes.fromhex(multiline))
     res = "# vtk DataFile Version 4.0\nvtk output\nASCII\nDATASET POLYDATA\n"
     node_map = {}
     nodes = ""
@@ -51,7 +51,7 @@ def to_vtk(multiline):
 def to_obj(multipoly):
     if multipoly is None:
         return ''
-    m = wkb.loads(multipoly, True)
+    m = wkb.loads(bytes.fromhex(multipoly))
     res = ""
     node_map = {}
     elem = []
@@ -198,10 +198,10 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
     HEIGHT = 1.
     debug_files = []
 
-    nodes = {id_: wkb.loads(geom, True) for id_, geom in zip(node_ids_, nodes_)}
+    nodes = {id_: wkb.loads(bytes.fromhex(geom)) for id_, geom in zip(node_ids_, nodes_)}
     ends = defaultdict(list)
     for id_, geom in zip(end_ids_, end_geoms_):
-        ends[id_].append(wkb.loads(geom, True))
+        ends[id_].append(wkb.loads(bytes.fromhex(geom)))
     holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
     edges = [(s, e) for s, e in zip(starts_, ends_)]
     assert(len(edges) == len(set(edges)))

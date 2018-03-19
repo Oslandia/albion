@@ -10,6 +10,8 @@ from dxfwrite import DXFEngine as dxf
 
 from pglite import start_cluster, stop_cluster, init_cluster, check_cluster, cluster_params, export_db, import_db
 
+from builtins import bytes
+
 if not check_cluster():
     init_cluster()
 start_cluster()
@@ -475,7 +477,7 @@ class Project(object):
                 and  albion.volume_of_geom(triangulation) > 1
                 """.format(graph_id))
             drawing = dxf.drawing(filename)
-            m = wkb.loads(cur.fetchone()[0], True)
+            m = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
             for p in m:
                 r = p.exterior.coords
                 drawing.add(dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1))
@@ -516,7 +518,9 @@ class Project(object):
     @staticmethod
     def import_(name, filename):
         import_db(filename, name)
-        return Project(name)
+        project =  Project(name)
+        project.create_sections()
+        return project
 
     def create_section_view_0_90(self, z_scale):
         """create default WE and SN section views with magnifications

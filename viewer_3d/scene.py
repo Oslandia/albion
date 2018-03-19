@@ -10,6 +10,7 @@ from PyQt4.QtCore import *
 from .utility import computeNormals
 from shapely import wkb
 import traceback
+from builtins import bytes
 
 class Scene(QObject):
     
@@ -366,7 +367,7 @@ class Scene(QObject):
                     select array_agg(id), coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.node where graph_id='{}'
                     """.format(self.__param["graph_id"]))
                 res = cur.fetchone()
-                lines = wkb.loads(res[1], True)
+                lines = wkb.loads(bytes.fromhex(res[1]))
                 lines_ids = res[0]
                 vtx = []
                 idx = []
@@ -397,8 +398,8 @@ class Scene(QObject):
                     where e.graph_id='{}'
                     """.format(self.__param["graph_id"]))
                 res = cur.fetchone()
-                lines = wkb.loads(res[1], True)
-                edges = wkb.loads(res[2], True)
+                lines = wkb.loads(bytes.fromhex(res[1]))
+                edges = wkb.loads(bytes.fromhex(res[2]))
                 lines_ids = res[0]
                 vtx = []
                 idx = []
@@ -429,7 +430,7 @@ class Scene(QObject):
                     where n.graph_id='{}'
                     """.format(self.__param["graph_id"])
                     )
-                lines = wkb.loads(cur.fetchone()[0], True)
+                lines = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
                 vtx = []
                 idx = []
                 for line in lines:
@@ -447,7 +448,7 @@ class Scene(QObject):
                     select array_agg(id), coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry) from albion.edge where graph_id='{}'
                     """.format(self.__param["graph_id"]))
                 res = cur.fetchone()
-                lines = wkb.loads(res[1], True)
+                lines = wkb.loads(bytes.fromhex(res[1]))
                 lines_ids = res[0]
                 vtx = []
                 idx = []
@@ -474,7 +475,7 @@ class Scene(QObject):
                     and albion.is_closed_volume(triangulation)
                     and albion.volume_of_geom(triangulation) > 1
                     """.format(self.__param["graph_id"]))
-                geom = wkb.loads(cur.fetchone()[0], True)
+                geom = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
                 self.vtx[layer] = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
                 if len(self.vtx[layer]):
                     self.vtx[layer] += self.__offset
@@ -489,7 +490,7 @@ class Scene(QObject):
                     where graph_id='{}'
                     and (not albion.is_closed_volume(triangulation) or albion.volume_of_geom(triangulation) <= 1)
                     """.format(self.__param["graph_id"]))
-                geom = wkb.loads(cur.fetchone()[0], True)
+                geom = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
                 self.vtx[layer] = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
                 if len(self.vtx[layer]):
                     self.vtx[layer] += self.__offset

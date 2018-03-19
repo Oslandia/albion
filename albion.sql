@@ -25,7 +25,7 @@ $$
     if line_ is None:
         return None
 
-    line = wkb.loads(line_, True)
+    line = wkb.loads(bytes.fromhex(line_))
     l = array(line.coords)
     line_length = norm(l[1:] - l[:-1], 1)
     target_length = line_length*sigma_
@@ -269,9 +269,9 @@ $$
     import numpy
     from numpy.linalg import norm
     from shapely import wkb
-    anchor = wkb.loads(anchor_, True)
-    start = wkb.loads(start_, True)
-    end = wkb.loads(end_, True)
+    anchor = wkb.loads(bytes.fromhex(anchor_))
+    start = wkb.loads(bytes.fromhex(start_))
+    end = wkb.loads(bytes.fromhex(end_))
     dir = numpy.array(anchor.coords[-1]) - numpy.array(anchor.coords[0])
     dir /= norm(dir)
     seg = numpy.array(end.coords[0]) - numpy.array(start.coords[0])
@@ -589,8 +589,8 @@ $$
 
     if geom is None:
         return None
-    g = wkb.loads(geom, True)
-    a = wkb.loads(anchor, True)
+    g = wkb.loads(bytes.fromhex(geom))
+    a = wkb.loads(bytes.fromhex(anchor))
     orig = numpy.array(a.coords[0])
     dir_ = numpy.array(a.coords[-1]) - orig
     dir_ /= norm(dir_)
@@ -633,9 +633,9 @@ $$
 
     if geom_ is None:
         return None
-    g = wkb.loads(geom_, True)
-    a = wkb.loads(anchor_, True)
-    s = wkb.loads(section_, True)
+    g = wkb.loads(bytes.fromhex(geom_))
+    a = wkb.loads(bytes.fromhex(anchor_))
+    s = wkb.loads(bytes.fromhex(section_))
 
     orig = array(a.coords[0])
     dir_ = array(a.coords[-1]) - orig
@@ -1222,7 +1222,7 @@ as
 $$
     from shapely import wkb
 
-    m = wkb.loads(multipoly, True)
+    m = wkb.loads(bytes.fromhex(multipoly))
 
     edges = set()
     for p in m:
@@ -1245,7 +1245,7 @@ $$
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
 
-    m = wkb.loads(multipoly, True)
+    m = wkb.loads(bytes.fromhex(multipoly))
 
     edges = set()
     for p in m:
@@ -1269,7 +1269,7 @@ $$
     import plpy
     from numpy import array, average
 
-    m = wkb.loads(multipoly, True)
+    m = wkb.loads(bytes.fromhex(multipoly))
     volume = 0
     for p in m:
         r = p.exterior.coords
@@ -1298,7 +1298,7 @@ $$
     if multipoly is None:
         return None
     
-    m = wkb.loads(multipoly, True)
+    m = wkb.loads(bytes.fromhex(multipoly))
     
     node_map = {}
     triangles = []
@@ -1369,7 +1369,7 @@ $$
     from shapely import wkb
     if multipoly is None:
         return ''
-    m = wkb.loads(multipoly, True)
+    m = wkb.loads(bytes.fromhex(multipoly))
     res = ""
     node_map = {}
     elem = []
@@ -1399,7 +1399,7 @@ $$
     from shapely import wkb
     if multiline is None:
         return ''
-    m = wkb.loads(multiline, True)
+    m = wkb.loads(bytes.fromhex(multiline))
     res = "# vtk DataFile Version 4.0\nvtk output\nASCII\nDATASET POLYDATA\n"
     node_map = {}
     nodes = ""
@@ -1465,8 +1465,8 @@ $$
     REL_DISTANCE = .3
     HEIGHT = 1.
 
-    node_geom = wkb.loads(node_geom_, True)
-    collar_geom = wkb.loads(collar_geom_, True)
+    node_geom = wkb.loads(bytes.fromhex(node_geom_))
+    collar_geom = wkb.loads(bytes.fromhex(collar_geom_))
 
     node_coords = array(node_geom.coords)
     center = .5*(node_coords[0] + node_coords[1])

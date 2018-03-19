@@ -10,6 +10,7 @@ import sys
 import psycopg2 
 from dxfwrite import DXFEngine as dxf
 from shapely import wkb
+from builtins import bytes
 
 con = psycopg2.connect(sys.argv[1])
 cur = con.cursor()
@@ -35,7 +36,7 @@ cur.execute("""
     where graph_id='{}'
     """.format(sys.argv[2]))
 drawing = dxf.drawing(sys.argv[3]+'.dxf')
-m = wkb.loads(cur.fetchone()[0], True)
+m = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
 for p in m:
     r = p.exterior.coords
     drawing.add(dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1))
