@@ -504,7 +504,7 @@ alter view albion.group alter column id set default albion.next_group()
 ;
 
 create view albion.group_cell as
-select row_number() over() as id, gc.cell_id, c.geom, gc.group_id, gc.section_id
+select gc.section_id || ' ' || gc.cell_id as id, gc.cell_id, c.geom, gc.group_id, gc.section_id
 from _albion.cell as c 
 join _albion.group_cell as gc on gc.cell_id=c.id
 ;
@@ -1105,7 +1105,7 @@ with collar_idx as (
     from _albion.section as s
     join _albion.collar as c on st_intersects(s.geom, c.geom) and st_intersects(s.geom, c.geom)
 )
-select row_number() over() as id, e.id as edge_id, e.start_, e.end_, e.graph_id, s.id as section_id, 
+select  s.id || ' ' || e.id as id, e.id as edge_id, e.start_, e.end_, e.graph_id, s.id as section_id, 
     (albion.to_section(e.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.edge as e
 join _albion.node as ns on ns.id=e.start_
@@ -1530,7 +1530,7 @@ $$
                 where id=old.end_node_id;
             return new;
         elsif tg_op = 'DELETE' then
-            delete from _albion.end_node where id=old.id;
+            delete from _albion.end_node where id=old.end_node_id;
             return old;
         end if;
     end;

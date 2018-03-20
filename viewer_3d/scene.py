@@ -24,6 +24,7 @@ class Scene(QObject):
         self.__param = param
 
         self.__project = project
+        self.__useProgram = True
 
         with project.connect() as con:
             cur = con.cursor()
@@ -142,9 +143,13 @@ class Scene(QObject):
             }
             """, GL_FRAGMENT_SHADER)
 
-        self.shaders = shaders.compileProgram(vertex_shader, fragment_shader)
-        self.shaders_color_location = glGetUniformLocation(self.shaders, 'uColor')
-        self.shaders_transp_location = glGetUniformLocation(self.shaders, 'uTransparency')
+        try:
+            self.shaders = shaders.compileProgram(vertex_shader, fragment_shader)
+            self.shaders_color_location = glGetUniformLocation(self.shaders, 'uColor')
+            self.shaders_transp_location = glGetUniformLocation(self.shaders, 'uTransparency')
+            return True
+        except WindowsError as e:
+            return False
 
 
     def highlight(self, layer, color):
@@ -246,9 +251,8 @@ class Scene(QObject):
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-        self.__useProgram = bool(glUseProgram)
         if not self.shaders and self.__useProgram:
-            self.compileShaders()
+            self.__useProgram = bool(glUseProgram) and self.compileShaders()
 
         if self.__useProgram:
             glUseProgram(self.shaders)
