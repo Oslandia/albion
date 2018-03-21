@@ -8,7 +8,7 @@ email=infos@oslandia.com
 experimental=False
 deprecated=False
 about=Original idea by Emmanuel Duguey.
-	Plugin development funded by Areva
+	Plugin development funded by Orano Mining
 repository=https://github.com/Oslandia/albion.git
 tracker=https://github.com/Oslandia/albion/issues
 

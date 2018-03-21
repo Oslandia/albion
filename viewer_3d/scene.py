@@ -85,65 +85,65 @@ class Scene(QObject):
         self.shaders_color_location = None 
         
     def compileShaders(self):
-        vertex_shader = shaders.compileShader("""
-            #extension GL_OES_standard_derivatives : enable
-            uniform vec4 uColor;
-            uniform float uTransparency;
-            varying vec3 N;
-            varying vec3 v;
-            varying vec3 vBC;
+        try:
+            vertex_shader = shaders.compileShader("""
+                #extension GL_OES_standard_derivatives : enable
+                uniform vec4 uColor;
+                uniform float uTransparency;
+                varying vec3 N;
+                varying vec3 v;
+                varying vec3 vBC;
 
-            void main(void)
-            {
-
-                v = vec3(gl_ModelViewMatrix * gl_Vertex);       
-                N = normalize(gl_NormalMatrix * gl_Normal);
-                vBC = gl_Color.xyz;
-                gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
-            }
-            """, GL_VERTEX_SHADER)
-
-        fragment_shader = shaders.compileShader("""
-            uniform vec4 uColor;
-            uniform float uTransparency;
-            varying vec3 N;
-            varying vec3 v;
-            varying vec3 vBC;
-            float edgeFactor(){
-                vec3 d = fwidth(vBC);
-                vec3 a3 = smoothstep(vec3(0.0), d, vBC);
-                return min(min(a3.x, a3.y), a3.z);
-            }
-
-            void main(void)
-            {
-                vec3 L = normalize(gl_LightSource[0].position.xyz - v);   
-                vec4 Idiff = gl_FrontLightProduct[0].diffuse * max(dot(N,L), 0.)*uColor;  
-                Idiff = clamp(Idiff, 0.0, 1.0); 
-
-                if (Idiff==vec4(0.))
+                void main(void)
                 {
-                    Idiff = (uTransparency > 0. ? gl_FrontLightProduct[0].diffuse : vec4(1., 0., 0., 0.))
-                        * max(dot(-N,L), 0.);  
-                    //Idiff = vec4(1., 0., 0., 0.);
-                    Idiff = clamp(Idiff, 0.0, 1.0); 
+
+                    v = vec3(gl_ModelViewMatrix * gl_Vertex);       
+                    N = normalize(gl_NormalMatrix * gl_Normal);
+                    vBC = gl_Color.xyz;
+                    gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+                }
+                """, GL_VERTEX_SHADER)
+
+            fragment_shader = shaders.compileShader("""
+                uniform vec4 uColor;
+                uniform float uTransparency;
+                varying vec3 N;
+                varying vec3 v;
+                varying vec3 vBC;
+                float edgeFactor(){
+                    vec3 d = fwidth(vBC);
+                    vec3 a3 = smoothstep(vec3(0.0), d, vBC);
+                    return min(min(a3.x, a3.y), a3.z);
                 }
 
-                gl_FragColor.rgb = mix(vec3(0.0), Idiff.xyz, edgeFactor());
-                gl_FragColor.a = 1. - uTransparency;
+                void main(void)
+                {
+                    vec3 L = normalize(gl_LightSource[0].position.xyz - v);   
+                    vec4 Idiff = gl_FrontLightProduct[0].diffuse * max(dot(N,L), 0.)*uColor;  
+                    Idiff = clamp(Idiff, 0.0, 1.0); 
 
-                //if(any(lessThan(vBC, vec3(0.02)))){
-                //    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-                //}
-                //else{
-                //    gl_FragColor = Idiff;
-                //}
-                //gl_FragColor = vec4(vBC.xyz, 1);//Idiff;
-                //gl_FragColor = Idiff;
-            }
-            """, GL_FRAGMENT_SHADER)
+                    if (Idiff==vec4(0.))
+                    {
+                        Idiff = (uTransparency > 0. ? gl_FrontLightProduct[0].diffuse : vec4(1., 0., 0., 0.))
+                            * max(dot(-N,L), 0.);  
+                        //Idiff = vec4(1., 0., 0., 0.);
+                        Idiff = clamp(Idiff, 0.0, 1.0); 
+                    }
 
-        try:
+                    gl_FragColor.rgb = mix(vec3(0.0), Idiff.xyz, edgeFactor());
+                    gl_FragColor.a = 1. - uTransparency;
+
+                    //if(any(lessThan(vBC, vec3(0.02)))){
+                    //    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                    //}
+                    //else{
+                    //    gl_FragColor = Idiff;
+                    //}
+                    //gl_FragColor = vec4(vBC.xyz, 1);//Idiff;
+                    //gl_FragColor = Idiff;
+                }
+                """, GL_FRAGMENT_SHADER)
+
             self.shaders = shaders.compileProgram(vertex_shader, fragment_shader)
             self.shaders_color_location = glGetUniformLocation(self.shaders, 'uColor')
             self.shaders_transp_location = glGetUniformLocation(self.shaders, 'uTransparency')
