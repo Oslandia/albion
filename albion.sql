@@ -660,31 +660,31 @@ $$
 $$
 ;
 
-create /*materialized*/ view albion.radiometry_section as
+create materialized view albion.radiometry_section as
 select r.id as radiometry_id, s.id as section_id, 
     (albion.to_section(r.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.radiometry as r
 join _albion.hole as h on h.id=r.hole_id, _albion.section as s
 ;
---
---create index radiometry_section_geom_idx on albion.radiometry_section using gist(geom)
---;
---
---create index radiometry_section_radiometry_id_idx on albion.radiometry_section(radiometry_id)
---;
 
-create /*materialized*/ view albion.resistivity_section as
+create index radiometry_section_geom_idx on albion.radiometry_section using gist(geom)
+;
+
+create index radiometry_section_radiometry_id_idx on albion.radiometry_section(radiometry_id)
+;
+
+create materialized view albion.resistivity_section as
 select r.id as resistivity_id, s.id as section_id, 
     (albion.to_section(r.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.resistivity as r
 join _albion.hole as h on h.id=r.hole_id, _albion.section as s
 ;
---
---create index resistivity_section_geom_idx on albion.resistivity_section using gist(geom)
---;
---
---create index resistivity_section_resistivity_id_idx on albion.resistivity_section(resistivity_id)
---;
+
+create index resistivity_section_geom_idx on albion.resistivity_section using gist(geom)
+;
+
+create index resistivity_section_resistivity_id_idx on albion.resistivity_section(resistivity_id)
+;
 
 create view albion.current_node_section as
 select row_number() over() as id, n.id as node_id, h.collar_id, n.from_, n.to_, n.graph_id, s.id as section_id, 
@@ -1191,19 +1191,19 @@ returns setof geometry
 language plpython3u immutable
 as
 $$
-open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
-    cell_id_+'\n'+
-    graph_id_+'\n'+
-    geom_+'\n'+
-    ' '.join(holes_)+'\n'+
-    ' '.join(starts_)+'\n'+
-    ' '.join(ends_)+'\n'+
-    ' '.join(hole_ids_)+'\n'+
-    ' '.join(node_ids_)+'\n'+
-    ' '.join(nodes_)+'\n'+
-    ' '.join(end_ids_)+'\n'+
-    ' '.join(end_geoms_)+'\n'
-)
+#open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
+#    cell_id_+'\n'+
+#    graph_id_+'\n'+
+#    geom_+'\n'+
+#    ' '.join(holes_)+'\n'+
+#    ' '.join(starts_)+'\n'+
+#    ' '.join(ends_)+'\n'+
+#    ' '.join(hole_ids_)+'\n'+
+#    ' '.join(node_ids_)+'\n'+
+#    ' '.join(nodes_)+'\n'+
+#    ' '.join(end_ids_)+'\n'+
+#    ' '.join(end_geoms_)+'\n'
+#)
 $INCLUDE_ELEMENTARY_VOLUME
 for v in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, $SRID):
     yield v
