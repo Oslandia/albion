@@ -13,34 +13,43 @@ returns geometry
 language plpython3u immutable
 as
 $$
+
     from shapely import wkb
     from shapely import geos
     from shapely.geometry import Point
+    import numpy as np
     from numpy import array
     from numpy.linalg import norm
     geos.WKBWriter.defaults['include_srid'] = True
 
-    assert(sigma_ >=0 and sigma_ <=1)
-
     if line_ is None:
         return None
 
+    assert(sigma_ >=0 and sigma_ <=1)
+
     line = wkb.loads(bytes.fromhex(line_))
-    l = array(line.coords)
-    line_length = norm(l[1:] - l[:-1], 1)
-    target_length = line_length*sigma_
-    current_length = 0
-    for s, e in zip(l[:-1], l[1:]):
-        segment_length = norm(e-s) 
-        current_length += segment_length
-        if current_length > target_length:
-            #interpolate point
-            overshoot = current_length - target_length
-            a = overshoot/segment_length
-            result = Point(s*a + e*(1.-a))
-            geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(line._geom))
-            return result.wkb_hex
-    assert(False) # we should never reach here
+
+    if sigma_ > 0 and sigma_ < 1:
+        l = array(line.coords)
+        seg = l[:-1] - l[1:]
+        seg_length = np.sum(seg**2,axis=-1)**.5
+        line_length = np.sum(seg_length)
+        target_length = line_length*sigma_
+        cum_length = np.cumsum(seg_length)
+        idx = np.searchsorted(np.cumsum(seg_length), target_length)
+        overshoot = cum_length[idx] - target_length
+        a = overshoot/seg_length[idx]
+        result = Point(l[idx]*a + l[idx+1]*(1.-a))
+
+    elif sigma_ == 1:
+        result = Point(line.coords[-1])
+
+    elif sigma_ == 0:
+        result = Point(line.coords[0])
+
+    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(line._geom))
+    return result.wkb_hex
+
 $$
 ;
 

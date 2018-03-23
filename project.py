@@ -33,7 +33,9 @@ class DummyProgress(object):
 
     def setPercent(self, percent):
         l = 50
-        sys.stdout.write('\r|' + '#'*int(l*float(percent)/100) + ' '*int(l*float(100-percent)/100) + '|')
+        a = int(round(l*float(percent)/100))
+        b = l - a
+        sys.stdout.write('\r|' + '#'*a + ' '*b + '| % 3d%%'%(percent))
         sys.stdout.flush()
 
 class ProgressBar(object):
@@ -263,7 +265,7 @@ class Project(object):
 
             progress.setPercent(55)
 
-            cur.execute("update albion.resistivity set geom=albion.hole_piece(from_, to_, hole_id)")
+            cur.execute("update albion.lithology set geom=albion.hole_piece(from_, to_, hole_id)")
 
             progress.setPercent(60)
 
@@ -275,7 +277,7 @@ class Project(object):
 
             progress.setPercent(70)
 
-            cur.execute("update albion.lithology set geom=albion.hole_piece(from_, to_, hole_id)")
+            cur.execute("update albion.resistivity set geom=albion.hole_piece(from_, to_, hole_id)")
 
             progress.setPercent(75)
 
