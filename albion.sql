@@ -8,7 +8,7 @@ create schema albion
 -------------------------------------------------------------------------------
 -- UTILITY FUNCTIONS
 -------------------------------------------------------------------------------
-create or replace function st_3dlineinterpolatepoint(line_ geometry, sigma_ float)
+create or replace function public.st_3dlineinterpolatepoint(line_ geometry, sigma_ float)
 returns geometry
 language plpython3u immutable
 as
