@@ -57,6 +57,12 @@ class Project(object):
     def connect(self):
         return psycopg2.connect(self.__conn_info)
 
+    def vacuum(self):
+        with self.connect() as con:
+            old_isolation_level = con.isolation_level
+            con.set_isolation_level(0)
+            cur = con.cursor()
+            cur.execute("vacuum analyze")
 
     @staticmethod
     def exists(project_name):
@@ -290,6 +296,8 @@ class Project(object):
             progress.setPercent(100)
 
             con.commit()
+
+        self.vacuum()
 
     def triangulate(self):
         with self.connect() as con:
