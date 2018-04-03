@@ -514,7 +514,6 @@ class Plugin(QObject):
             self.project.export(dump)
             project.write(dump, self.project.name+'.dump')
             project.write(QgsProject.instance().fileName(), os.path.split(QgsProject.instance().fileName())[1])
-            os.remove(dump)
 
     def __create_section_view_0_90(self):
         if self.project is None:
