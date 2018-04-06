@@ -36,26 +36,39 @@ Notion d’héritage
 =================
 
 Les corps géologiques modélisés ont des propriétés géométriques parfois dépendantes de la géométrie de d’autres corps géologique modélisé :
-
  - la  minéralisation d’un gisement à une teneur [A] doit par définition s’emboiter dans le volume minéralisé construit à une teneur supérieure[A*2].
-
-- une minéralisation doit être contenue dans le volume de la formation géologique portant cette minéralisation.
-
-- un volume de faciès oxydé doit suivre la géométrie du faciès réduit et les volumes doivent oxydé-réduit doivent s’emboiter parfaitement. 
+ - une minéralisation doit être contenue dans le volume de la formation géologique portant cette minéralisation.
+ - un volume de faciès oxydé doit suivre la géométrie du faciès réduit et les volumes doivent oxydé-réduit doivent s’emboiter parfaitement. 
 
 Il est ainsi pertinent pour mieux contraindre le volume modélisé, de tenir compte de cette relation géométrique des objets géologiques entres eux. Ainsi se définit la notion de parent  ou d’héritage afin d’inscrire cette dépendance géométrique des corps géologiques entres eux, dans le processus de construction de coupes puis de volumes.  
 
 
-Figure 1. – : Vue en coupe un graphe (ligne bleue-grise), reliant des passes géologiques (bleu foncé). Les passes géologiques  correspondent à la formation géologique B. 
+.. _fig1:
+
+.. figure:: images/fig1.png
+
+   Vue en coupe un graphe (ligne bleue-grise), reliant des passes géologiques (bleu foncé). Les passes géologiques  correspondent à la formation géologique B. 
 
 
-Figure 2.  La  formation géologique B est tracée automatiquement à partir du graphe
+.. _fig2:
+
+.. figure:: images/fig2.png
+
+   La  formation géologique B est tracée automatiquement à partir du graphe
 
 
-Figure 3. - Cas des passes minéralisées à partir des mesures gamma. La minéralisation est portée par la formation géologique B. Le graphe minéralisation est donc hérité du graphe formation B
+.. _fig3:
+
+.. figure:: images/fig3.png
+
+  Cas des passes minéralisées à partir des mesures gamma. La minéralisation est portée par la formation géologique B. Le graphe minéralisation est donc hérité du graphe formation B
 
 
-Figure 4. – Le graphe de la minéralisation porté par la formation est tracé automatiquement, la minéralisation suit la géométrie de la formation.   
+.. _fig4:
+
+.. figure:: images/fig4.png
+
+  Le graphe de la minéralisation porté par la formation est tracé automatiquement, la minéralisation suit la géométrie de la formation.   
 
 
 Notion de volumes élémentaires
@@ -81,7 +94,11 @@ Données :
   - NT_avp.txt et NT_RESI.txt : fichiers de diagraphie.
 
 
-Figure 5. - Les principales étapes de construction volumétrique sous Albion
+.. _fig5:
+
+.. figure:: images/fig5.png
+
+  Les principales étapes de construction volumétrique sous Albion
 
 
 
@@ -98,10 +115,18 @@ Création d’un projet
         c. Entrer le système de projection
 
 
-Figure 6. - Menu importation des données
+.. _fig6:
+
+.. figure:: images/fig6.png
+
+  Menu importation des données
 
 
-Figure 7. - Fenêtre de dialogue pour créer un projet
+.. _fig7:
+
+.. figure:: images/fig7.png
+
+  Fenêtre de dialogue pour créer un projet
 
 
 Figure 8. Fenêtre de dialogue sélection du système de projection
@@ -123,10 +148,10 @@ Durant le chargement des données, Albion a calculé la trace des sondages à pa
 Cette triangulation constitue le premier maillage  ou graphe primaire qui permet définir les relations de corrélation possible  de sondages à sondages. Cette triangulation permettra de construire les sections dans le chapitre suivant.
 
 
-Figure 10. - Vue de la représentation de la triangulation à partir des données têtes de sondages
+Figure 10. Vue de la représentation de la triangulation à partir des données têtes de sondages
 
 
-Figure 11 . - Fenêtre couche
+Figure 11. Fenêtre couche
 
 
 Ajout de nouvelles couches 
@@ -136,11 +161,11 @@ Les couches présentent dans la fenêtre couches ne sont pas toujours présenten
 
 
 
-Figure 12. –Etape n°1 :   Aller dans le menu Couche/Ajouter une couche/Ajouter couche PostGis
+Figure 12. Etape n°1 :   Aller dans le menu Couche/Ajouter une couche/Ajouter couche PostGis
 
 
 
-Figure 13. -Etape n°2 : connecter la base de données. Appuyer sur nouveau. Etape n°3 Créer une nouvelle connexion Post GIS en remplissant les champs comme indiqués. Etape °4 tester la connexion à la base
+Figure 13. Etape n°2 : connecter la base de données. Appuyer sur nouveau. Etape n°3 Créer une nouvelle connexion Post GIS en remplissant les champs comme indiqués. Etape °4 tester la connexion à la base
 
 
 
@@ -154,7 +179,7 @@ A ce stade l’ensemble des données chargées dans Albion sont visualisables da
 Un outil log permet une visualisation d’un log de sondage
 
 
-Figure 15. - outil log de sondage
+Figure 15. Outil log de sondage
 
 
 Figure 16. Sélectionner avec le curseur (croix) sur la vue en carte une tête de sondage, une fenêtre log apparait.
@@ -201,10 +226,10 @@ Outil calcul des passes minéralisées
 Figure 17. Menu calcul des passes minéralisées
 
 
-Figure 18. - Fenêtre de dialogue permettant de renseigner les paramètres économique définissant  la minéralisation
+Figure 18. Fenêtre de dialogue permettant de renseigner les paramètres économique définissant  la minéralisation
 
 
-Figure 19.  Table minéralisation issue du calcul des passes minéralisées. OC :ouverture de chantier, c'est la puissance de la passe minéralisée, accu est la teneur moyenne de la passe multiplié par la puissance,. Grade correspond à la teneur moyenne de la passe. Si cette table n’apparait pas, aller chercher cette couche suivant la procédure décrite au chapitre précédent.
+Figure 19. Table minéralisation issue du calcul des passes minéralisées. OC :ouverture de chantier, c'est la puissance de la passe minéralisée, accu est la teneur moyenne de la passe multiplié par la puissance,. Grade correspond à la teneur moyenne de la passe. Si cette table n’apparait pas, aller chercher cette couche suivant la procédure décrite au chapitre précédent.
 
 
 Création des sections
@@ -218,7 +243,7 @@ Nettoyage du maillage
 Les relations de connexion de sondages à sondages sont réalisé par le biais d’un maillage de type Delaunay, celui-ci permet de relier entres eux les sondages situé dans le voisinage le plus proche (distance euclidienne). Ce maillage réalisé automatiquement nécessite, pour être parfaitement rigoureux une étape de nettoyage à la périphérie du modèle, où quelques liens entres sondages doivent être effacés (voir figure ci-dessous).
 
 
-Figure 20. - Exemple de deux sondages situés sur la périphérie du modèle, où leur connexion n'apporte aucune pertinence au modèle.
+Figure 20. Exemple de deux sondages situés sur la périphérie du modèle, où leur connexion n'apporte aucune pertinence au modèle.
 
 
 Figure 21. Exemple de triangles à effacer
@@ -242,16 +267,16 @@ Figure 23. Etape n°1 : Sélectionner dans le menu déroulant la direction de co
 Figure 24. La couche [cell] est en mode edition, deux triangles sont sélectionné,  ils vont servir à construire la première section EW
 
 
-Figure 25. - Les deux triangles sélectionnés appuyer sur les touches Ctrl-Alt-K pour créer la première section
+Figure 25. Les deux triangles sélectionnés appuyer sur les touches Ctrl-Alt-K pour créer la première section
 
 
 Figure 26. Création de section. Vous pouvez dès maintenant visualiser la première section, en allant dans le menu Create section
 
 
-Figure 27. - Visualisation de la section. La section correspond à la bordure extérieure des 2 triangles. Utiliser les flèches de l'outils Albion pour faire défiler les coupes E-W
+Figure 27. Visualisation de la section. La section correspond à la bordure extérieure des 2 triangles. Utiliser les flèches de l'outils Albion pour faire défiler les coupes E-W
 
 
-Figure 28. - Exemple d'une séance Mandala où 8 sections E-W ont été construites
+Figure 28. Exemple d'une séance Mandala où 8 sections E-W ont été construites
 
 
 Figure 29. Exemple d'une sélection d polygone maladroite pour construire une section EW dans la mesure où les deux extrémité de la coupe sont orientés N-S donc la corrélation des sondages extrêmes sera peu pertineente le long de la coupe EW
@@ -267,7 +292,7 @@ Introduction
 Le graphe est l’élément de base des corrélations des passes géologiques dans Albion., il est la colonne vertébrale des coupes et des volumes. Il est constitué de segments [edge] reliant les passes, géologiques, nœud [node]. Dans Albion chaque objet géologique (minéralisation, formation, facies etc…) correspond à un graphe différent. Une minéralisation définit à partir d’un cut of @100 aura un graphe différent de la minéralisions défini au cut off @200.  
 
 
-Figure 30. - Les principales étapes de construction du graphe et de coupes
+Figure 30. Les principales étapes de construction du graphe et de coupes
 
 
 Création d’un graphe (étape n°1 Figure 30)
@@ -284,15 +309,15 @@ Avant de représenter la minéralisation en coupe, il est nécessaire de représ
 
 
 
-Figure 32. - Indiquer le nom du graphe dans cette fenêtre de dialogue
+Figure 32. Indiquer le nom du graphe dans cette fenêtre de dialogue
 
 La formation D, n’est pas une formation géologique contenue à l’intérieure d’une autre formation, ou portée par une autre formation, il s’agit d’une formation sans degré hiérarchique, sans graphe parent.   
 
 
-Figure 33 . Dans le cas de la formation D pas de graphe parent. Laisser le champ vide, Appuyer sur OK
+Figure 33. Dans le cas de la formation D pas de graphe parent. Laisser le champ vide, Appuyer sur OK
 
 
-Figure 34 . Noter l'apparition d'un nouveau graphe dans la liste des graphes disponible
+Figure 34. Noter l'apparition d'un nouveau graphe dans la liste des graphes disponible
 
 
 Création des nœuds [node] (étape n°2, Figure 30)
@@ -301,7 +326,7 @@ Création des nœuds [node] (étape n°2, Figure 30)
 Un graphe est composé de nœuds, reste maintenant à créer ceux de la formation D
 
 
-Figure 35. - Sélectionner la couche formation- bouton gauche de la souris, un menu s'ouvre aller dans Ouvrir la table d’attributs
+Figure 35. Sélectionner la couche formation- bouton gauche de la souris, un menu s'ouvre aller dans Ouvrir la table d’attributs
 
 
 Figure 36. Sélection des entitées formation dont le code est égal à 330
@@ -317,7 +342,7 @@ Création des segments [edge] (étapes n°3 et 4)
 Figure 38. On colle dans la table [node], l'ensemble des passes formation de type Formation D
 
 
-Figure 39. - l'ensemble des passes désignant la formation D sont placées dans la couche [node] et sont renseignées comme appartenant au graphe Form_D. On utilise le copier coller, la couche [node] doit être éditable le champ graph_id de la table [node] est mis à jour manuellement en indiquant le nom du graphe. Sauvegarder ensuite la couche [node]
+Figure 39. L'ensemble des passes désignant la formation D sont placées dans la couche [node] et sont renseignées comme appartenant au graphe Form_D. On utilise le copier coller, la couche [node] doit être éditable le champ graph_id de la table [node] est mis à jour manuellement en indiquant le nom du graphe. Sauvegarder ensuite la couche [node]
 
 
 Figure 40. La couche [Possible edge] est alors mise à jour de manière dynamique en fonction de la table [node] et de la table des paramètres de corrélation renseignés dans la table [metadata].
@@ -327,7 +352,7 @@ Modification du graphe de manière dynamique  (étape n°5 Figure 30)
 ==================================================================
 
 
-Figure 41. La couche  [metadata] permet de modifier  les paramètres de corrélation de sondage afin de construire le graphe des formations géologiques
+Figure 41. La couche [metadata] permet de modifier  les paramètres de corrélation de sondage afin de construire le graphe des formations géologiques
 
 
 Figure 42. Sélectionner toutes les segments de graphes  du graphe  Form_D de la taple [possible_edge] avec le filte selection, puis copier ces enregistrements
@@ -348,7 +373,7 @@ Figure 45. Le graphe peut être modifie, facilement en utilisant les outils de Q
 Figure 46. Edition d'un graphe ajout d'un segment (edge)
 
 
-Figure 47. - Représentation dynamique du polygone de corrélation
+Figure 47. Représentation dynamique du polygone de corrélation
 
 
 Ajout des terminaisons
@@ -357,7 +382,7 @@ Ajout des terminaisons
 Les terminaisons  des polygones géologiques correspondent dans Albion à des éléments traités de manière indépendante de la construction du graphe. Elles sont construite automatiquement puis éditable avec les outils de QGIS.  
 
 
-Figure 48. - Menu Création terminaisons
+Figure 48. Menu Création terminaisons
 
 
 Figure 49. Exemple de polygones de type minéralisation sans fermeture
@@ -366,7 +391,7 @@ Figure 49. Exemple de polygones de type minéralisation sans fermeture
 Figure 50. Exemple de polygones de type minéralisation avec fermeture. 
 
 
-Figure 51. - Modification manuelle d'une terminaison
+Figure 51. Modification manuelle d'une terminaison
 
 
 Figure 52. Exemple de superposition de polygone liée à la terminaison d'un polygone. La superposition est symbolisée par un polygone rouge situé dans la couche [current section_intersection]
@@ -390,7 +415,7 @@ Figure 54. Représentation du volume 3D, possibilité d’afficher ou non des co
 Edition  du volume
 ==================
 
-Figure 55. - Outils d’édition du graphe dans la fenêtre 3D
+Figure 55. Outils d’édition du graphe dans la fenêtre 3D
 
 
 Export du volume
@@ -422,7 +447,7 @@ Les données d’entrées sont de natures différentes, elles correspondent auss
 
 Les fichiers d’entrées sont des fichiers Ascii dont les noms, extensions et les formats de champs sont normalisés afin d’automatiser l’entrée des données. Cinq catégories de données ont été distinguées. Elles sont présentées dans la figure ci-dessous. Chaque catégorie peuvent contenir différentes tables qui sont décrites dans cette note. 
 
-Figure 59 . Résumé des différents types de données nécessaires pour visualiser en carte, coupes et 3D des données de sondages avec  Albion 
+Figure 59. Résumé des différents types de données nécessaires pour visualiser en carte, coupes et 3D des données de sondages avec  Albion 
 
 Collar
 ======
@@ -430,7 +455,7 @@ Collar
 La table collar correspond à la localisation X,Y,Z de la tête de sondage sur la surface topographique dans le système de projection indiqué par le modélisateur dans QGIS. Le fichier tête de sondage est unique, chaque sondage est définit par son nom holeid qui lui aussi est unique.
 
 
-Figure 60. - Description du fichier "collar" (en rouge données obligatoires en bleu, données facultatives)
+Figure 60. Description du fichier "collar" (en rouge données obligatoires en bleu, données facultatives)
 
 
 Déviation
@@ -439,10 +464,10 @@ Déviation
 La géométrie du sondage sera définie à partir des données de déviation. Le fichier déviation correspond à l’enregistrement pente et azimut du sondage, pour un intervalle donné. Ce fichier avec le fichier collar permet de définir en coordonnées cartésienne  la représentation spatiale du sondage.
 
 
-Figure 61. - Description du fichier "déviation" (en rouge données obligatoires en bleu, données facultatives)
+Figure 61. Description du fichier "déviation" (en rouge données obligatoires en bleu, données facultatives)
 
 
-Figure 62. – Représentation en coupe d’un sondage dévié 
+Figure 62. Représentation en coupe d’un sondage dévié 
 
 
 Calcul des coordonnées des passes de sondages
@@ -473,7 +498,7 @@ Where:
   - TVD = true vertical depth (feet or meters)
 
 
-Figure 63. - Déscription méthode calcul de coordonnées à partir des données de profondeur et données tête de sondage
+Figure 63. Déscription méthode calcul de coordonnées à partir des données de profondeur et données tête de sondage
 
 Cas particulier d’absence de mesure déviation:
   A) Présence d’un sondage sans aucune mesure de déviation : -> une déviation fictive est attribuée le sondage est considéré comme parfaitement vertical,
@@ -487,7 +512,7 @@ La table renseigne la nature du sondage (Diamond drill, Reverse Circulation…) 
 
 
 
-Figure 64. - Description du fichier "drillhole type" (en rouge données obligatoires)
+Figure 64. Description du fichier "drillhole type" (en rouge données obligatoires)
 
 Equipement de forage
 ********************
@@ -496,7 +521,7 @@ Afin de stabilisé le trou de sondage dans les premiers mètres et éviter tout 
 
 
 
-Figure 65. - Description équipement "casing" (en rouge données obligatoires)
+Figure 65. Description équipement "casing" (en rouge données obligatoires)
 
 
 
@@ -506,7 +531,7 @@ Récupération
 On indique dans cette table le pourcentage de récupération d’un échantillon le long du sondage.
 
 
-Figure 66. - Description table récupération, "recovery" (en rouge données obligatoires en bleu)
+Figure 66. Description table récupération, "recovery" (en rouge données obligatoires en bleu)
 
 
 Radiométrie
@@ -516,7 +541,7 @@ La mesure dont on dispose traditionnellement correspond à un enregistrement tou
 
 
 
-Figure 67. - Description du fichier "radiométrie"(en rouge données obligatoires en vert les données calculées par Albion)
+Figure 67. Description du fichier "radiométrie"(en rouge données obligatoires en vert les données calculées par Albion)
 
 
 Résistivité
@@ -526,7 +551,7 @@ La mesure dont on dispose traditionnellement correspond à un enregistrement tou
 
 
 
-Figure 68. - Description du fichier "résistivité"(en rouge données obligatoires en vert les données calculées par Albion)
+Figure 68. Description du fichier "résistivité"(en rouge données obligatoires en vert les données calculées par Albion)
 
 
 Formation  (table pouvant être multiple)
@@ -535,7 +560,7 @@ Formation  (table pouvant être multiple)
 La table formation permet de décrire le long des sondages les formations géologiques reconnues par le géologue lors de la description de cuttings ou de carottes. Les différentes formations intersectées sont codifiées (numérique) avec un champ texte permettant des observations complémentaires sur les passes codées identifiées.
 
 
-Figure 69. - Description du fichier "formation"(en rouge données obligatoire en vert les données calculées par Albion, en bleu données facultatives)
+Figure 69. Description du fichier "formation"(en rouge données obligatoire en vert les données calculées par Albion, en bleu données facultatives)
 
 
 Lithologie 
@@ -545,7 +570,7 @@ La table lithologie décrit les différentes lithologies intersectées lors de l
 
 
 
-Figure 70. - Description du fichier "lithologie"(en rouge données obligatoire en vert les données calculées par Albion, en bleu données facultatives)
+Figure 70. Description du fichier "lithologie"(en rouge données obligatoire en vert les données calculées par Albion, en bleu données facultatives)
 
 
 Facies (table multiple)
@@ -554,6 +579,6 @@ Facies (table multiple)
 Il s’agit ici de donnée de type facies, de la roche intersectée par sondage : 
 
 
-Figure 71. - Description du fichier "facies" (en rouge données obligatoire en vert les données calculées par Albion, en bleu données facultatives)
+Figure 71. Description du fichier "facies" (en rouge données obligatoire en vert les données calculées par Albion, en bleu données facultatives)
 
 
