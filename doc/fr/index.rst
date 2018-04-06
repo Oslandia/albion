@@ -241,9 +241,11 @@ Dans le cas du logiciel Albion les passes minéralisées  sont déterminées par
     2. l’épaisseur minimale d’une passe minéralisée, OC (exprimé en mètres)
     3. l’épaisseur minimale d’un intercalaire stérile, IC (exprimé en mètres)
 
-
 La détermination des limites des génératrices utilise l’algorithme décrit par J.M. Marino (MARINO et al. 1988). Pour chaque sondage, les limites sont définies en maximisant par programmation dynamique la valeur récupérée :
 
+.. math::
+
+    V(k) = max\left( \sum_{i=1}^{N} \big(t(i) - t_c\big) \epsilon(i) \right)
 
 Pour un sondage, la valeur est maximisée sur l’ensemble des indicatrices de chantiers vérifiant les contraintes sur les épaisseurs minimales. Il faut noter :
     1. l’optimisation est faite sur la valeur (i.e. accumulation – tc puissance) et non sur l’accumulation 
