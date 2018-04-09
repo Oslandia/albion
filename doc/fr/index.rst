@@ -845,4 +845,10 @@ Il s’agit ici de donnée de type facies, de la roche intersectée par sondage�
 
   Description du fichier "facies" (en rouge données obligatoire en vert les données calculées par Albion, en bleu données facultatives)
 
+.. _figtest:
+
+.. figure:: images/Tulips.jpg
+
+  Test
+  
 
