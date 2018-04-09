@@ -3,10 +3,10 @@
 from qgis.core import *
 from qgis.gui import *
 
-from PyQt4.QtCore import QObject, Qt, QFileInfo
+from PyQt4.QtCore import QObject, Qt, QFileInfo, QUrl
 from PyQt4.QtGui import QComboBox, \
         QShortcut, QKeySequence, QToolBar, QIcon, QMenu, QFileDialog, QInputDialog, \
-        QLineEdit, QMessageBox, QProgressBar, QApplication, QDockWidget
+        QLineEdit, QMessageBox, QProgressBar, QApplication, QDockWidget, QDesktopServices
 
 import psycopg2
 import os
@@ -106,6 +106,7 @@ class Plugin(QObject):
         
         QgsProject.instance().readProject.connect(self.__qgis__project__loaded)
         self.__qgis__project__loaded() # case of reload
+        
 
     def unload(self):
         for s in self.__shortcuts:
@@ -195,6 +196,11 @@ class Plugin(QObject):
         self.__add_menu_entry('Export Volume', self.__export_volume, 
                 self.project is not None and bool(self.__current_graph.currentText()), 
                 "Export volume of current graph in .obj or .dxf format")
+
+        self.__menu.addSeparator()
+
+        self.__menu.addAction('Help').triggered.connect(self.open_help)
+
         
     def __current_graph_changed(self, graph_id):
         if self.project is None:
@@ -584,4 +590,8 @@ class Plugin(QObject):
             self.__refresh_layers('section')
             self.__viewer3d.widget().scene.update('section')
             self.__viewer3d.widget().update()
+
+    def open_help(self):
+        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.join(os.path.dirname(__file__), 'doc', 'build', 'html', 'index.html')))
+
 

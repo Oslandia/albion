@@ -77,16 +77,17 @@ Notion de volumes élémentaires
 Au même titre que la passe (génératrice) constitue la brique élémentaire de  la construction des coupes, les polygones coupes sont les éléments de base de la construction volumétrique. La modélisation 3D s’effectue par  une approche additive, où au droit d’un minimum de trois passes est construit automatiquement un volume « élémentaire », épousant parfaitement la géométrie des polygones coupes en contact avec les passes.  Les volumes élémentaires sont composés d’une surface de type Toit correspondant à une surface triangulée reliant les points Toit des polygones coupes en contact avec les génératrices du volume élémentaire. De même une surface de type Mur construite à partir des points Mur des polygones en contact est créée, ces surfaces Toit/Mur reliées par une surface verticale décrivant  le pourtour des deux surfaces Toit/Mur constituent un volume élémentaire qui par addition des autres volumes correspond au volume que l’on cherche à modéliser et  ceci quelques soit la complexité du volume construit.    
 
 
-Tutorial
+Tutoriel
 ########
 
 
 Préambule
 *********
 
-Afin de faciliter la prise en main du logiciel, des données sont à la disposition des utilisateurs, pour suivre plus facilement ce tutoriel
+Afin de faciliter la prise en main du logiciel, des données sont à la disposition des utilisateurs, pour suivre plus facilement ce tutoriel.
 
-Données : 
+
+Données (`nt.zip <https://github.com/Oslandia/albion/blob/master/data/nt.zip>`_): 
   - N_T_deviation.txt : fichier des données de déviation du sondage
   - N_T_collar.txt : fichier de l localisation des têtes de sondages
   - N_T_formation.txt : fichier de la table formation
