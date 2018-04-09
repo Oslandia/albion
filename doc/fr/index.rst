@@ -87,7 +87,7 @@ Préambule
 Afin de faciliter la prise en main du logiciel, des données sont à la disposition des utilisateurs, pour suivre plus facilement ce tutoriel.
 
 
-Données (`nt.zip <https://github.com/Oslandia/albion/blob/master/data/nt.zip>`_): 
+Données (`nt.zip <https://github.com/Oslandia/albion/raw/master/data/nt.zip>`_): 
   - N_T_deviation.txt : fichier des données de déviation du sondage
   - N_T_collar.txt : fichier de l localisation des têtes de sondages
   - N_T_formation.txt : fichier de la table formation
