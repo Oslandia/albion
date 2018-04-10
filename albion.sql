@@ -127,7 +127,7 @@ $$
             into hole_geom_;
 
             -- hole have no deviation
-        elsif hole_geom_ is null then
+        elsif hole_geom_ is null or st_3dlength(hole_geom_) = 0 then
             select st_makeline( collar_geom_, st_translate(collar_geom_, 0, 0, -depth_max_)) into hole_geom_;
         end if;
 
