@@ -39,23 +39,23 @@ def run_tests():
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE).communicate()
     if '0 failed' not in out.splitlines()[-1]:
-        print "Can not deploy if test fails."
-        print out
+        print("Can not deploy if test fails.")
+        print(out)
         exit(1)
 
 def uninstall(install_dir):
     target_dir = os.path.join(install_dir, "albion")
     if os.path.isdir(target_dir):
-        print "uninstall dir", target_dir
+        print("uninstall dir {}".format(target_dir))
         shutil.rmtree(target_dir)
     else:
-        print "Install directory '%s' not found" % target_dir
+        print("Install directory '{}' not found".format(target_dir))
 
 def install(install_dir, zip_filename):
     uninstall(install_dir)
     with zipfile.ZipFile(zip_filename, "r") as z:
         z.extractall(install_dir)
-    print "installed in", install_dir
+    print("installed in {}".format(install_dir))
 
 def zip_(zip_filename):
     """the zip file doesn't include tests, demos or docs"""
@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
     zip_filename = os.path.join(os.path.dirname(__file__), zipname+zipext)
     zip_(zip_filename)
-    print "created", zip_filename
+    print("created {}".format(zip_filename))
     install_dir = qgis_plugin_dir if len(args)==0 else args[0]
 
     if "-u" in optlist or "--uninstall" in optlist:
