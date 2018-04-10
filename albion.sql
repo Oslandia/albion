@@ -105,7 +105,7 @@ $$
             from line as l 
         into hole_geom_;
 
-        if hole_geom_ is not null and st_3dlength(hole_geom_) < depth_max_ then
+        if hole_geom_ is not null and st_3dlength(hole_geom_) < depth_max_ and st_3dlength(hole_geom_) > 0 then
             -- holes is not long enough
             with last_segment as (
                 select st_pointn(hole_geom_, st_numpoints(hole_geom_)-1) as start_, st_endpoint(hole_geom_) as end_
