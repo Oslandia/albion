@@ -1,8 +1,10 @@
-Albion
-######
+.. image::  ../../res/albion_logo_contour.svg
+    :width: 100 %
 
 Construction de coupes et volumes à partir de données de sondages
 
+Albion
+######
 
 Introduction 
 ************
