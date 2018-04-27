@@ -258,6 +258,8 @@ class Project(object):
                             select hole_id, max(to_) as to_ from _albion.lithology group by hole_id
                             union all
                             select hole_id, max(to_) as to_ from _albion.facies group by hole_id
+                            union all
+                            select hole_id, max(from_) as to_ from _albion.deviation group by hole_id
                             ) as t
                     group by hole_id
                 )
