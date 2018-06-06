@@ -101,7 +101,7 @@ $$
             select st_makeline(('SRID=$SRID; POINTZ('||x||' '||y||' '||z||')')::geometry order by md2 asc) as geom
             from pt
         )
-        select st_addpoint(geom, collar_geom_, 0)
+        select ST_RemoveRepeatedPoints(st_addpoint(geom, collar_geom_, 0), 1.e-6)
             from line as l 
         into hole_geom_;
 
