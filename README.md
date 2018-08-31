@@ -13,6 +13,7 @@ You have to install the following dependencies:
   - OpenGL for Python (python-opengl)
   - QtOpenGL for Python (python-qt4-gl)
   - shapely
+  - sphinx (python-sphinx)
   - pytest, hypothesis and mock (for running tests only)
 
 Clone the repo in a `albion` directory. Add the directory containing `albion` to your PYTHONPATH environment variable.
