@@ -552,11 +552,7 @@ with hull as (
     group by gc.section_id
 ),
 hull_contour as (
-    select st_exteriorring(
-        case when st_geometrytype(geom) = 'ST_Polygon' then geom
-        else (st_dump(geom)).geom
-        end) as geom, section_id
-        from hull
+    select st_exteriorring(geom) as geom, section_id from hull
 ),
 seg as (
     select ST_PointN(geom, generate_series(1, ST_NPoints(geom)-1)) as sp, ST_PointN(geom, generate_series(2, ST_NPoints(geom)  )) as ep, section_id
@@ -790,11 +786,7 @@ $$
             where gc.section_id=section_id_ and gc.group_id <= group_id_
         ),
         hull_contour as (
-            select st_exteriorring(
-                case when st_geometrytype(geom) = 'ST_Polygon' then geom
-                else (st_dump(geom)).geom
-                end) as geom
-                from hull
+            select st_exteriorring(geom) as geom from hull
         ),
         seg as (
             select ST_PointN(geom, generate_series(1, ST_NPoints(geom)-1)) as sp, ST_PointN(geom, generate_series(2, ST_NPoints(geom)  )) as ep
