@@ -103,10 +103,10 @@ class Plugin(QObject):
         self.__viewer3d_ctrl = QToolBar('3D controls')
         self.__viewer3d_ctrl.addWidget(ViewerControls(self.__viewer3d.widget()))
         self.__iface.addToolBar(self.__viewer3d_ctrl)
-        
+
         QgsProject.instance().readProject.connect(self.__qgis__project__loaded)
         self.__qgis__project__loaded() # case of reload
-        
+
 
     def unload(self):
         for s in self.__shortcuts:
@@ -134,13 +134,13 @@ class Plugin(QObject):
         self.__add_menu_entry('Upgrade Project', self.__upgrade_project)
 
         self.__menu.addSeparator()
-        
-        self.__add_menu_entry('&Import Data', self.__import_data, 
+
+        self.__add_menu_entry('&Import Data', self.__import_data,
                 self.project is not None,
                 "Import data from directory. The data files are in ")
-        
+
         self.__menu.addSeparator()
-        
+
         self.__add_menu_entry('Create cells', self.__create_cells,
                 self.project is not None and self.project.has_collar,
                 "Create Delaunay triangulation of collar layer.")
@@ -148,22 +148,22 @@ class Plugin(QObject):
         self.__add_menu_entry('Refresh all edges', self.__refresh_all_edge,
                 self.project is not None and self.project.has_cell,
                 "Refresh materialized view of all cell edges used by graph possible edges.")
-        
+
         self.__menu.addSeparator()
-        
-        #self.__add_menu_entry(u'Create section views 0° and 90°', self.__create_section_view_0_90, 
-        #        False and self.project is not None and self.project.has_hole, 
+
+        #self.__add_menu_entry(u'Create section views 0° and 90°', self.__create_section_view_0_90,
+        #        False and self.project is not None and self.project.has_hole,
         #        "Create section views (i.e. cut directions) to work West-East and South-North for this project")
-        #self.__add_menu_entry(u'Create section views -45° and 45°', None, 
-        #        False and self.project is not None and self.project.has_hole, 
+        #self.__add_menu_entry(u'Create section views -45° and 45°', None,
+        #        False and self.project is not None and self.project.has_hole,
         #        "Create section views (i.e. cut directions) to work SE-NW and SW-NE for this project")
         #
         #self.__menu.addSeparator()
-        
+
         self.__add_menu_entry('Create sections', self.__create_sections,
                 self.project is not None and self.project.has_group_cell,
                 "Once cell groups have been defined, create section lines.")
-        
+
         self.__menu.addSeparator()
 
         self.__add_menu_entry('Compute &Mineralization', self.__compute_mineralization,
@@ -187,21 +187,21 @@ class Plugin(QObject):
         self.__add_menu_entry('Toggle axis', self.__toggle_axis)
 
         self.__menu.addSeparator()
-        
-        self.__add_menu_entry('Export Project', self.__export_project, 
+
+        self.__add_menu_entry('Export Project', self.__export_project,
                 self.project is not None)
-        self.__add_menu_entry('Export Sections', None, 
-                self.project is not None and self.project.has_section, 
+        self.__add_menu_entry('Export Sections', None,
+                self.project is not None and self.project.has_section,
                 "Export triangulated section in .obj or .dxf format")
-        self.__add_menu_entry('Export Volume', self.__export_volume, 
-                self.project is not None and bool(self.__current_graph.currentText()), 
+        self.__add_menu_entry('Export Volume', self.__export_volume,
+                self.project is not None and bool(self.__current_graph.currentText()),
                 "Export volume of current graph in .obj or .dxf format")
 
         self.__menu.addSeparator()
 
         self.__menu.addAction('Help').triggered.connect(self.open_help)
 
-        
+
     def __current_graph_changed(self, graph_id):
         if self.project is None:
             return
@@ -249,11 +249,11 @@ class Plugin(QObject):
         self.__viewer3d.widget().scene.update('section')
         self.__viewer3d.widget().update()
 
-    def __refresh_layers(self, name=None):
+    def __refresh_layers(self, name=None, updateExtent=False):
         for layer in self.__iface.mapCanvas().layers():
             if name is None or layer.name().find(name) != -1:
                 layer.triggerRepaint()
-        
+
     def __current_section_changed(self, section_id):
         layers = QgsMapLayerRegistry.instance().mapLayersByName(u"group_cell")
         if len(layers):
@@ -270,7 +270,7 @@ class Plugin(QObject):
         if self.project and self.__iface.activeLayer() and self.__iface.activeLayer().name() == u"cell":
             if self.__iface.activeLayer().selectedFeatureCount():
                 section = self.__current_section.currentText()
-                self.project.create_group(section, 
+                self.project.create_group(section,
                         [f['id'] for f in self.__iface.activeLayer().selectedFeatures()])
             self.__iface.activeLayer().removeSelection()
             self.__refresh_layers('group_cell')
@@ -292,7 +292,7 @@ class Plugin(QObject):
     def __update_section_list(self):
         self.__current_section.clear()
         self.__current_section.addItems(self.project.sections())
-                
+
     def __upgrade_project(self):
         project_name, ok = QInputDialog.getText(self.__iface.mainWindow(),
                 "Database name", "Database name:", QLineEdit.Normal, '')
@@ -325,10 +325,10 @@ class Plugin(QObject):
 
         project_name = str(os.path.split(fil)[1][:-4])
 
-       
+
         if Project.exists(project_name):
-            if QMessageBox.Yes != QMessageBox(QMessageBox.Information, 
-                    "Delete existing DB", "Database {} exits, to you want to delete it ?".format(project_name), 
+            if QMessageBox.Yes != QMessageBox(QMessageBox.Information,
+                    "Delete existing DB", "Database {} exits, to you want to delete it ?".format(project_name),
                     QMessageBox.Yes|QMessageBox.No).exec_():
                 return
             Project.delete(project_name)
@@ -365,7 +365,7 @@ class Plugin(QObject):
         progress.setAlignment(Qt.AlignLeft|Qt.AlignVCenter)
         progressMessageBar.layout().addWidget(progress)
         self.__iface.messageBar().pushWidget(progressMessageBar, self.__iface.messageBar().INFO)
-        
+
         self.project.import_data(dir_, ProgressBar(progress))
         self.project.triangulate()
         self.project.create_section_view_0_90(4)
@@ -386,7 +386,7 @@ class Plugin(QObject):
         self.__viewer3d.widget().resetScene(self.project)
         self.__current_section.clear()
         self.__current_section.addItems(self.project.sections())
-    
+
     def __new_graph(self):
 
         if self.project is None:
@@ -397,7 +397,7 @@ class Plugin(QObject):
 
         if not ok:
             return
-        
+
         parent, ok = QInputDialog.getText(self.__iface.mainWindow(),
                 "Parent Graph", "Parent Graph name:", QLineEdit.Normal, '')
 
@@ -448,7 +448,7 @@ class Plugin(QObject):
     def __export_volume(self):
         if self.project is None:
             return
-        
+
         fil = QFileDialog.getSaveFileName(None,
                 u"Export volume for current graph",
                 QgsProject.instance().readEntry("albion", "last_dir", "")[0],
@@ -465,7 +465,7 @@ class Plugin(QObject):
         else:
             self.__iface.messageBar().pushWarning('Albion', 'unsupported extension for volume export')
 
-    
+
     def __import_project(self):
         fil = QFileDialog.getOpenFileName(None,
                 u"Import project from file",
@@ -475,7 +475,7 @@ class Plugin(QObject):
             return
 
         QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
-        
+
         if fil[-4:] != '.zip':
             self.__iface.messageBar().pushWarning('Albion', 'unsupported extension for import')
 
@@ -483,20 +483,20 @@ class Plugin(QObject):
         dir_ = tempfile.gettempdir()
         with zipfile.ZipFile(fil, "r") as z:
             z.extractall(dir_)
-            
+
         dump = find_in_dir(dir_, '.dump')
         prj = find_in_dir(dir_, '.qgs')
 
         self.__iface.messageBar().pushInfo('Albion', 'loading {} from {}'.format(project_name, dump))
         if Project.exists(project_name):
-            if QMessageBox.Yes != QMessageBox(QMessageBox.Information, 
-                    "Delete existing DB", "Database {} exits, to you want to delete it ?".format(project_name), 
+            if QMessageBox.Yes != QMessageBox(QMessageBox.Information,
+                    "Delete existing DB", "Database {} exits, to you want to delete it ?".format(project_name),
                     QMessageBox.Yes|QMessageBox.No).exec_():
                 return
             Project.delete(project_name)
 
         project = Project.import_(project_name, dump)
-        
+
         QgsProject.instance().read(QFileInfo(prj))
 
     def __export_project(self):
