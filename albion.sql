@@ -78,19 +78,19 @@ $$
         select collar_id, depth_ from albion.hole where id=hole_id_ into collar_id_, depth_max_;
 
         select geom from albion.collar where id=collar_id_ into collar_geom_;
-        
+
         with dz as (
-            select 
+            select
                 from_ as md2, coalesce(lag(from_) over w, 0) as md1,
                 (dip + 90)*pi()/180 as wd2,  coalesce(lag((dip+90)*pi()/180) over w, 0) as wd1,
                 azimuth*pi()/180 as haz2,  coalesce(lag(azimuth*pi()/180) over w, 0) as haz1
-            from _albion.deviation 
+            from _albion.deviation
             where azimuth >= 0 and azimuth <=360 and dip < 0 and dip > -180
             and hole_id=hole_id_
             window w AS (order by from_)
         ),
         pt as (
-            select md2, wd2, haz2, 
+            select md2, wd2, haz2,
             st_x(collar_geom_) + sum(0.5 * (md2 - md1) * (sin(wd1) * sin(haz1) + sin(wd2) * sin(haz2))) over w as x,
             st_y(collar_geom_) + sum(0.5 * (md2 - md1) * (sin(wd1) * cos(haz1) + sin(wd2) * cos(haz2))) over w as y,
             st_z(collar_geom_) - sum(0.5 * (md2 - md1) * (cos(wd2) + cos(wd1))) over w as z
@@ -102,7 +102,7 @@ $$
             from pt
         )
         select ST_RemoveRepeatedPoints(st_addpoint(geom, collar_geom_, 0), 1.e-6)
-            from line as l 
+            from line as l
         into hole_geom_;
 
         if hole_geom_ is not null and st_3dlength(hole_geom_) < depth_max_ and st_3dlength(hole_geom_) > 0 then
@@ -111,10 +111,10 @@ $$
                 select st_pointn(hole_geom_, st_numpoints(hole_geom_)-1) as start_, st_endpoint(hole_geom_) as end_
             ),
             direction as (
-                select 
-                (st_x(end_) - st_x(start_))/st_3ddistance(end_, start_) as x, 
-                (st_y(end_) - st_y(start_))/st_3ddistance(end_, start_) as y, 
-                (st_z(end_) - st_z(start_))/st_3ddistance(end_, start_) as z 
+                select
+                (st_x(end_) - st_x(start_))/st_3ddistance(end_, start_) as x,
+                (st_y(end_) - st_y(start_))/st_3ddistance(end_, start_) as y,
+                (st_z(end_) - st_z(start_))/st_3ddistance(end_, start_) as z
                 from last_segment
             )
             select st_addpoint(hole_geom_,
@@ -187,8 +187,8 @@ create or replace view albion.graph as
 select id, parent from _albion.graph
 ;
 
-create or replace view albion.node as 
-select id, graph_id, hole_id, from_, to_, parent, geom::geometry('LINESTRINGZ', $SRID) 
+create or replace view albion.node as
+select id, graph_id, hole_id, from_, to_, parent, geom::geometry('LINESTRINGZ', $SRID)
 from _albion.node
 ;
 
@@ -205,14 +205,14 @@ $$
             if (select parent is not null from _albion.graph where id=new.graph_id) then
                 new.parent := coalesce(new.parent,
                     (select id from _albion.node as n
-                    where .5*(new.from_+new.to_) between n.from_ and n.to_ 
-                    and n.hole_id=new.hole_id and 
+                    where .5*(new.from_+new.to_) between n.from_ and n.to_
+                    and n.hole_id=new.hole_id and
                     n.graph_id=(select g.parent from _albion.graph as g where g.id=new.graph_id)));
             end if;
         end if;
 
         if tg_op = 'INSERT' then
-            insert into _albion.node(id, graph_id, hole_id, from_, to_, geom, parent) 
+            insert into _albion.node(id, graph_id, hole_id, from_, to_, geom, parent)
             values(new.id, new.graph_id, new.hole_id, new.from_, new.to_, new.geom, new.parent)
             returning id into new.id;
             return new;
@@ -258,7 +258,7 @@ $$
         splt as (
             select (ST_Dump(geom)).geom from cell
         )
-        select 
+        select
             (select c.id from _albion.collar as c where st_intersects(c.geom, st_pointn(st_exteriorring(s.geom), 1))),
             (select c.id from _albion.collar as c where st_intersects(c.geom, st_pointn(st_exteriorring(s.geom), 2))),
             (select c.id from _albion.collar as c where st_intersects(c.geom, st_pointn(st_exteriorring(s.geom), 3))),
@@ -318,7 +318,7 @@ $$
             from (select (st_dump(geom)).geom from merged) as t
         )
         select geom from sorted where rk=1
-    ); 
+    );
     end;
 $$
 ;
@@ -441,9 +441,9 @@ $$
                     and albion.is_touchingrightside(old_geom, geom) = 't'
                     and albion.is_visible(anchor, old_geom, geom) = 't'
                 )
-                select 
-                    case when st_linelocatepoint(anchor, st_startpoint(geom)) > st_linelocatepoint(anchor, st_endpoint(geom)) 
-                        then geom 
+                select
+                    case when st_linelocatepoint(anchor, st_startpoint(geom)) > st_linelocatepoint(anchor, st_endpoint(geom))
+                        then geom
                         else st_reverse(geom)
                     end from candidates where rk=1 into old_geom;
             end loop;
@@ -472,8 +472,8 @@ as
 $$
     begin
         if tg_op = 'INSERT' then
-            insert into _albion.section(id, anchor, geom, scale, group_id) 
-                values(new.id, new.anchor, coalesce(new.geom, albion.first_section(new.anchor)), new.scale, new.group_id) 
+            insert into _albion.section(id, anchor, geom, scale, group_id)
+                values(new.id, new.anchor, coalesce(new.geom, albion.first_section(new.anchor)), new.scale, new.group_id)
                 returning id, geom into new.id, new.geom;
             return new;
         elsif tg_op = 'UPDATE' then
@@ -514,7 +514,7 @@ alter view albion.group alter column id set default albion.next_group()
 
 create view albion.group_cell as
 select gc.section_id || ' ' || gc.cell_id as id, gc.cell_id, c.geom, gc.group_id, gc.section_id
-from _albion.cell as c 
+from _albion.cell as c
 join _albion.group_cell as gc on gc.cell_id=c.id
 ;
 
@@ -525,8 +525,8 @@ as
 $$
     begin
         if tg_op = 'INSERT' then
-            insert into _albion.group_cell(section_id, group_id, cell_id) 
-                values(new.section_id, new.group_id, new.cell_id); 
+            insert into _albion.group_cell(section_id, group_id, cell_id)
+                values(new.section_id, new.group_id, new.cell_id);
             return new;
         elsif tg_op = 'UPDATE' then
             update _albion.group_cell set section_id=new.section_id, group_id=new.group_id where cell_id=new.cell_id;
@@ -552,11 +552,7 @@ with hull as (
     group by gc.section_id
 ),
 hull_contour as (
-    select st_exteriorring(
-        case when st_geometrytype(geom) = 'ST_Polygon' then geom
-        else (st_dump(geom)).geom
-        end) as geom, section_id
-        from hull
+    select st_exteriorring(geom) as geom, section_id from hull
 ),
 seg as (
     select ST_PointN(geom, generate_series(1, ST_NPoints(geom)-1)) as sp, ST_PointN(geom, generate_series(2, ST_NPoints(geom)  )) as ep, section_id
@@ -579,7 +575,7 @@ sorted as (
 select section_id as id, st_reverse(geom)::geometry('LINESTRING', $SRID) as geom from sorted where rk=1
 union all
 select s.id, (albion.first_section(s.anchor))::geometry('LINESTRING', $SRID) as geom from albion.section as s
-where not exists (select 1 from sorted as st where st.section_id=s.id) 
+where not exists (select 1 from sorted as st where st.section_id=s.id)
 ;
 
 create or replace function albion.to_section(geom geometry, anchor geometry, z_scale real)
@@ -588,7 +584,7 @@ language plpython3u immutable
 as
 $$
     import plpy
-    from shapely.ops import transform 
+    from shapely.ops import transform
     from shapely.geometry import LineString
     from shapely import wkb
     from shapely import geos
@@ -632,7 +628,7 @@ language plpython3u immutable
 as
 $$
     import plpy
-    from shapely.ops import transform 
+    from shapely.ops import transform
     from shapely.geometry import LineString
     from shapely import wkb
     from shapely import geos
@@ -670,7 +666,7 @@ $$
 ;
 
 create materialized view albion.radiometry_section as
-select r.id as radiometry_id, s.id as section_id, 
+select r.id as radiometry_id, s.id as section_id,
     (albion.to_section(r.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.radiometry as r
 join _albion.hole as h on h.id=r.hole_id, _albion.section as s
@@ -683,7 +679,7 @@ create index radiometry_section_radiometry_id_idx on albion.radiometry_section(r
 ;
 
 create materialized view albion.resistivity_section as
-select r.id as resistivity_id, s.id as section_id, 
+select r.id as resistivity_id, s.id as section_id,
     (albion.to_section(r.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.resistivity as r
 join _albion.hole as h on h.id=r.hole_id, _albion.section as s
@@ -696,7 +692,7 @@ create index resistivity_section_resistivity_id_idx on albion.resistivity_sectio
 ;
 
 create view albion.current_node_section as
-select row_number() over() as id, n.id as node_id, h.collar_id, n.from_, n.to_, n.graph_id, s.id as section_id, 
+select row_number() over() as id, n.id as node_id, h.collar_id, n.from_, n.to_, n.graph_id, s.id as section_id,
     (albion.to_section(n.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.node as n
 join _albion.hole as h on h.id=n.hole_id
@@ -705,14 +701,14 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 ;
 
 create view albion.hole_section as
-select row_number() over() as id, h.id as hole_id, h.collar_id, h.depth_, s.id as section_id, 
+select row_number() over() as id, h.id as hole_id, h.collar_id, h.depth_, s.id as section_id,
     (albion.to_section(h.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.hole as h
 join _albion.collar as c on c.id=h.collar_id, _albion.section as s
 ;
 
 create view albion.current_hole_section as
-select row_number() over() as id, h.id as hole_id, h.collar_id, h.depth_, s.id as section_id, 
+select row_number() over() as id, h.id as hole_id, h.collar_id, h.depth_, s.id as section_id,
     (albion.to_section(h.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.hole as h
 join _albion.collar as c on c.id=h.collar_id
@@ -720,7 +716,7 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 ;
 
 create view albion.current_mineralization_section as
-select row_number() over() as id, m.hole_id as hole_id, h.collar_id, m.level_, m.oc, m.accu, m.grade, s.id as section_id, 
+select row_number() over() as id, m.hole_id as hole_id, h.collar_id, m.level_, m.oc, m.accu, m.grade, s.id as section_id,
     (albion.to_section(m.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.mineralization as m
 join _albion.hole as h on h.id=m.hole_id
@@ -729,7 +725,7 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 ;
 
 create view albion.current_radiometry_section as
-select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.gamma, s.id as section_id, 
+select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.gamma, s.id as section_id,
     rs.geom::geometry('LINESTRING', $SRID) as geom
 from _albion.radiometry as r
 join _albion.hole as h on h.id=r.hole_id
@@ -739,7 +735,7 @@ join albion.radiometry_section as rs on rs.radiometry_id=r.id and rs.section_id=
 ;
 
 create view albion.current_resistivity_section as
-select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.rho, s.id as section_id, 
+select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.rho, s.id as section_id,
     rs.geom::geometry('LINESTRING', $SRID) as geom
 from _albion.resistivity as r
 join _albion.hole as h on h.id=r.hole_id
@@ -750,7 +746,7 @@ join albion.resistivity_section as rs on rs.resistivity_id=r.id and rs.section_i
 
 
 create view albion.current_formation_section as
-select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.code, r.comments, s.id as section_id, 
+select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.code, r.comments, s.id as section_id,
     (albion.to_section(r.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.formation as r
 join _albion.hole as h on h.id=r.hole_id
@@ -759,7 +755,7 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 ;
 
 create view albion.current_lithology_section as
-select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.code, r.comments, s.id as section_id, 
+select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.code, r.comments, s.id as section_id,
     (albion.to_section(r.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.lithology as r
 join _albion.hole as h on h.id=r.hole_id
@@ -768,7 +764,7 @@ join _albion.section as s on st_intersects(s.geom, c.geom)
 ;
 
 create view albion.current_facies_section as
-select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.code, r.comments, s.id as section_id, 
+select row_number() over() as id, r.hole_id as hole_id, h.collar_id, r.code, r.comments, s.id as section_id,
     (albion.to_section(r.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.facies as r
 join _albion.hole as h on h.id=r.hole_id
@@ -790,11 +786,7 @@ $$
             where gc.section_id=section_id_ and gc.group_id <= group_id_
         ),
         hull_contour as (
-            select st_exteriorring(
-                case when st_geometrytype(geom) = 'ST_Polygon' then geom
-                else (st_dump(geom)).geom
-                end) as geom
-                from hull
+            select st_exteriorring(geom) as geom from hull
         ),
         seg as (
             select ST_PointN(geom, generate_series(1, ST_NPoints(geom)-1)) as sp, ST_PointN(geom, generate_series(2, ST_NPoints(geom)  )) as ep
@@ -837,7 +829,7 @@ $$
     IC = int(round(ic_/measure_thickness)) # nb echantillon, intercalaire stérile minimale
     OC = int(round(oc_/measure_thickness)) # nb echantillon, ouverture chantier (épaisseur mini)
     cut = cut_ # cutoff
-            
+
     first_from_ = from_[0]
 
     AVP = []
@@ -846,7 +838,7 @@ $$
     AVP = numpy.array(AVP, dtype=numpy.float32)
 
     N = len(AVP)+2*IC+OC-1
-  
+
     # Vecteurs de travail
     # note: le code est un portage de R
     # pour garder l indexation démarrant à 1
@@ -862,23 +854,23 @@ $$
     SO  = numpy.zeros((N+1,))
     SO1 = numpy.zeros((N+1,))
     SO2 = numpy.zeros((N+1,))
-    
+
     SVP = numpy.zeros((N+1,), dtype=numpy.int32)
-    SOP = numpy.zeros((N+1,), dtype=numpy.int32) 
+    SOP = numpy.zeros((N+1,), dtype=numpy.int32)
 
     # Initialisation
     for i in range(OC, (IC+OC-1)+1):
         SV[i] = numpy.sum(v[(i-OC+1):(i+1)])
     SVP[IC+OC-1]=IC
     SOP[IC+OC-1]=1
-    
+
     # Calcul des valeurs
     for i in range(IC+OC, N+1):
         # Calcul de SV
         SV1[i] = SV[i-1]+v[i]
         SV2[i] = SO[i-OC]+numpy.sum(v[(i-OC+1):(i+1)])
         SV[i]  = max(SV1[i], SV2[i])
-        
+
         # Calcul de SO
         SO1[i] = SO[i-1]
         SO2[i] = SV[i-IC]
@@ -914,7 +906,7 @@ $$
         int_.from_[int_.nbr] = SOP[int_.to[int_.nbr]]
         int_.code[int_.nbr] = 0
         int_.accu[int_.nbr] = 0.0
-        
+
         # Le chantier
         int_.nbr += 1
         int_.to[int_.nbr] = int_.from_[int_.nbr-1]-1
@@ -942,7 +934,7 @@ $$
 select hole_id, (t.r).level_, (t.r).from_, (t.r).to_, (t.r).oc, (t.r).accu, (t.r).grade
 from (
 select hole_id, albion.segmentation(
-    array_agg(gamma order by from_),array_agg(from_ order by from_),  array_agg(to_ order by from_), 
+    array_agg(gamma order by from_),array_agg(from_ order by from_),  array_agg(to_ order by from_),
     1., 1., 10) as r
 from _albion.radiometry
 group by hole_id
@@ -966,7 +958,7 @@ insert into albion.test_mineralization(hole_id, level_, from_, to_, oc, accu, gr
 select hole_id, (t.r).level_, (t.r).from_, (t.r).to_, (t.r).oc, (t.r).accu, (t.r).grade
 from (
 select hole_id, albion.segmentation(
-    array_agg(gamma order by from_),array_agg(from_ order by from_),  array_agg(to_ order by from_), 
+    array_agg(gamma order by from_),array_agg(from_ order by from_),  array_agg(to_ order by from_),
     1., 1., 10) as r
 from _albion.radiometry
 group by hole_id
@@ -977,7 +969,7 @@ update albion.test_mineralization set geom=albion.hole_piece(from_, to_, hole_id
 ;
 
 create view albion.current_test_mineralization_section as
-select row_number() over() as id, m.hole_id, h.collar_id, m.level_, m.oc, m.accu, m.grade, s.id as section_id, 
+select row_number() over() as id, m.hole_id, h.collar_id, m.level_, m.oc, m.accu, m.grade, s.id as section_id,
     (albion.to_section(m.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from albion.test_mineralization as m
 join _albion.hole as h on h.id=m.hole_id
@@ -1000,7 +992,7 @@ from _albion.cell
 create view albion.possible_edge as
 with tan_ang as (
     select tan(correlation_angle*pi()/180) as value, tan(parent_correlation_angle*pi()/180) as parent_value
-    
+
     from _albion.metadata
 ),
 result as (
@@ -1035,7 +1027,7 @@ and abs( -- tan(A-B) = (tan(A)-tan(B))/(1+tan(A)tan(B)
     )
     /
     (
-    1.0 
+    1.0
     +
     (st_z(st_3dlineinterpolatepoint(ns.geom, .5))-st_z(st_3dlineinterpolatepoint(ne.geom,.5)))
     /st_distance(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5))
@@ -1071,8 +1063,8 @@ $$
                 select new.start_, new.end_ into new.end_, new.start_;
             end if;
             -- @todo check that edge is in all_edge
-            select count(1) 
-            from albion.all_edge as ae 
+            select count(1)
+            from albion.all_edge as ae
             join _albion.hole as hs on hs.collar_id=ae.start_
             join _albion.hole as he on he.collar_id=ae.end_
             join _albion.node as ns on (ns.hole_id in (hs.id, he.id) and ns.id=new.start_)
@@ -1082,12 +1074,12 @@ $$
                 raise EXCEPTION 'impossible edge (not a cell edge)';
             end if;
             new.geom := st_makeline(
-                st_3dlineinterpolatepoint((select geom from _albion.node where id=new.start_), .5), 
+                st_3dlineinterpolatepoint((select geom from _albion.node where id=new.start_), .5),
                 st_3dlineinterpolatepoint((select geom from _albion.node where id=new.end_), .5));
         end if;
 
         if tg_op = 'INSERT' then
-            insert into _albion.edge(id, start_, end_, graph_id, geom) 
+            insert into _albion.edge(id, start_, end_, graph_id, geom)
             values(new.id, new.start_, new.end_, new.graph_id, new.geom)
             returning id into new.id;
             return new;
@@ -1114,13 +1106,13 @@ with collar_idx as (
     from _albion.section as s
     join _albion.collar as c on st_intersects(s.geom, c.geom) and st_intersects(s.geom, c.geom)
 )
-select  s.id || ' ' || e.id as id, e.id as edge_id, e.start_, e.end_, e.graph_id, s.id as section_id, 
+select  s.id || ' ' || e.id as id, e.id as edge_id, e.start_, e.end_, e.graph_id, s.id as section_id,
     (albion.to_section(e.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
 from _albion.edge as e
 join _albion.node as ns on ns.id=e.start_
 join _albion.node as ne on ne.id=e.end_
 join _albion.hole as hs on hs.id=ns.hole_id
-join _albion.hole as he on he.id=ne.hole_id 
+join _albion.hole as he on he.id=ne.hole_id
 join collar_idx as cs on cs.id=hs.collar_id
 join collar_idx as ce on ce.id=he.collar_id,
 _albion.section as s
@@ -1138,7 +1130,7 @@ $$
         new_geom geometry;
     begin
         if tg_op in ('INSERT', 'UPDATE') then
-            new.start_ := coalesce(new.start_, (select node_id from albion.current_node_section as n, _albion.metadata as m 
+            new.start_ := coalesce(new.start_, (select node_id from albion.current_node_section as n, _albion.metadata as m
                     where st_dwithin(n.geom, st_startpoint(new.geom), m.snap_distance)
                     and graph_id=new.graph_id
                     order by st_distance(n.geom, st_startpoint(new.geom)) asc
@@ -1154,13 +1146,13 @@ $$
                 select new.start_, new.end_ into new.end_, new.start_;
                 select st_reverse(new.geom) into new.geom;
             end if;
-            select st_makeline(st_3dlineinterpolatepoint(s.geom, .5), st_3dlineinterpolatepoint(e.geom, .5)) 
-            from _albion.node as s, _albion.node as e 
+            select st_makeline(st_3dlineinterpolatepoint(s.geom, .5), st_3dlineinterpolatepoint(e.geom, .5))
+            from _albion.node as s, _albion.node as e
             where s.id=new.start_ and e.id=new.end_ into new_geom;
         end if;
 
         if tg_op = 'INSERT' then
-            insert into _albion.edge(start_, end_, graph_id, geom) 
+            insert into _albion.edge(start_, end_, graph_id, geom)
             values(new.start_, new.end_, new.graph_id, new_geom)
             returning id into new.edge_id;
             return new;
@@ -1182,7 +1174,7 @@ create trigger current_edge_section_instead_trig
 ;
 
 create view albion.current_possible_edge_section as
-select row_number() over() as id, e.start_, e.end_, e.graph_id, s.id as section_id, 
+select row_number() over() as id, e.start_, e.end_, e.graph_id, s.id as section_id,
     (albion.to_section(e.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom, e.parent
 from albion.possible_edge as e
 join _albion.node as ns on ns.id=e.start_
@@ -1306,9 +1298,9 @@ $$
 
     if multipoly is None:
         return None
-    
+
     m = wkb.loads(bytes.fromhex(multipoly))
-    
+
     node_map = {}
     triangles = []
     vtx = []
@@ -1364,7 +1356,7 @@ $$
     #    open("/tmp/unclosed_border.vtk", 'w').write(rv[0]['vtk'])
     #    plpy.error("elementary volume is not closed", edges)
     #assert(len(edges)==0)
-    
+
     geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(m._geom))
     return result.wkb_hex
 $$
@@ -1470,7 +1462,7 @@ $$
     from shapely.geometry import LineString
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
-    
+
     REL_DISTANCE = .3
     HEIGHT = 1.
 
@@ -1505,7 +1497,7 @@ with collar_idx as (
     from _albion.section as s
     join _albion.collar as c on st_intersects(s.geom, c.geom)
 )
-select  tn.id||' '||s.id as id, tn.id as end_node_id, n.id as node_id, tn.graph_id, s.id as section_id, 
+select  tn.id||' '||s.id as id, tn.id as end_node_id, n.id as node_id, tn.graph_id, s.id as section_id,
     (albion.to_section(tn.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom,
     (albion.to_section(n.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as node_geom
 from _albion.end_node as tn
@@ -1531,10 +1523,10 @@ $$
             raise exception 'cannot insert en new node';
             return new;
         elsif tg_op = 'UPDATE' then
-            select anchor, geom, scale from _albion.section 
+            select anchor, geom, scale from _albion.section
             where id=old.section_id into anchor_, section_, z_scale_;
             raise notice 'update % % %', new.geom, old.section_id, old.end_node_id;
-            update _albion.end_node set 
+            update _albion.end_node set
                 geom=albion.from_section(new.geom, anchor_, section_, z_scale_)
                 where id=old.end_node_id;
             return new;
@@ -1621,7 +1613,7 @@ join lateral (
     where n.hole_id in (ha.id, hb.id, hc.id)
     and n.graph_id=g.id
 ) as nd on true
-join lateral (   
+join lateral (
     select coalesce(array_agg(e.start_), '{}'::varchar[]) as starts, coalesce(array_agg(e.end_), '{}'::varchar[]) as ends
     from _albion.edge as e
     join _albion.node as ns on ns.id=e.start_
@@ -1677,10 +1669,10 @@ from res
 
 
 --select albion.to_obj(albion.elementary_volumes(
---'{293309, 293309, 293309, 293411, 293411, 293310, 293310}'::varchar[], 
---'{293440, 293441, 293411, 293440, 293441, 293441, 293412}'::varchar[], 
---'{TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0777_1, TMRI_0777_1, TMRI_0789_1, TMRI_0777_1, TMRI_0789_1, TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0777_1}'::varchar[], 
---'{293309, 293440, 293309, 293441, 293309, 293411, 293411, 293440, 293411, 293441, 293310, 293441, 293310, 293412}'::varchar[], 
+--'{293309, 293309, 293309, 293411, 293411, 293310, 293310}'::varchar[],
+--'{293440, 293441, 293411, 293440, 293441, 293441, 293412}'::varchar[],
+--'{TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0777_1, TMRI_0777_1, TMRI_0789_1, TMRI_0777_1, TMRI_0789_1, TMRI_0717_1, TMRI_0789_1, TMRI_0717_1, TMRI_0777_1}'::varchar[],
+--'{293309, 293440, 293309, 293441, 293309, 293411, 293411, 293440, 293411, 293441, 293310, 293441, 293310, 293412}'::varchar[],
 --'01050000A0787F00000E00000001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C9393764001020000800200000059D97C6C85BC13418A67D48DBAA93F41FF7B08EA919F7640418F5F6685BC1341B0A9D78CBAA93F4178920C2DC58A764001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C939376400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C93937640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD947640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD94764001020000800200000059D97C6C85BC13418A67D48DBAA93F41FF7B08EA919F7640418F5F6685BC1341B0A9D78CBAA93F4178920C2DC58A7640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD9476400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000056B7652688BC1341EA1D85B9D2A93F41D7DF7D1858F87640E1BD403F88BC13418DABDEB2D2A93F41BFCC2B28C0DE76400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000056B7652688BC1341EA1D85B9D2A93F41D7DF7D1858F87640E1BD403F88BC13418DABDEB2D2A93F41BFCC2B28C0DE764001020000800200000042B5BD4C29BC134102FDA4FBD3A93F4171017AF02C16774018C4BC7729BC134173507003D4A93F4124AB1F80CAFF7640'::geometry))
 --;
 
