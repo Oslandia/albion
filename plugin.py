@@ -289,6 +289,14 @@ class Plugin(QObject):
 
         self.__viewer3d.widget().resetScene(self.project)
 
+        # We make sure that corresponding extents are valid when the project
+        # is loaded
+        cell = QgsMapLayerRegistry.instance().mapLayersByName('cell')[0]
+        cell.updateExtents()
+
+        section_geom = QgsMapLayerRegistry.instance().mapLayersByName('section.geom')[0]
+        section_geom.updateExtents()
+
     def __update_section_list(self):
         self.__current_section.clear()
         self.__current_section.addItems(self.project.sections())
