@@ -1577,7 +1577,7 @@ term as (
         t.graph_id, t.section_id
         from albion.current_end_node_section as t
 )
-select row_number() over() as id, geom, graph_id, section_id
+select row_number() over() as id, geom::geometry('POLYGON', $SRID), graph_id, section_id
 from (select * from poly union all select * from term) as t
 ;
 
