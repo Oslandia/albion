@@ -12,6 +12,8 @@ from pglite import start_cluster, stop_cluster, init_cluster, check_cluster, clu
 
 from builtins import bytes
 
+from qgis.core import QgsMessageLog
+
 if not check_cluster():
     init_cluster()
 start_cluster()
@@ -72,7 +74,7 @@ class Project(object):
             cur.execute("select pg_terminate_backend(pg_stat_activity.pid) \
                         from pg_stat_activity \
                         where pg_stat_activity.datname = '{}'".format(project_name))
-            
+
             cur.execute("select count(1) from pg_catalog.pg_database where datname='{}'".format(project_name))
             res = cur.fetchone()[0] == 1
             return res
@@ -87,7 +89,7 @@ class Project(object):
                         from pg_stat_activity \
                         where pg_stat_activity.datname = '{}'".format(project_name))
             cur.execute("drop database if exists {}".format(project_name))
-            
+
             cur.execute("select count(1) from pg_catalog.pg_database where datname='{}'".format(project_name))
             con.commit()
 
@@ -188,11 +190,11 @@ class Project(object):
             cur = con.cursor()
 
             cur.execute("""
-                copy _albion.collar(id, x, y, z, date_, comments) from '{}' delimiter ';' csv header 
+                copy _albion.collar(id, x, y, z, date_, comments) from '{}' delimiter ';' csv header
                 """.format(find_in_dir(dir_, 'collar')))
-            
+
             progress.setPercent(5)
-            
+
             cur.execute("""
                 update _albion.collar set geom=format('SRID=%s;POINTZ(%s %s %s)',m. srid, x, y, z)::geometry
                 from albion.metadata as m
@@ -291,9 +293,12 @@ class Project(object):
 
             cur.execute("update albion.facies set geom=albion.hole_piece(from_, to_, hole_id)")
 
-            #progress.setPercent(80)
+            if find_in_dir(dir_, 'mineralization'):
+                cur.execute("""
+                    copy _albion.mineralization(hole_id, level_, from_, to_, oc, accu, grade) from '{}' delimiter ';' csv header
+                    """.format(find_in_dir(dir_, 'mineralization')))
 
-            #cur.execute("update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)")
+            cur.execute("update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)")
 
             progress.setPercent(100)
 
@@ -327,7 +332,7 @@ class Project(object):
             for statement in open(file_).read().split('\n;\n')[:-1]:
                 cur.execute(statement.replace('$SRID', str(srid)))
             con.commit()
-        
+
     def new_graph(self, graph, parent=None):
         with self.connect() as con:
             cur = con.cursor()
@@ -343,7 +348,7 @@ class Project(object):
             cur = con.cursor()
             cur.execute("delete from albion.graph cascade where id='{}';".format(graph))
 
-    def previous_section(self, section):    
+    def previous_section(self, section):
         if not section:
             return
         with self.connect() as con:
@@ -372,7 +377,7 @@ class Project(object):
             cur.execute(sql)
             con.commit()
 
-    def next_section(self, section):    
+    def next_section(self, section):
         if not section:
             return
         with self.connect() as con:
@@ -440,7 +445,7 @@ class Project(object):
                 select hole_id, (t.r).level_, (t.r).from_, (t.r).to_, (t.r).oc, (t.r).accu, (t.r).grade
                 from (
                 select hole_id, albion.segmentation(
-                    array_agg(gamma order by from_),array_agg(from_ order by from_),  array_agg(to_ order by from_), 
+                    array_agg(gamma order by from_),array_agg(from_ order by from_),  array_agg(to_ order by from_),
                     {ci}, {oc}, {cutoff}) as r
                 from albion.radiometry
                 group by hole_id
@@ -450,8 +455,8 @@ class Project(object):
                 update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)
                 where geom is null
                 """)
-            con.commit() 
-            
+            con.commit()
+
 
     def export_obj(self, graph_id, filename):
         with self.connect() as con:
@@ -556,8 +561,8 @@ class Project(object):
                 insert into albion.section(id, anchor, scale)
                 values('SN x{z_scale}', 'SRID={srid};LINESTRING({x} {ybottom}, {x} {ytop})'::geometry, {z_scale})
                 """.format(
-                    z_scale=z_scale, 
-                    srid=srid, 
+                    z_scale=z_scale,
+                    srid=srid,
                     x=ext[1][0]+50+z_scale*ext[1][2],
                     ybottom=ext[0][1],
                     ytop=ext[1][1]))
@@ -566,8 +571,8 @@ class Project(object):
                 insert into albion.section(id, anchor, scale)
                 values('WE x{z_scale}', 'SRID={srid};LINESTRING({xleft} {y}, {xright} {y})'::geometry, {z_scale})
                 """.format(
-                    z_scale=z_scale, 
-                    srid=srid, 
+                    z_scale=z_scale,
+                    srid=srid,
                     y=ext[0][1]-50-z_scale*ext[1][2],
                     xleft=ext[0][0],
                     xright=ext[1][0]))
