@@ -318,6 +318,18 @@ class Project(object):
             cur.execute("refresh materialized view albion.all_edge")
             con.commit()
 
+    def refresh_radiometry(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("refresh materialized view albion.radiometry_section")
+            con.commit()
+
+    def refresh_resistivity(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("refresh materialized view albion.resistivity_section")
+            con.commit()
+
     def create_sections(self):
         with self.connect() as con:
             cur = con.cursor()
