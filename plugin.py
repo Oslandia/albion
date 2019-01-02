@@ -149,6 +149,10 @@ class Plugin(QObject):
                 self.project is not None and self.project.has_cell,
                 "Refresh materialized view of all cell edges used by graph possible edges.")
 
+        self.__add_menu_entry('Refresh diagraphy', self.__refresh_diagraphy,
+                self.project is not None,
+                "Refresh materialized view of radiometry and resistivity.")
+
         self.__menu.addSeparator()
 
         #self.__add_menu_entry(u'Create section views 0° and 90°', self.__create_section_view_0_90,
@@ -219,6 +223,10 @@ class Plugin(QObject):
             return
         self.project.refresh_all_edge()
 
+    def __refresh_diagraphy(self):
+        if self.project:
+            self.project.refresh_radiometry()
+            self.project.refresh_resistivity()
 
     def __create_terminations(self):
         if self.project is None:
