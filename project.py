@@ -300,6 +300,16 @@ class Project(object):
 
             cur.execute("update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)")
 
+            progress.setPercent(80)
+
+            if find_in_dir(dir_, 'chemical'):
+                cur.execute("""
+                    copy _albion.chemical(hole_id, from_, to_, num_sample,
+                        element, thickness, gt, grade, equi, comments
+                    )
+                    from '{}' delimiter ';' csv header
+                    """.format(find_in_dir(dir_, 'chemical')))
+
             progress.setPercent(100)
 
             con.commit()

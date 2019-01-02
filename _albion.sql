@@ -180,6 +180,22 @@ create index facies_hole_id_idx on _albion.facies(hole_id)
 alter table _albion.facies alter column id set default _albion.unique_id()::varchar
 ;
 
+create table _albion.chemical(
+    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
+    from_ real,
+    to_ real,
+    num_sample varchar,
+    element varchar,
+    thickness real,
+    gt real,  -- thickness * grade
+    grade real,
+    equi real,
+    comments varchar)
+;
+
+create index chemical_hole_id_idx on _albion.chemical(hole_id)
+;
+
 create table _albion.mineralization(
     id varchar primary key,
     hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
