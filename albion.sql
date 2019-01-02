@@ -179,6 +179,8 @@ create view albion.lithology as select id, hole_id, from_, to_, code, comments, 
 create view albion.facies as select id, hole_id, from_, to_, code, comments, geom::geometry('LINESTRINGZ', $SRID) from _albion.facies
 ;
 
+create view albion.chemical as select hole_id, from_, to_, num_sample, element, thickness, gt, grade, equi, comments from _albion.chemical
+;
 
 create view albion.mineralization as select id, hole_id, level_, from_, to_, oc, accu, grade, geom::geometry('LINESTRINGZ', $SRID) from _albion.mineralization
 ;
