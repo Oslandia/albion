@@ -8,7 +8,15 @@ import atexit
 from shapely import wkb
 from dxfwrite import DXFEngine as dxf
 
-from pglite import start_cluster, stop_cluster, init_cluster, check_cluster, cluster_params, export_db, import_db
+from pglite import (
+    start_cluster,
+    stop_cluster,
+    init_cluster,
+    check_cluster,
+    cluster_params,
+    export_db,
+    import_db,
+)
 
 from builtins import bytes
 
@@ -17,7 +25,8 @@ from qgis.core import QgsMessageLog
 if not check_cluster():
     init_cluster()
 start_cluster()
-#atexit.register(stop_cluster)
+# atexit.register(stop_cluster)
+
 
 def find_in_dir(dir_, name):
     for filename in os.listdir(dir_):
@@ -25,20 +34,22 @@ def find_in_dir(dir_, name):
             return os.path.join(dir_, filename)
     return ""
 
+
 class DummyProgress(object):
     def __init__(self):
-        sys.stdout.write('\n')
+        sys.stdout.write("\n")
         self.setPercent(0)
 
     def __del__(self):
-        sys.stdout.write('\n')
+        sys.stdout.write("\n")
 
     def setPercent(self, percent):
         l = 50
-        a = int(round(l*float(percent)/100))
+        a = int(round(l * float(percent) / 100))
         b = l - a
-        sys.stdout.write('\r|' + '#'*a + ' '*b + '| % 3d%%'%(percent))
+        sys.stdout.write("\r|" + "#" * a + " " * b + "| % 3d%%" % (percent))
         sys.stdout.flush()
+
 
 class ProgressBar(object):
     def __init__(self, progress_bar):
@@ -49,10 +60,10 @@ class ProgressBar(object):
     def setPercent(self, percent):
         self.__bar.setValue(int(percent))
 
-class Project(object):
 
+class Project(object):
     def __init__(self, project_name):
-        #assert Project.exists(project_name)
+        # assert Project.exists(project_name)
         self.__name = project_name
         self.__conn_info = "dbname={} {}".format(project_name, cluster_params())
 
@@ -71,31 +82,47 @@ class Project(object):
         with psycopg2.connect("dbname=postgres {}".format(cluster_params())) as con:
             cur = con.cursor()
             con.set_isolation_level(0)
-            cur.execute("select pg_terminate_backend(pg_stat_activity.pid) \
+            cur.execute(
+                "select pg_terminate_backend(pg_stat_activity.pid) \
                         from pg_stat_activity \
-                        where pg_stat_activity.datname = '{}'".format(project_name))
+                        where pg_stat_activity.datname = '{}'".format(
+                    project_name
+                )
+            )
 
-            cur.execute("select count(1) from pg_catalog.pg_database where datname='{}'".format(project_name))
+            cur.execute(
+                "select count(1) from pg_catalog.pg_database where datname='{}'".format(
+                    project_name
+                )
+            )
             res = cur.fetchone()[0] == 1
             return res
 
     @staticmethod
     def delete(project_name):
-        assert(Project.exists(project_name))
+        assert Project.exists(project_name)
         with psycopg2.connect("dbname=postgres {}".format(cluster_params())) as con:
             cur = con.cursor()
             con.set_isolation_level(0)
-            cur.execute("select pg_terminate_backend(pg_stat_activity.pid) \
+            cur.execute(
+                "select pg_terminate_backend(pg_stat_activity.pid) \
                         from pg_stat_activity \
-                        where pg_stat_activity.datname = '{}'".format(project_name))
+                        where pg_stat_activity.datname = '{}'".format(
+                    project_name
+                )
+            )
             cur.execute("drop database if exists {}".format(project_name))
 
-            cur.execute("select count(1) from pg_catalog.pg_database where datname='{}'".format(project_name))
+            cur.execute(
+                "select count(1) from pg_catalog.pg_database where datname='{}'".format(
+                    project_name
+                )
+            )
             con.commit()
 
     @staticmethod
     def create(project_name, srid):
-        assert(not Project.exists(project_name))
+        assert not Project.exists(project_name)
 
         with psycopg2.connect("dbname=postgres {}".format(cluster_params())) as con:
             cur = con.cursor()
@@ -110,13 +137,24 @@ class Project(object):
             cur.execute("create extension plpython3u")
             cur.execute("create extension hstore")
             cur.execute("create extension hstore_plpython3u")
-            include_elementary_volume = open(os.path.join(os.path.dirname(__file__), 'elementary_volume', '__init__.py')).read()
-            for file_ in ('_albion.sql', 'albion.sql'):
-                for statement in open(os.path.join(os.path.dirname(__file__), file_)).read().split('\n;\n')[:-1]:
-                    cur.execute(statement.replace('$SRID', str(srid)).replace('$INCLUDE_ELEMENTARY_VOLUME', include_elementary_volume))
+            include_elementary_volume = open(
+                os.path.join(
+                    os.path.dirname(__file__), "elementary_volume", "__init__.py"
+                )
+            ).read()
+            for file_ in ("_albion.sql", "albion.sql"):
+                for statement in (
+                    open(os.path.join(os.path.dirname(__file__), file_))
+                    .read()
+                    .split("\n;\n")[:-1]
+                ):
+                    cur.execute(
+                        statement.replace("$SRID", str(srid)).replace(
+                            "$INCLUDE_ELEMENTARY_VOLUME", include_elementary_volume
+                        )
+                    )
             con.commit()
         return project
-
 
     def update(self):
         "reload schema albion without changing data"
@@ -125,9 +163,21 @@ class Project(object):
             cur.execute("select srid from albion.metadata")
             srid, = cur.fetchone()
             cur.execute("drop schema if exists albion cascade")
-            include_elementary_volume = open(os.path.join(os.path.dirname(__file__), 'elementary_volume', '__init__.py')).read()
-            for statement in open(os.path.join(os.path.dirname(__file__), 'albion.sql')).read().split('\n;\n')[:-1]:
-                cur.execute(statement.replace('$SRID', str(srid)).replace('$INCLUDE_ELEMENTARY_VOLUME', include_elementary_volume))
+            include_elementary_volume = open(
+                os.path.join(
+                    os.path.dirname(__file__), "elementary_volume", "__init__.py"
+                )
+            ).read()
+            for statement in (
+                open(os.path.join(os.path.dirname(__file__), "albion.sql"))
+                .read()
+                .split("\n;\n")[:-1]
+            ):
+                cur.execute(
+                    statement.replace("$SRID", str(srid)).replace(
+                        "$INCLUDE_ELEMENTARY_VOLUME", include_elementary_volume
+                    )
+                )
             con.commit()
 
     def __getattr__(self, name):
@@ -189,65 +239,98 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 copy _albion.collar(id, x, y, z, date_, comments) from '{}' delimiter ';' csv header
-                """.format(find_in_dir(dir_, 'collar')))
+                """.format(
+                    find_in_dir(dir_, "collar")
+                )
+            )
 
             progress.setPercent(5)
 
-            cur.execute("""
+            cur.execute(
+                """
                 update _albion.collar set geom=format('SRID=%s;POINTZ(%s %s %s)',m. srid, x, y, z)::geometry
                 from albion.metadata as m
-                """)
+                """
+            )
 
-            cur.execute("""
+            cur.execute(
+                """
                 insert into _albion.hole(id, collar_id) select id, id from _albion.collar;
-                """)
+                """
+            )
 
             progress.setPercent(10)
 
-            cur.execute("""
+            cur.execute(
+                """
                 copy _albion.deviation(hole_id, from_, dip, azimuth) from '{}' delimiter ';' csv header
-                """.format(find_in_dir(dir_, 'devia')))
+                """.format(
+                    find_in_dir(dir_, "devia")
+                )
+            )
 
             progress.setPercent(15)
 
-            if find_in_dir(dir_, 'avp'):
-                cur.execute("""
+            if find_in_dir(dir_, "avp"):
+                cur.execute(
+                    """
                     copy _albion.radiometry(hole_id, from_, to_, gamma) from '{}' delimiter ';' csv header
-                    """.format(find_in_dir(dir_, 'avp')))
+                    """.format(
+                        find_in_dir(dir_, "avp")
+                    )
+                )
 
             progress.setPercent(20)
 
-            if find_in_dir(dir_, 'formation'):
-                cur.execute("""
+            if find_in_dir(dir_, "formation"):
+                cur.execute(
+                    """
                     copy _albion.formation(hole_id, from_, to_, code, comments) from '{}' delimiter ';' csv header
-                    """.format(find_in_dir(dir_, 'formation')))
+                    """.format(
+                        find_in_dir(dir_, "formation")
+                    )
+                )
 
             progress.setPercent(25)
 
-            if find_in_dir(dir_, 'lithology'):
-                cur.execute("""
+            if find_in_dir(dir_, "lithology"):
+                cur.execute(
+                    """
                     copy _albion.lithology(hole_id, from_, to_, code, comments) from '{}' delimiter ';' csv header
-                    """.format(find_in_dir(dir_, 'lithology')))
+                    """.format(
+                        find_in_dir(dir_, "lithology")
+                    )
+                )
 
             progress.setPercent(30)
 
-            if find_in_dir(dir_, 'facies'):
-                cur.execute("""
+            if find_in_dir(dir_, "facies"):
+                cur.execute(
+                    """
                     copy _albion.facies(hole_id, from_, to_, code, comments) from '{}' delimiter ';' csv header
-                    """.format(find_in_dir(dir_, 'facies')))
+                    """.format(
+                        find_in_dir(dir_, "facies")
+                    )
+                )
 
             progress.setPercent(35)
 
-            if find_in_dir(dir_, 'resi'):
-                cur.execute("""
+            if find_in_dir(dir_, "resi"):
+                cur.execute(
+                    """
                     copy _albion.resistivity(hole_id, from_, to_, rho) from '{}' delimiter ';' csv header
-                    """.format(find_in_dir(dir_, 'resi')))
+                    """.format(
+                        find_in_dir(dir_, "resi")
+                    )
+                )
 
             progress.setPercent(40)
 
-            cur.execute("""
+            cur.execute(
+                """
                 with dep as (
                     select hole_id, max(to_) as mx
                         from (
@@ -267,7 +350,8 @@ class Project(object):
                 )
                 update _albion.hole as h set depth_=d.mx
                 from dep as d where h.id=d.hole_id
-                """)
+                """
+            )
 
             progress.setPercent(50)
 
@@ -275,40 +359,60 @@ class Project(object):
 
             progress.setPercent(55)
 
-            cur.execute("update albion.lithology set geom=albion.hole_piece(from_, to_, hole_id)")
+            cur.execute(
+                "update albion.lithology set geom=albion.hole_piece(from_, to_, hole_id)"
+            )
 
             progress.setPercent(60)
 
-            cur.execute("update albion.formation set geom=albion.hole_piece(from_, to_, hole_id)")
+            cur.execute(
+                "update albion.formation set geom=albion.hole_piece(from_, to_, hole_id)"
+            )
 
             progress.setPercent(65)
 
-            cur.execute("update albion.radiometry set geom=albion.hole_piece(from_, to_, hole_id)")
+            cur.execute(
+                "update albion.radiometry set geom=albion.hole_piece(from_, to_, hole_id)"
+            )
 
             progress.setPercent(70)
 
-            cur.execute("update albion.resistivity set geom=albion.hole_piece(from_, to_, hole_id)")
+            cur.execute(
+                "update albion.resistivity set geom=albion.hole_piece(from_, to_, hole_id)"
+            )
 
             progress.setPercent(75)
 
-            cur.execute("update albion.facies set geom=albion.hole_piece(from_, to_, hole_id)")
+            cur.execute(
+                "update albion.facies set geom=albion.hole_piece(from_, to_, hole_id)"
+            )
 
-            if find_in_dir(dir_, 'mineralization'):
-                cur.execute("""
+            if find_in_dir(dir_, "mineralization"):
+                cur.execute(
+                    """
                     copy _albion.mineralization(hole_id, level_, from_, to_, oc, accu, grade) from '{}' delimiter ';' csv header
-                    """.format(find_in_dir(dir_, 'mineralization')))
+                    """.format(
+                        find_in_dir(dir_, "mineralization")
+                    )
+                )
 
-            cur.execute("update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)")
+            cur.execute(
+                "update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)"
+            )
 
             progress.setPercent(80)
 
-            if find_in_dir(dir_, 'chemical'):
-                cur.execute("""
+            if find_in_dir(dir_, "chemical"):
+                cur.execute(
+                    """
                     copy _albion.chemical(hole_id, from_, to_, num_sample,
                         element, thickness, gt, grade, equi, comments
                     )
                     from '{}' delimiter ';' csv header
-                    """.format(find_in_dir(dir_, 'chemical')))
+                    """.format(
+                        find_in_dir(dir_, "chemical")
+                    )
+                )
 
             progress.setPercent(100)
 
@@ -351,8 +455,8 @@ class Project(object):
             cur = con.cursor()
             cur.execute("select srid from albion.metadata")
             srid, = cur.fetchone()
-            for statement in open(file_).read().split('\n;\n')[:-1]:
-                cur.execute(statement.replace('$SRID', str(srid)))
+            for statement in open(file_).read().split("\n;\n")[:-1]:
+                cur.execute(statement.replace("$SRID", str(srid)))
             con.commit()
 
     def new_graph(self, graph, parent=None):
@@ -360,7 +464,11 @@ class Project(object):
             cur = con.cursor()
             cur.execute("delete from albion.graph cascade where id='{}';".format(graph))
             if parent:
-                cur.execute("insert into albion.graph(id, parent) values ('{}', '{}');".format(graph, parent))
+                cur.execute(
+                    "insert into albion.graph(id, parent) values ('{}', '{}');".format(
+                        graph, parent
+                    )
+                )
             else:
                 cur.execute("insert into albion.graph(id) values ('{}');".format(graph))
             con.commit()
@@ -375,27 +483,39 @@ class Project(object):
             return
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 select group_id from albion.section where id='{}'
-                """.format(section))
+                """.format(
+                    section
+                )
+            )
             group, = cur.fetchone()
             group = group or 0
-            cur.execute("""
+            cur.execute(
+                """
                 select group_id, geom from albion.section_geom
                 where section_id='{section}'
                 and group_id < {group}
                 order by group_id desc
                 limit 1
-                """.format(group=group, section=section))
+                """.format(
+                    group=group, section=section
+                )
+            )
             res = cur.fetchone()
             if res:
-                sql = ("""
+                sql = """
                     update albion.section set group_id={}, geom='{}'::geometry where id='{}'
-                    """.format(res[0], res[1], section))
+                    """.format(
+                    res[0], res[1], section
+                )
             else:
-                sql = ("""
+                sql = """
                     update albion.section set group_id=null, geom=albion.first_section(anchor) where id='{}'
-                    """.format(section))
+                    """.format(
+                    section
+                )
             cur.execute(sql)
             con.commit()
 
@@ -404,46 +524,64 @@ class Project(object):
             return
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 select group_id from albion.section where id='{}'
-                """.format(section))
+                """.format(
+                    section
+                )
+            )
             group, = cur.fetchone()
             group = group or 0
-            cur.execute("""
+            cur.execute(
+                """
                 select group_id, geom from albion.section_geom
                 where section_id='{section}'
                 and group_id > {group}
                 order by group_id asc
                 limit 1
-                """.format(group=group, section=section))
+                """.format(
+                    group=group, section=section
+                )
+            )
             res = cur.fetchone()
             if res:
-                sql = ("""
+                sql = """
                     update albion.section set group_id={}, geom='{}'::geometry where id='{}'
-                    """.format(res[0], res[1], section))
+                    """.format(
+                    res[0], res[1], section
+                )
                 cur.execute(sql)
                 con.commit()
 
     def next_group_ids(self):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 select cell_id from albion.next_group where section_id='{}'
-                """.format(self.__current_section.currentText()))
+                """.format(
+                    self.__current_section.currentText()
+                )
+            )
             return [cell_id for cell_id, in cur.fetchall()]
 
     def create_group(self, section, ids):
         with self.connect() as con:
             # add group
             cur = con.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 insert into albion.group default values returning id
-                """)
+                """
+            )
             group, = cur.fetchone()
-            cur.executemany("""
+            cur.executemany(
+                """
                 insert into albion.group_cell(section_id, cell_id, group_id) values(%s, %s, %s)
                 """,
-                ((section, id_, group) for id_ in ids))
+                ((section, id_, group) for id_ in ids),
+            )
             con.commit()
 
     def sections(self):
@@ -461,8 +599,11 @@ class Project(object):
     def compute_mineralization(self, cutoff, ci, oc):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("delete from albion.mineralization where level_={}".format(cutoff))
-            cur.execute("""
+            cur.execute(
+                "delete from albion.mineralization where level_={}".format(cutoff)
+            )
+            cur.execute(
+                """
                 insert into albion.mineralization(hole_id, level_, from_, to_, oc, accu, grade)
                 select hole_id, (t.r).level_, (t.r).from_, (t.r).to_, (t.r).oc, (t.r).accu, (t.r).grade
                 from (
@@ -472,83 +613,116 @@ class Project(object):
                 from albion.radiometry
                 group by hole_id
                 ) as t
-                """.format(oc=oc, ci=ci, cutoff=cutoff))
-            cur.execute("""
+                """.format(
+                    oc=oc, ci=ci, cutoff=cutoff
+                )
+            )
+            cur.execute(
+                """
                 update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)
                 where geom is null
-                """)
+                """
+            )
             con.commit()
-
 
     def export_obj(self, graph_id, filename):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 select albion.to_obj(albion.volume_union(st_collectionhomogenize(st_collect(triangulation))))
                 from albion.volume
                 where graph_id='{}'
                 and albion.is_closed_volume(triangulation)
                 and  albion.volume_of_geom(triangulation) > 1
-                """.format(graph_id))
-            open(filename, 'w').write(cur.fetchone()[0])
+                """.format(
+                    graph_id
+                )
+            )
+            open(filename, "w").write(cur.fetchone()[0])
 
     def errors_obj(self, graph_id, filename):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 select albion.to_obj(st_collectionhomogenize(st_collect(triangulation)))
                 from albion.volume
                 where graph_id='{}'
                 and (not albion.is_closed_volume(triangulation) or albion.volume_of_geom(triangulation) <= 1)
 
-                """.format(graph_id))
-            open(filename, 'w').write(cur.fetchone()[0])
-
+                """.format(
+                    graph_id
+                )
+            )
+            open(filename, "w").write(cur.fetchone()[0])
 
     def export_dxf(self, graph_id, filename):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 select albion.volume_union(st_collectionhomogenize(st_collect(triangulation)))
                 from albion.volume
                 where graph_id='{}'
                 and albion.is_closed_volume(triangulation)
                 and  albion.volume_of_geom(triangulation) > 1
-                """.format(graph_id))
+                """.format(
+                    graph_id
+                )
+            )
             drawing = dxf.drawing(filename)
             m = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
             for p in m:
                 r = p.exterior.coords
-                drawing.add(dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1))
+                drawing.add(
+                    dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1)
+                )
             drawing.save()
 
     def create_volumes(self, graph_id):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 delete from albion.volume where graph_id='{}'
-                """.format(graph_id))
-            cur.execute("""
+                """.format(
+                    graph_id
+                )
+            )
+            cur.execute(
+                """
                 insert into albion.volume(graph_id, cell_id, triangulation)
                 select graph_id, cell_id, geom
                 from albion.dynamic_volume
                 where graph_id='{}'
                 and geom is not null --not st_isempty(geom)
-                """.format(graph_id))
+                """.format(
+                    graph_id
+                )
+            )
             con.commit()
 
     def create_terminations(self, graph_id):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 delete from albion.end_node where graph_id='{}'
-                """.format(graph_id))
-            cur.execute("""
+                """.format(
+                    graph_id
+                )
+            )
+            cur.execute(
+                """
                 insert into albion.end_node(geom, node_id, collar_id, graph_id)
                 select geom, node_id, collar_id, graph_id
                 from albion.dynamic_end_node
                 where graph_id='{}'
-                """.format(graph_id))
+                """.format(
+                    graph_id
+                )
+            )
             con.commit()
 
     def export(self, filename):
@@ -557,7 +731,7 @@ class Project(object):
     @staticmethod
     def import_(name, filename):
         import_db(filename, name)
-        project =  Project(name)
+        project = Project(name)
         project.create_sections()
         return project
 
@@ -570,57 +744,75 @@ class Project(object):
 
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 select st_3dextent(geom)
                 from albion.hole
-                """)
-            ext = cur.fetchone()[0].replace('BOX3D(','').replace(')','').split(',')
-            ext = [[float(c) for c in ext[0].split()],[float(c) for c in ext[1].split()]]
+                """
+            )
+            ext = cur.fetchone()[0].replace("BOX3D(", "").replace(")", "").split(",")
+            ext = [
+                [float(c) for c in ext[0].split()],
+                [float(c) for c in ext[1].split()],
+            ]
 
             cur.execute("select srid from albion.metadata")
             srid, = cur.fetchone()
-            cur.execute("""
+            cur.execute(
+                """
                 insert into albion.section(id, anchor, scale)
                 values('SN x{z_scale}', 'SRID={srid};LINESTRING({x} {ybottom}, {x} {ytop})'::geometry, {z_scale})
                 """.format(
                     z_scale=z_scale,
                     srid=srid,
-                    x=ext[1][0]+50+z_scale*ext[1][2],
+                    x=ext[1][0] + 50 + z_scale * ext[1][2],
                     ybottom=ext[0][1],
-                    ytop=ext[1][1]))
+                    ytop=ext[1][1],
+                )
+            )
 
-            cur.execute("""
+            cur.execute(
+                """
                 insert into albion.section(id, anchor, scale)
                 values('WE x{z_scale}', 'SRID={srid};LINESTRING({xleft} {y}, {xright} {y})'::geometry, {z_scale})
                 """.format(
                     z_scale=z_scale,
                     srid=srid,
-                    y=ext[0][1]-50-z_scale*ext[1][2],
+                    y=ext[0][1] - 50 - z_scale * ext[1][2],
                     xleft=ext[0][0],
-                    xright=ext[1][0]))
+                    xright=ext[1][0],
+                )
+            )
 
             cur.execute("refresh materialized view albion.radiometry_section")
             cur.execute("refresh materialized view albion.resistivity_section")
             con.commit()
-
 
     def closest_hole_id(self, x, y):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select srid from albion.metadata")
             srid, = cur.fetchone()
-            cur.execute("""
+            cur.execute(
+                """
                 select id from albion.hole
                 where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 25)
                 order by st_distance('SRID={srid} ;POINT({x} {y})'::geometry, geom)
-                limit 1""".format(srid=srid, x=x, y=y))
+                limit 1""".format(
+                    srid=srid, x=x, y=y
+                )
+            )
             res = cur.fetchone()
             if not res:
-                cur.execute("""
+                cur.execute(
+                    """
                     select hole_id from albion.current_hole_section
                     where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 25)
                     order by st_distance('SRID={srid} ;POINT({x} {y})'::geometry, geom)
-                    limit 1""".format(srid=srid, x=x, y=y))
+                    limit 1""".format(
+                        srid=srid, x=x, y=y
+                    )
+                )
                 res = cur.fetchone()
 
             return res[0] if res else None
@@ -630,9 +822,11 @@ class Project(object):
             cur = con.cursor()
             cur.execute("select srid from albion.metadata")
             srid, = cur.fetchone()
-            cur.execute("""
+            cur.execute(
+                """
                 update albion.section set geom=ST_SetSRID('{wkb_hex}'::geometry, {srid}) where id='{id_}'
-                """.format(srid=srid, wkb_hex=geom.wkb_hex, id_=section_id))
+                """.format(
+                    srid=srid, wkb_hex=geom.wkb_hex, id_=section_id
+                )
+            )
             con.commit()
-
-
