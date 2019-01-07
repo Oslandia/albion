@@ -621,7 +621,7 @@ class Plugin(QObject):
             )
 
         project_name = os.path.split(fil)[1][:-4]
-        dir_ = tempfile.gettempdir()
+        dir_ = tempfile.mkdtemp()
         with zipfile.ZipFile(fil, "r") as z:
             z.extractall(dir_)
 
@@ -631,22 +631,25 @@ class Plugin(QObject):
         self.__iface.messageBar().pushInfo(
             "Albion", "loading {} from {}".format(project_name, dump)
         )
-        if Project.exists(project_name):
+
+        dbname = os.path.splitext(os.path.basename(dump))[0]
+
+        if Project.exists(dbname):
             if (
                 QMessageBox.Yes
                 != QMessageBox(
                     QMessageBox.Information,
                     "Delete existing DB",
                     "Database {} exits, to you want to delete it ?".format(
-                        project_name
+                        dbname
                     ),
                     QMessageBox.Yes | QMessageBox.No,
                 ).exec_()
             ):
                 return
-            Project.delete(project_name)
+            Project.delete(dbname)
 
-        project = Project.import_(project_name, dump)
+        project = Project.import_(dbname, dump)
 
         QgsProject.instance().read(QFileInfo(prj))
 
