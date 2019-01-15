@@ -2,7 +2,7 @@
 
 This plugin provides tools to create 3D geological models in QGIS.
 
-**Note** 
+**Note**
   - The created layers are memory layers, the data are not saved, you should use the "save as" qgis function if you plan to store the layer as a shapefile or spatialite layer, you can also cpy/paste the layer feature in a postgis layer that has the right structure. This is intended to maximize flexibility of the source data format.
 
 ## Quick dev install
@@ -14,6 +14,7 @@ You have to install the following dependencies:
   - QtOpenGL for Python (python-qt4-gl)
   - shapely
   - sphinx (python-sphinx)
+  - gitpython
   - pytest, hypothesis and mock (for running tests only)
 
 Clone the repo in a `albion` directory. Add the directory containing `albion` to your PYTHONPATH environment variable.
@@ -46,7 +47,7 @@ pytest
 
 ## Interface
 
-- Albion Menu: 
+- Albion Menu:
     - new project (create db and load layers)
     - --
     - import data
@@ -67,7 +68,7 @@ pytest
     - next section
     - end distance
     - auto-connect
-    - auto-wall and ceil 
+    - auto-wall and ceil
 
 notes on 3D:
 - togle visibility

@@ -23,6 +23,7 @@ OPTIONS
 import os
 import zipfile
 import re
+import git
 import shutil
 import subprocess
 from .doc import build as build_doc
@@ -80,6 +81,11 @@ def zip_(zip_filename):
                         package.write(
                             os.path.join(root, file_), os.path.join(fake_root, file_)
                         )
+
+        # add a commit sha1 for tracability
+        repo = git.Repo(search_parent_directories=True)
+        sha = repo.head.object.hexsha
+        package.writestr(os.path.join("albion", "version"), sha)
 
 
 if __name__ == "__main__":
