@@ -641,16 +641,19 @@ class Project(object):
             )
             open(filename, "w").write(cur.fetchone()[0])
 
-    def export_elementary_volume_obj(self, graph_id, cell_id, outdir):
+    def export_elementary_volume_obj(self, graph_id, cell_id, outdir, only_closed):
         with self.connect() as con:
+            closed = ""
+            if only_closed:
+                closed = "and albion.is_closed_volume(geom)"
+
             cur = con.cursor()
             cur.execute(
                 """
                 select albion.to_obj(geom) from albion.dynamic_volume
-                where cell_id='{}' and graph_id='{}'
-                and albion.is_closed_volume(geom)
+                where cell_id='{}' and graph_id='{}' {}
                 """.format(
-                    cell_id, graph_id
+                    cell_id, graph_id, closed
                 )
             )
 
@@ -661,16 +664,19 @@ class Project(object):
                 path = os.path.join(outdir, filename)
                 open(path, "w").write(obj[0])
 
-    def export_elementary_volume_dxf(self, graph_id, cell_id, outdir):
+    def export_elementary_volume_dxf(self, graph_id, cell_id, outdir, only_closed):
         with self.connect() as con:
+            closed = ""
+            if only_closed:
+                closed = "and albion.is_closed_volume(geom)"
+
             cur = con.cursor()
             cur.execute(
                 """
                 select geom from albion.dynamic_volume
-                where cell_id='{}' and graph_id='{}'
-                and albion.is_closed_volume(geom)
+                where cell_id='{}' and graph_id='{}' {}
                 """.format(
-                    cell_id, graph_id
+                    cell_id, graph_id, closed
                 )
             )
 

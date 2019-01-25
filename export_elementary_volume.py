@@ -1,7 +1,8 @@
 import os
 
 from PyQt4 import uic
-from PyQt4.QtGui import QDialog, QFileDialog
+from PyQt4.QtCore import Qt
+from PyQt4.QtGui import QDialog, QFileDialog, QApplication, QCursor
 
 from qgis.core import QgsFeatureRequest
 
@@ -40,6 +41,10 @@ class ExportElementaryVolume(QDialog, FORM_CLASS):
         if self.mSelection.isChecked():
             fids = self.cell_layer.selectedFeaturesIds()
 
+        closed = self.mClosedVolume.isChecked()
+
+        QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
+        QApplication.processEvents()
         for fid in fids:
             request = QgsFeatureRequest(fid)
 
@@ -57,8 +62,11 @@ class ExportElementaryVolume(QDialog, FORM_CLASS):
             for graph in self.project.graphs():
 
                 if self.mFormat.currentText() == "OBJ":
-                    self.project.export_elementary_volume_obj(graph, cell, cell_dir)
-                else: # DXF
-                    self.project.export_elementary_volume_dxf(graph, cell, cell_dir)
-
-        # mFormat
+                    self.project.export_elementary_volume_obj(
+                        graph, cell, cell_dir, closed
+                    )
+                else:  # DXF
+                    self.project.export_elementary_volume_dxf(
+                        graph, cell, cell_dir, closed
+                    )
+        QApplication.restoreOverrideCursor()

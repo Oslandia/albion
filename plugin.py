@@ -610,7 +610,7 @@ class Plugin(QObject):
         if not fil:
             return
 
-        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil))
 
         if fil[-4:] == ".obj":
             self.project.export_obj(self.__current_graph.currentText(), fil)
