@@ -641,6 +641,62 @@ class Project(object):
             )
             open(filename, "w").write(cur.fetchone()[0])
 
+    def export_elementary_volume_obj(self, graph_id, cell_id, outdir, only_closed):
+        with self.connect() as con:
+            closed = ""
+            if only_closed:
+                closed = "and albion.is_closed_volume(geom)"
+
+            cur = con.cursor()
+            cur.execute(
+                """
+                select albion.to_obj(geom) from albion.dynamic_volume
+                where cell_id='{}' and graph_id='{}' {}
+                """.format(
+                    cell_id, graph_id, closed
+                )
+            )
+
+            i = 0
+            for obj in cur.fetchall():
+                filename = '{}_{}.obj'.format(graph_id, i)
+                i += 1
+                path = os.path.join(outdir, filename)
+                open(path, "w").write(obj[0])
+
+    def export_elementary_volume_dxf(self, graph_id, cell_id, outdir, only_closed):
+        with self.connect() as con:
+            closed = ""
+            if only_closed:
+                closed = "and albion.is_closed_volume(geom)"
+
+            cur = con.cursor()
+            cur.execute(
+                """
+                select geom from albion.dynamic_volume
+                where cell_id='{}' and graph_id='{}' {}
+                """.format(
+                    cell_id, graph_id, closed
+                )
+            )
+
+            i = 0
+            for wkb_geom in cur.fetchall():
+                geom = wkb.loads(bytes.fromhex(wkb_geom[0]))
+
+                filename = '{}_{}.dxf'.format(graph_id, i)
+                path = os.path.join(outdir, filename)
+                drawing = dxf.drawing(path)
+
+                for p in geom:
+                    r = p.exterior.coords
+                    drawing.add(
+                        dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1)
+                    )
+                drawing.save()
+
+                i += 1
+
     def errors_obj(self, graph_id, filename):
         with self.connect() as con:
             cur = con.cursor()

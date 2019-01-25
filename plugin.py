@@ -34,6 +34,8 @@ from .viewer_3d.viewer_3d import Viewer3d
 from .viewer_3d.viewer_controls import ViewerControls
 from .log_strati import BoreHoleWindow
 
+from .export_elementary_volume import ExportElementaryVolume
+
 from shapely.geometry import LineString
 import numpy
 import math
@@ -262,6 +264,13 @@ class Plugin(QObject):
             "Export volume of current graph in .obj or .dxf format",
         )
 
+        self.__add_menu_entry(
+            "Export Elementary Volume",
+            self.__export_elementary_volume,
+            self.project is not None and bool(self.__current_graph.currentText()),
+            "Export an elementary volume of current graph in .obj or .dxf format",
+        )
+
         self.__menu.addSeparator()
 
         self.__menu.addAction("Help").triggered.connect(self.open_help)
@@ -323,6 +332,15 @@ class Plugin(QObject):
         for layer in self.__iface.mapCanvas().layers():
             if name is None or layer.name().find(name) != -1:
                 layer.triggerRepaint()
+
+    def __layer(self, name):
+        lay = None
+
+        for layer in self.__iface.mapCanvas().layers():
+            if name is None or layer.name().find(name) != -1:
+                lay = layer
+
+        return lay
 
     def __current_section_changed(self, section_id):
         layers = QgsMapLayerRegistry.instance().mapLayersByName(u"group_cell")
@@ -592,7 +610,7 @@ class Plugin(QObject):
         if not fil:
             return
 
-        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil)),
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil))
 
         if fil[-4:] == ".obj":
             self.project.export_obj(self.__current_graph.currentText(), fil)
@@ -602,6 +620,18 @@ class Plugin(QObject):
             self.__iface.messageBar().pushWarning(
                 "Albion", "unsupported extension for volume export"
             )
+
+    def __export_elementary_volume(self):
+        if self.project is None:
+            return
+
+        layer = self.__layer("cell")
+        if not layer:
+            return
+
+        export_widget = ExportElementaryVolume(layer, self.project)
+        export_widget.show()
+        export_widget.exec_()
 
     def __import_project(self):
         fil = QFileDialog.getOpenFileName(
