@@ -42,7 +42,7 @@ class ExportElementaryVolume(QDialog, FORM_CLASS):
         if self.mSelection.isChecked():
             fids = self.cell_layer.selectedFeaturesIds()
 
-        closed = self.mClosedVolume.isChecked()
+        closed_only = self.mClosedVolume.isChecked()
 
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         QApplication.processEvents()
@@ -62,11 +62,21 @@ class ExportElementaryVolume(QDialog, FORM_CLASS):
 
             if self.mFormat.currentText() == "OBJ":
                 self.project.export_elementary_volume_obj(
-                    self.graph, cell, cell_dir, closed
+                    self.graph, cell, cell_dir, True
                 )
             else:  # DXF
                 self.project.export_elementary_volume_dxf(
-                    self.graph, cell, cell_dir, closed
+                    self.graph, cell, cell_dir, True
                 )
+
+            if not closed_only:
+                if self.mFormat.currentText() == "OBJ":
+                    self.project.export_elementary_volume_obj(
+                        self.graph, cell, cell_dir, False
+                    )
+                else:  # DXF
+                    self.project.export_elementary_volume_dxf(
+                        self.graph, cell, cell_dir, False
+                    )
 
         QApplication.restoreOverrideCursor()
