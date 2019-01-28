@@ -629,7 +629,8 @@ class Plugin(QObject):
         if not layer:
             return
 
-        export_widget = ExportElementaryVolume(layer, self.project)
+        graph = self.__current_graph.currentText()
+        export_widget = ExportElementaryVolume(layer, self.project, graph)
         export_widget.show()
         export_widget.exec_()
 
