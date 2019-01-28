@@ -13,12 +13,13 @@ FORM_CLASS, _ = uic.loadUiType(
 
 
 class ExportElementaryVolume(QDialog, FORM_CLASS):
-    def __init__(self, layer, project, parent=None):
+    def __init__(self, layer, project, graph, parent=None):
         super(ExportElementaryVolume, self).__init__(parent)
         self.setupUi(self)
 
         self.cell_layer = layer
         self.project = project
+        self.graph = graph
 
         self.mSelect.clicked.connect(self.__select)
         self.mButtonBox.accepted.connect(self.__export)
@@ -41,7 +42,7 @@ class ExportElementaryVolume(QDialog, FORM_CLASS):
         if self.mSelection.isChecked():
             fids = self.cell_layer.selectedFeaturesIds()
 
-        closed = self.mClosedVolume.isChecked()
+        closed_only = self.mClosedVolume.isChecked()
 
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         QApplication.processEvents()
@@ -59,14 +60,23 @@ class ExportElementaryVolume(QDialog, FORM_CLASS):
             cell_dir = os.path.join(self.mOutputDir.text(), "{}".format(cell))
             os.makedirs(cell_dir)
 
-            for graph in self.project.graphs():
+            if self.mFormat.currentText() == "OBJ":
+                self.project.export_elementary_volume_obj(
+                    self.graph, cell, cell_dir, True
+                )
+            else:  # DXF
+                self.project.export_elementary_volume_dxf(
+                    self.graph, cell, cell_dir, True
+                )
 
+            if not closed_only:
                 if self.mFormat.currentText() == "OBJ":
                     self.project.export_elementary_volume_obj(
-                        graph, cell, cell_dir, closed
+                        self.graph, cell, cell_dir, False
                     )
                 else:  # DXF
                     self.project.export_elementary_volume_dxf(
-                        graph, cell, cell_dir, closed
+                        self.graph, cell, cell_dir, False
                     )
+
         QApplication.restoreOverrideCursor()

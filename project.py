@@ -641,50 +641,60 @@ class Project(object):
             )
             open(filename, "w").write(cur.fetchone()[0])
 
-    def export_elementary_volume_obj(self, graph_id, cell_id, outdir, only_closed):
+    def export_elementary_volume_obj(self, graph_id, cell_id, outdir, closed):
         with self.connect() as con:
-            closed = ""
-            if only_closed:
-                closed = "and albion.is_closed_volume(geom)"
+            closed_sql = ""
+            if not closed:
+                closed_sql = "not"
 
             cur = con.cursor()
             cur.execute(
                 """
                 select albion.to_obj(geom) from albion.dynamic_volume
-                where cell_id='{}' and graph_id='{}' {}
+                where cell_id='{}' and graph_id='{}'
+                and {} albion.is_closed_volume(geom)
                 """.format(
-                    cell_id, graph_id, closed
+                    cell_id, graph_id, closed_sql
                 )
             )
 
+            status = "opened"
+            if closed:
+                status = "closed"
+
             i = 0
             for obj in cur.fetchall():
-                filename = '{}_{}.obj'.format(graph_id, i)
+                filename = '{}_{}_{}.obj'.format(graph_id, status, i)
                 i += 1
                 path = os.path.join(outdir, filename)
                 open(path, "w").write(obj[0])
 
-    def export_elementary_volume_dxf(self, graph_id, cell_id, outdir, only_closed):
+    def export_elementary_volume_dxf(self, graph_id, cell_id, outdir, closed):
         with self.connect() as con:
-            closed = ""
-            if only_closed:
-                closed = "and albion.is_closed_volume(geom)"
+            closed_sql = ""
+            if not closed:
+                closed_sql = "not"
 
             cur = con.cursor()
             cur.execute(
                 """
                 select geom from albion.dynamic_volume
-                where cell_id='{}' and graph_id='{}' {}
+                where cell_id='{}' and graph_id='{}'
+                and {} albion.is_closed_volume(geom)
                 """.format(
                     cell_id, graph_id, closed
                 )
             )
 
+            status = "opened"
+            if closed:
+                status = "closed"
+
             i = 0
             for wkb_geom in cur.fetchall():
                 geom = wkb.loads(bytes.fromhex(wkb_geom[0]))
 
-                filename = '{}_{}.dxf'.format(graph_id, i)
+                filename = '{}_{}_{}.dxf'.format(graph_id, status, i)
                 path = os.path.join(outdir, filename)
                 drawing = dxf.drawing(path)
 
