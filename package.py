@@ -61,11 +61,14 @@ def install(install_dir, zip_filename):
     print("installed in {}".format(install_dir))
 
 
-def zip_(zip_filename):
+def zip_(zip_filename, with_doc=True):
     """the zip file doesn't include tests, demos or docs"""
     base_dir = os.path.abspath(os.path.dirname(__file__))
     with zipfile.ZipFile(zip_filename, "w") as package:
         for root, dirs, files in os.walk(base_dir):
+            if not with_doc and 'doc' in dirs:
+                dirs = dirs.remove('doc')
+
             if not re.match(r".*(test_data|__pycache__).*", root):
                 for file_ in files:
                     if (
@@ -94,7 +97,7 @@ if __name__ == "__main__":
 
     try:
         optlist, args = getopt.getopt(
-            sys.argv[1:], "hiudt", ["help", "install", "uninstall", "test"]
+            sys.argv[1:], "hiudtn", ["help", "install", "uninstall", "test", "nodoc"]
         )
     except Exception as e:
         sys.stderr.write(str(e) + "\n")
@@ -109,10 +112,14 @@ if __name__ == "__main__":
     if "-t" in optlist:
         run_tests()
 
+    doc = True
+    if "-n" in optlist or "--nodoc" in optlist:
+        doc = False
+
     build_doc()
 
     zip_filename = os.path.join(os.path.dirname(__file__), zipname + zipext)
-    zip_(zip_filename)
+    zip_(zip_filename, doc)
     print("created {}".format(zip_filename))
     install_dir = qgis_plugin_dir if len(args) == 0 else args[0]
 

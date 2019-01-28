@@ -33,6 +33,12 @@ Run tests:
 pytest
 ```
 
+To generate a zip package without the documentation directory:
+
+````sh
+python -m albion.package -n
+```
+
 
 ## Process
 
