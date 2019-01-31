@@ -393,8 +393,9 @@ class Plugin(QObject):
         cell = QgsMapLayerRegistry.instance().mapLayersByName("cell")[0]
         cell.updateExtents()
 
-        section_geom = QgsMapLayerRegistry.instance().mapLayersByName("section.geom")[0]
-        section_geom.updateExtents()
+        section_geom = QgsMapLayerRegistry.instance().mapLayersByName("section.geom")
+        if section_geom:
+            section_geom[0].updateExtents()
 
     def __update_section_list(self):
         self.__current_section.clear()
