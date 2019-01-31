@@ -337,7 +337,7 @@ class Plugin(QObject):
         lay = None
 
         for layer in self.__iface.mapCanvas().layers():
-            if name is None or layer.name().find(name) != -1:
+            if name is None or layer.name() == name:
                 lay = layer
 
         return lay
