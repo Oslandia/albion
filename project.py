@@ -5,6 +5,7 @@ import psycopg2
 import os
 import sys
 import atexit
+import binascii
 from shapely import wkb
 from dxfwrite import DXFEngine as dxf
 
@@ -892,7 +893,7 @@ class Project(object):
                 """
                 update albion.section set geom=ST_SetSRID('{wkb_hex}'::geometry, {srid}) where id='{id_}'
                 """.format(
-                    srid=srid, wkb_hex=geom.wkb_hex, id_=section_id
+                    srid=srid, wkb_hex=binascii.hexlify(geom.wkb), id_=section_id
                 )
             )
             con.commit()
