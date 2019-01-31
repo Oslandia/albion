@@ -682,7 +682,7 @@ class Project(object):
                 where cell_id='{}' and graph_id='{}'
                 and {} albion.is_closed_volume(geom)
                 """.format(
-                    cell_id, graph_id, closed
+                    cell_id, graph_id, closed_sql
                 )
             )
 
