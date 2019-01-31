@@ -665,7 +665,7 @@ class Project(object):
 
             i = 0
             for obj in cur.fetchall():
-                filename = '{}_{}_{}.obj'.format(graph_id, status, i)
+                filename = '{}_{}_{}_{}.obj'.format(cell_id, graph_id, status, i)
                 i += 1
                 path = os.path.join(outdir, filename)
                 open(path, "w").write(obj[0])
@@ -695,7 +695,7 @@ class Project(object):
             for wkb_geom in cur.fetchall():
                 geom = wkb.loads(bytes.fromhex(wkb_geom[0]))
 
-                filename = '{}_{}_{}.dxf'.format(graph_id, status, i)
+                filename = '{}_{}_{}_{}.dxf'.format(cell_id, graph_id, status, i)
                 path = os.path.join(outdir, filename)
                 drawing = dxf.drawing(path)
 

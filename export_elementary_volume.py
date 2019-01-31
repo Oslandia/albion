@@ -57,26 +57,25 @@ class ExportElementaryVolume(QDialog, FORM_CLASS):
                 return
 
             cell = ft["id"]
-            cell_dir = os.path.join(self.mOutputDir.text(), "{}".format(cell))
-            os.makedirs(cell_dir)
+            outdir = self.mOutputDir.text()
 
             if self.mFormat.currentText() == "OBJ":
                 self.project.export_elementary_volume_obj(
-                    self.graph, cell, cell_dir, True
+                    self.graph, cell, outdir, True
                 )
             else:  # DXF
                 self.project.export_elementary_volume_dxf(
-                    self.graph, cell, cell_dir, True
+                    self.graph, cell, outdir, True
                 )
 
             if not closed_only:
                 if self.mFormat.currentText() == "OBJ":
                     self.project.export_elementary_volume_obj(
-                        self.graph, cell, cell_dir, False
+                        self.graph, cell, outdir, False
                     )
                 else:  # DXF
                     self.project.export_elementary_volume_dxf(
-                        self.graph, cell, cell_dir, False
+                        self.graph, cell, outdir, False
                     )
 
         QApplication.restoreOverrideCursor()
