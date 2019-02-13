@@ -397,6 +397,25 @@ class Plugin(QObject):
         if section_geom:
             section_geom[0].updateExtents()
 
+        for lyr in QgsMapLayerRegistry.instance().mapLayers().values():
+            if lyr.name() != "current_node_section":
+                continue
+
+            name = "[Albion] Remove edges from node"
+            action = """
+for layer in QgsMapLayerRegistry.instance().mapLayers().values():
+    if layer.name() == 'edge':
+        layer.startEditing()
+
+        expression = "\\"start_\\" = \'[%node_id%]\' or \\"end_\\" = \'[%node_id%]\'"
+        request = QgsFeatureRequest().setFilterExpression(expression)
+        request.setSubsetOfAttributes([])
+        request.setFlags(QgsFeatureRequest.NoGeometry)
+
+        layer.commitChanges()
+            """
+            lyr.actions().addAction(QgsAction.GenericPython, name, action)
+
     def __update_section_list(self):
         self.__current_section.clear()
         self.__current_section.addItems(self.project.sections())
