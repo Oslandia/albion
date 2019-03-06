@@ -702,6 +702,49 @@ join _albion.collar as c on c.id=h.collar_id
 join _albion.section as s on st_intersects(s.geom, c.geom)
 ;
 
+-- makes current_node_section editable
+create or replace function albion.current_node_section_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    declare
+        hole_id_ varchar;
+        parent_ varchar;
+    begin
+        if tg_op = 'INSERT' then
+            select parent from _albion.node where id=new.node_id into parent_
+            ;
+            select id from _albion.hole where collar_id=new.collar_id into hole_id_
+            ;
+            
+            insert into _albion.node(geom, hole_id, graph_id, from_, to_, parent) 
+            values(albion.hole_piece(new.from_, new.to_, hole_id),
+                hole_id_, new.graph_id, new.from_, new.to_, parent_)
+            ;
+            return new;
+        elsif tg_op = 'UPDATE' then
+            select id from _albion.hole where collar_id=new.collar_id into hole_id_
+            ;
+            update _albion.node set
+                geom=albion.hole_piece(new.from_, new.to_, hole_id),
+                hole_id=hole_id_, graph_id=new.graph_id, from_=new.from_, to_=new.to_
+                where id=old.node_id
+            ;
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from _albion.end_node where id=old.end_node_id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger current_node_section_instead_trig
+    instead of insert or update or delete on albion.current_node_section
+       for each row execute procedure albion.current_node_section_instead_fct()
+;
+
 create view albion.hole_section as
 select row_number() over() as id, h.id as hole_id, h.collar_id, h.depth_, s.id as section_id,
     (albion.to_section(h.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
@@ -943,41 +986,41 @@ group by hole_id
 ) as t
 ;
 
-create table albion.test_mineralization(
-    id varchar primary key default _albion.unique_id()::varchar,
-    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
-    level_ real,
-    from_ real,
-    to_ real,
-    oc real,
-    accu real,
-    grade real,
-    comments varchar,
-    geom geometry('LINESTRINGZ', $SRID))
-;
-
-insert into albion.test_mineralization(hole_id, level_, from_, to_, oc, accu, grade)
-select hole_id, (t.r).level_, (t.r).from_, (t.r).to_, (t.r).oc, (t.r).accu, (t.r).grade
-from (
-select hole_id, albion.segmentation(
-    array_agg(gamma order by from_),array_agg(from_ order by from_),  array_agg(to_ order by from_),
-    1., 1., 10) as r
-from _albion.radiometry
-group by hole_id
-) as t
-;
-
-update albion.test_mineralization set geom=albion.hole_piece(from_, to_, hole_id)
-;
-
-create view albion.current_test_mineralization_section as
-select row_number() over() as id, m.hole_id, h.collar_id, m.level_, m.oc, m.accu, m.grade, s.id as section_id,
-    (albion.to_section(m.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
-from albion.test_mineralization as m
-join _albion.hole as h on h.id=m.hole_id
-join _albion.collar as c on c.id=h.collar_id
-join _albion.section as s on st_intersects(s.geom, c.geom)
-;
+--create table albion.test_mineralization(
+--    id varchar primary key default _albion.unique_id()::varchar,
+--    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
+--    level_ real,
+--    from_ real,
+--    to_ real,
+--    oc real,
+--    accu real,
+--    grade real,
+--    comments varchar,
+--    geom geometry('LINESTRINGZ', $SRID))
+--;
+--
+--insert into albion.test_mineralization(hole_id, level_, from_, to_, oc, accu, grade)
+--select hole_id, (t.r).level_, (t.r).from_, (t.r).to_, (t.r).oc, (t.r).accu, (t.r).grade
+--from (
+--select hole_id, albion.segmentation(
+--    array_agg(gamma order by from_),array_agg(from_ order by from_),  array_agg(to_ order by from_),
+--    1., 1., 10) as r
+--from _albion.radiometry
+--group by hole_id
+--) as t
+--;
+--
+--update albion.test_mineralization set geom=albion.hole_piece(from_, to_, hole_id)
+--;
+--
+--create view albion.current_test_mineralization_section as
+--select row_number() over() as id, m.hole_id, h.collar_id, m.level_, m.oc, m.accu, m.grade, s.id as section_id,
+--    (albion.to_section(m.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
+--from albion.test_mineralization as m
+--join _albion.hole as h on h.id=m.hole_id
+--join _albion.collar as c on c.id=h.collar_id
+--join _albion.section as s on st_intersects(s.geom, c.geom)
+--;
 
 
 create materialized view albion.all_edge as
@@ -1195,19 +1238,19 @@ returns setof geometry
 language plpython3u immutable
 as
 $$
-#open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
-#    cell_id_+'\n'+
-#    graph_id_+'\n'+
-#    geom_+'\n'+
-#    ' '.join(holes_)+'\n'+
-#    ' '.join(starts_)+'\n'+
-#    ' '.join(ends_)+'\n'+
-#    ' '.join(hole_ids_)+'\n'+
-#    ' '.join(node_ids_)+'\n'+
-#    ' '.join(nodes_)+'\n'+
-#    ' '.join(end_ids_)+'\n'+
-#    ' '.join(end_geoms_)+'\n'
-#)
+open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
+    cell_id_+'\n'+
+    graph_id_+'\n'+
+    geom_+'\n'+
+    ' '.join(holes_)+'\n'+
+    ' '.join(starts_)+'\n'+
+    ' '.join(ends_)+'\n'+
+    ' '.join(hole_ids_)+'\n'+
+    ' '.join(node_ids_)+'\n'+
+    ' '.join(nodes_)+'\n'+
+    ' '.join(end_ids_)+'\n'+
+    ' '.join(end_geoms_)+'\n'
+)
 $INCLUDE_ELEMENTARY_VOLUME
 for v in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, $SRID):
     yield v
