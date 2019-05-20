@@ -1,3 +1,4 @@
+from __future__ import print_function
 # coding = utf-8
 
 if __name__ == "__main__":
@@ -14,7 +15,8 @@ if __name__ == "__main__":
     project = Project.create(project_name, 32632)
     start = time.time()
     project.import_data(sys.argv[1])
-    print "time for import", time.time() - start, 'sec'
+    # fix_print_with_import
+    print("time for import", time.time() - start, 'sec')
     #project = Project(project_name)
     #
     #project.triangulate()

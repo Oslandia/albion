@@ -1,7 +1,7 @@
 # coding = utf-8
 import qgis.core
-from PyQt4.QtGui import QDialog
-from PyQt4 import uic
+from qgis.PyQt.QtWidgets import QDialog
+from qgis.PyQt import uic
 import os
 
 class MineralizationDialog(QDialog):
@@ -15,7 +15,7 @@ class MineralizationDialog(QDialog):
         self.close()
 
 if __name__=="__main__":
-    from PyQt4.QtGui import QApplication
+    from qgis.PyQt.QtWidgets import QApplication
     import sys
     from albion.project import Project
 

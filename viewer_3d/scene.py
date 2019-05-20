@@ -1,11 +1,13 @@
 # -*- coding: UTF-8 -*-
 
+from builtins import zip
+from builtins import range
 import numpy
 from OpenGL.GL import *
 from OpenGL.GL import shaders
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtCore import *
 
 from .utility import computeNormals
 from shapely import wkb

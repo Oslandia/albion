@@ -1,8 +1,9 @@
 import os
 
-from PyQt4 import uic
-from PyQt4.QtCore import Qt
-from PyQt4.QtGui import QDialog, QFileDialog, QApplication, QCursor
+from qgis.PyQt import uic
+from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QApplication
+from qgis.PyQt.QtGui import QCursor
 
 from qgis.core import QgsFeatureRequest
 

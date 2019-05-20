@@ -1,6 +1,6 @@
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtCore import *
 import sys
 from ..project import Project
 from .viewer_3d import ViewerWindow

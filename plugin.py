@@ -1,25 +1,12 @@
 # coding: utf-8
 
+from builtins import str
 from qgis.core import *
 from qgis.gui import *
 
-from PyQt4.QtCore import QObject, Qt, QFileInfo, QUrl
-from PyQt4.QtGui import (
-    QComboBox,
-    QShortcut,
-    QKeySequence,
-    QToolBar,
-    QIcon,
-    QMenu,
-    QFileDialog,
-    QInputDialog,
-    QLineEdit,
-    QMessageBox,
-    QProgressBar,
-    QApplication,
-    QDockWidget,
-    QDesktopServices,
-)
+from qgis.PyQt.QtCore import QObject, Qt, QFileInfo, QUrl
+from qgis.PyQt.QtWidgets import QComboBox, QShortcut, QToolBar, QMenu, QFileDialog, QInputDialog, QLineEdit, QMessageBox, QProgressBar, QApplication, QDockWidget
+from qgis.PyQt.QtGui import QKeySequence, QIcon, QDesktopServices
 
 import psycopg2
 import os
@@ -101,12 +88,12 @@ class Plugin(QObject):
         ).triggered.connect(self.__log_strati_clicked)
 
         self.__toolbar.addWidget(self.__current_graph)
-        self.__current_graph.currentIndexChanged[unicode].connect(
+        self.__current_graph.currentIndexChanged[str].connect(
             self.__current_graph_changed
         )
 
         self.__toolbar.addWidget(self.__current_section)
-        self.__current_section.currentIndexChanged[unicode].connect(
+        self.__current_section.currentIndexChanged[str].connect(
             self.__current_section_changed
         )
 
@@ -416,7 +403,7 @@ class Plugin(QObject):
     def __new_project(self):
 
         # @todo open dialog to configure project name and srid
-        fil = QFileDialog.getSaveFileName(
+        fil, __ = QFileDialog.getSaveFileName(
             None,
             u"New project name (no space, plain ascii)",
             QgsProject.instance().readEntry("albion", "last_dir", "")[0],
@@ -602,7 +589,7 @@ class Plugin(QObject):
         if self.project is None:
             return
 
-        fil = QFileDialog.getSaveFileName(
+        fil, __ = QFileDialog.getSaveFileName(
             None,
             u"Export volume for current graph",
             QgsProject.instance().readEntry("albion", "last_dir", "")[0],
@@ -636,7 +623,7 @@ class Plugin(QObject):
         export_widget.exec_()
 
     def __import_project(self):
-        fil = QFileDialog.getOpenFileName(
+        fil, __ = QFileDialog.getOpenFileName(
             None,
             u"Import project from file",
             QgsProject.instance().readEntry("albion", "last_dir", "")[0],
@@ -689,7 +676,7 @@ class Plugin(QObject):
         if self.project is None:
             return
 
-        fil = QFileDialog.getSaveFileName(
+        fil, __ = QFileDialog.getSaveFileName(
             None,
             u"Export project",
             QgsProject.instance().readEntry("albion", "last_dir", "")[0],

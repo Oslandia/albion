@@ -19,7 +19,9 @@ OPTIONS
     -t
         launch the tests before installing/uninstalling
 """
+from __future__ import print_function
 
+from builtins import str
 import os
 import zipfile
 import re
@@ -30,7 +32,7 @@ from .doc import build as build_doc
 
 
 # @todo make that work on windows
-qgis_plugin_dir = os.path.join(os.path.expanduser("~"), ".qgis2", "python", "plugins")
+qgis_plugin_dir = os.path.join(os.path.expanduser("~"), ".local", "share", "QGIS", "QGIS3", "profiles", "default", "python", "plugins")
 zipname = "albion"
 zipext = ".zip"
 

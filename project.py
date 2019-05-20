@@ -1,5 +1,7 @@
 # coding = utf-8
 
+from builtins import str
+from builtins import object
 from pglite import cluster_params
 import psycopg2
 import os

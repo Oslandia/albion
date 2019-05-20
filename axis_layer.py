@@ -1,9 +1,10 @@
 # coding: utf-8
+from builtins import range
 from qgis.core import (QgsPluginLayerType,
                        QgsPluginLayer,
                        QgsRectangle)
 
-from PyQt4.QtCore import pyqtSignal
+from qgis.PyQt.QtCore import pyqtSignal
 
 import traceback
 import logging

@@ -10,6 +10,7 @@ OPTIONS
 
 """
 
+from builtins import str
 import sys
 import getopt
 from . import build
