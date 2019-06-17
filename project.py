@@ -25,6 +25,34 @@ from builtins import bytes
 
 from qgis.core import QgsMessageLog
 
+import time
+from psycopg2.extras import LoggingConnection, LoggingCursor
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+# MyLoggingCursor simply sets self.timestamp at start of each query
+class MyLoggingCursor(LoggingCursor):
+    def execute(self, query, vars=None):
+        self.timestamp = time.time()
+        return super(MyLoggingCursor, self).execute(query, vars)
+
+    def callproc(self, procname, vars=None):
+        self.timestamp = time.time()
+        return super(MyLoggingCursor, self).callproc(procname, vars)
+
+# MyLogging Connection:
+#   a) calls MyLoggingCursor rather than the default
+#   b) adds resulting execution (+ transport) time via filter()
+class MyLoggingConnection(LoggingConnection):
+    def filter(self, msg, curs):
+        return "{} {} ms".format(msg, int((time.time() - curs.timestamp) * 1000))
+
+    def cursor(self, *args, **kwargs):
+        kwargs.setdefault('cursor_factory', MyLoggingCursor)
+        return LoggingConnection.cursor(self, *args, **kwargs)
+
+
 if not check_cluster():
     init_cluster()
 start_cluster()
@@ -34,7 +62,7 @@ start_cluster()
 def find_in_dir(dir_, name):
     for filename in os.listdir(dir_):
         if filename.find(name) != -1:
-            return os.path.join(dir_, filename)
+            return os.path.abspath(os.path.join(dir_, filename))
     return ""
 
 
@@ -71,7 +99,9 @@ class Project(object):
         self.__conn_info = "dbname={} {}".format(project_name, cluster_params())
 
     def connect(self):
-        return psycopg2.connect(self.__conn_info)
+        con = psycopg2.connect(self.__conn_info, connection_factory=MyLoggingConnection)
+        con.initialize(logger)
+        return con
 
     def vacuum(self):
         with self.connect() as con:
@@ -79,6 +109,7 @@ class Project(object):
             con.set_isolation_level(0)
             cur = con.cursor()
             cur.execute("vacuum analyze")
+            con.commit()
 
     @staticmethod
     def exists(project_name):
@@ -853,8 +884,8 @@ class Project(object):
                 )
             )
 
-            cur.execute("refresh materialized view albion.radiometry_section")
-            cur.execute("refresh materialized view albion.resistivity_section")
+            #cur.execute("refresh materialized view albion.radiometry_section")
+            #cur.execute("refresh materialized view albion.resistivity_section")
             con.commit()
 
     def closest_hole_id(self, x, y):

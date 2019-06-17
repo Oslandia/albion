@@ -30,9 +30,9 @@ import math
 import atexit
 
 AXIS_LAYER_TYPE = AxisLayerType()
-QgsPluginLayerRegistry.instance().addPluginLayerType(AXIS_LAYER_TYPE)
+QgsApplication.pluginLayerRegistry().addPluginLayerType(AXIS_LAYER_TYPE)
 atexit.register(
-    QgsPluginLayerRegistry.instance().removePluginLayerType, AxisLayer.LAYER_TYPE
+    QgsApplication.pluginLayerRegistry().removePluginLayerType, AxisLayer.LAYER_TYPE
 )
 
 
@@ -330,7 +330,7 @@ class Plugin(QObject):
         return lay
 
     def __current_section_changed(self, section_id):
-        layers = QgsMapLayerRegistry.instance().mapLayersByName(u"group_cell")
+        layers = QgsProject.instance().mapLayersByName(u"group_cell")
         if len(layers):
             layers[0].setSubsetString("section_id='{}'".format(section_id))
         self.__refresh_layers("section")
@@ -369,7 +369,7 @@ class Plugin(QObject):
         self.__current_section.addItems(self.project.sections())
         self.__current_graph.addItems(self.project.graphs())
 
-        layers = QgsMapLayerRegistry.instance().mapLayersByName("section.anchor")
+        layers = QgsProject.instance().mapLayersByName("section.anchor")
         if len(layers):
             layers[0].editingStopped.connect(self.__update_section_list)
 
@@ -377,10 +377,10 @@ class Plugin(QObject):
 
         # We make sure that corresponding extents are valid when the project
         # is loaded
-        cell = QgsMapLayerRegistry.instance().mapLayersByName("cell")[0]
+        cell = QgsProject.instance().mapLayersByName("cell")[0]
         cell.updateExtents()
 
-        section_geom = QgsMapLayerRegistry.instance().mapLayersByName("section.geom")
+        section_geom = QgsProject.instance().mapLayersByName("section.geom")
         if section_geom:
             section_geom[0].updateExtents()
 
@@ -413,9 +413,7 @@ class Plugin(QObject):
             return
         fil = fil if len(fil) > 4 and fil[-4:] == ".qgs" else fil + ".qgs"
         fil = fil.replace(" ", "_")
-        try:
-            fil.decode("ascii")
-        except UnicodeDecodeError:
+        if len(fil) != len(fil.encode()):
             self.__iface.messageBar().pushError(
                 "Albion:", "project name may only contain asci character (no accent)"
             )
@@ -475,6 +473,7 @@ class Plugin(QObject):
             None,
             u"Data directory",
             QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+            QFileDialog.ShowDirsOnly | QFileDialog.DontUseNativeDialog
         )
         if not dir_:
             return
@@ -486,9 +485,7 @@ class Plugin(QObject):
         progress = QProgressBar()
         progress.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         progressMessageBar.layout().addWidget(progress)
-        self.__iface.messageBar().pushWidget(
-            progressMessageBar, self.__iface.messageBar().INFO
-        )
+        self.__iface.messageBar().pushWidget(progressMessageBar)
 
         self.project.import_data(dir_, ProgressBar(progress))
         self.project.triangulate()
@@ -496,7 +493,7 @@ class Plugin(QObject):
 
         self.__iface.messageBar().clearWidgets()
 
-        collar = QgsMapLayerRegistry.instance().mapLayersByName("collar")[0]
+        collar = QgsProject.instance().mapLayersByName("collar")[0]
         collar.reload()
         collar.updateExtents()
         self.__iface.setActiveLayer(collar)
@@ -562,13 +559,13 @@ class Plugin(QObject):
     def __toggle_axis(self):
         if self.__axis_layer:
             pass
-            QgsMapLayerRegistry.instance().removeMapLayer(self.__axis_layer.id())
+            QgsProject.instance().removeMapLayer(self.__axis_layer.id())
             self.__axis_layer = None
         else:
             self.__axis_layer = AxisLayer(
                 self.__iface.mapCanvas().mapSettings().destinationCrs()
             )
-            QgsMapLayerRegistry.instance().addMapLayer(self.__axis_layer)
+            QgsProject.instance().addMapLayer(self.__axis_layer)
         self.__refresh_layers()
 
     def __create_cells(self):

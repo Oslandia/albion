@@ -2,7 +2,6 @@
 
 from builtins import str
 from builtins import range
-from qgis.core import QgsDataSourceURI
 
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QGraphicsScene, QMainWindow

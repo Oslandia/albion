@@ -8,9 +8,10 @@ from OpenGL.GL import shaders
 
 from OpenGL import GLU
 
-from PyQt5.QtOpenGL import QGLWidget, QGLPixelBuffer, QGLFormat
-from qgis.PyQt.QtCore import *
-from qgis.PyQt.QtGui import *
+from PyQt5.QtOpenGL import QGLWidget, QGLFormat
+from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtGui import QVector3D
+from qgis.PyQt.QtWidgets import QMessageBox, QMainWindow
 from qgis.PyQt import uic
 
 import os

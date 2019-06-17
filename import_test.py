@@ -9,16 +9,20 @@ if __name__ == "__main__":
 
 
     project_name = "import_test"
+    
     if Project.exists(project_name):
         Project.delete(project_name)
     
     project = Project.create(project_name, 32632)
     start = time.time()
     project.import_data(sys.argv[1])
-    # fix_print_with_import
-    print("time for import", time.time() - start, 'sec')
+    ## fix_print_with_import
+    #print("time for import", time.time() - start, 'sec')
+
     #project = Project(project_name)
     #
     #project.triangulate()
     #project.create_section_view_0_90(4)
+    project.triangulate()
+    project.create_section_view_0_90(4)
 
