@@ -1005,8 +1005,16 @@ join _albion.hole as he on he.collar_id=e.end_
 join _albion.node as ns on ns.hole_id=hs.id
 join _albion.node as ne on ne.hole_id=he.id, tan_ang
 where ns.graph_id = ne.graph_id
-and abs(st_z(st_3dlineinterpolatepoint(ns.geom, .5))-st_z(st_3dlineinterpolatepoint(ne.geom,.5)))
+and (
+    abs(st_z(st_3dlineinterpolatepoint(ns.geom, .5))-st_z(st_3dlineinterpolatepoint(ne.geom, .5)))
     /st_distance(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)) < tan_ang.value
+    or
+    abs(st_z(st_3dlineinterpolatepoint(ns.geom, 0))-st_z(st_3dlineinterpolatepoint(ne.geom, 0)))
+    /st_distance(st_3dlineinterpolatepoint(ns.geom, 0), st_3dlineinterpolatepoint(ne.geom, 0)) < tan_ang.value
+    or
+    abs(st_z(st_3dlineinterpolatepoint(ns.geom, 1))-st_z(st_3dlineinterpolatepoint(ne.geom, 1)))
+    /st_distance(st_3dlineinterpolatepoint(ns.geom, 1), st_3dlineinterpolatepoint(ne.geom, 1)) < tan_ang.value
+    )
 and st_distance( ne.geom, ns.geom ) < ( select correlation_distance from albion.metadata )
 and ns.parent is null
 and ne.parent is null
