@@ -56,7 +56,8 @@ class MyLoggingConnection(LoggingConnection):
 if not check_cluster():
     init_cluster()
 start_cluster()
-# atexit.register(stop_cluster)
+
+#atexit.register(stop_cluster)
 
 
 def find_in_dir(dir_, name):
@@ -273,6 +274,13 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
 
+            for statement in (
+                open(os.path.join(os.path.dirname(__file__), '_albion_drop_indexes_and_constrains.sql'))
+                .read()
+                .split("\n;\n")[:-1]
+            ):
+                cur.execute(statement)
+
             cur.execute(
                 """
                 copy _albion.collar(id, x, y, z, date_, comments) from '{}' delimiter ';' csv header
@@ -447,6 +455,16 @@ class Project(object):
                         find_in_dir(dir_, "chemical")
                     )
                 )
+
+            progress.setPercent(90)
+
+
+            for statement in (
+                open(os.path.join(os.path.dirname(__file__), '_albion_create_indexes_and_constrains.sql'))
+                .read()
+                .split("\n;\n")[:-1]
+            ):
+                cur.execute(statement)
 
             progress.setPercent(100)
 

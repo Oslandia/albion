@@ -1,5 +1,3 @@
-vacuum analyse
-;
 create index collar_geom_idx on _albion.collar using gist(geom)
 ;
 alter table _albion.hole add constraint hole_collar_id_fkey foreign key (collar_id) references _albion.collar(id)
