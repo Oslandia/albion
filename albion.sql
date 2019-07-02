@@ -991,10 +991,9 @@ select case when c < a then c else a end as start_, case when c < a then a else 
 from _albion.cell
 ;
 
-create view albion.possible_edge as
+create or replace view albion.possible_edge as
 with tan_ang as (
     select tan(correlation_angle*pi()/180) as value, tan(parent_correlation_angle*pi()/180) as parent_value
-
     from _albion.metadata
 ),
 result as (
@@ -1006,20 +1005,24 @@ join _albion.node as ns on ns.hole_id=hs.id
 join _albion.node as ne on ne.hole_id=he.id, tan_ang
 where ns.graph_id = ne.graph_id
 and (
-    abs(st_z(st_3dlineinterpolatepoint(ns.geom, .5))-st_z(st_3dlineinterpolatepoint(ne.geom, .5)))
-    /st_distance(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)) < tan_ang.value
-    or
-    abs(st_z(st_3dlineinterpolatepoint(ns.geom, 0))-st_z(st_3dlineinterpolatepoint(ne.geom, 0)))
-    /st_distance(st_3dlineinterpolatepoint(ns.geom, 0), st_3dlineinterpolatepoint(ne.geom, 0)) < tan_ang.value
-    or
-    abs(st_z(st_3dlineinterpolatepoint(ns.geom, 1))-st_z(st_3dlineinterpolatepoint(ne.geom, 1)))
-    /st_distance(st_3dlineinterpolatepoint(ns.geom, 1), st_3dlineinterpolatepoint(ne.geom, 1)) < tan_ang.value
+    (
+        abs(ns.from_-ns.to_) >= abs(ne.from_-ne.to_)
+        and st_z(st_startpoint(ns.geom)) + st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.value >= st_z(st_startpoint(ne.geom))
+        and st_z(st_endpoint(ns.geom)) - st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.value <= st_z(st_endpoint(ne.geom))
     )
+    or
+    (
+        abs(ns.from_-ns.to_) < abs(ne.from_-ne.to_)
+        and st_z(st_startpoint(ne.geom)) + st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.value >= st_z(st_startpoint(ns.geom))
+        and st_z(st_endpoint(ne.geom)) - st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.value <= st_z(st_endpoint(ns.geom))
+    )
+    )
+
 and st_distance( ne.geom, ns.geom ) < ( select correlation_distance from albion.metadata )
 and ns.parent is null
 and ne.parent is null
 
-union all
+union all -- for graphs with parents
 
 select ns.id as start_, ne.id as end_, ns.graph_id as graph_id, (st_makeline(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)))::geometry('LINESTRINGZ', $SRID) as geom, ns.parent as parent
 from _albion.edge as pe
@@ -1028,25 +1031,21 @@ join _albion.node as pne on pne.id=pe.end_
 join _albion.node as ns on ns.parent=pns.id
 join _albion.node as ne on ne.parent=pne.id, tan_ang
 where ns.graph_id = ne.graph_id
-and abs( -- tan(A-B) = (tan(A)-tan(B))/(1+tan(A)tan(B)
+and
     (
-    (st_z(st_3dlineinterpolatepoint(ns.geom, .5))-st_z(st_3dlineinterpolatepoint(ne.geom,.5)))
-    /st_distance(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5))
-    -
-    (st_z(st_3dlineinterpolatepoint(pns.geom, .5))-st_z(st_3dlineinterpolatepoint(pne.geom,.5)))
-    /st_distance(st_3dlineinterpolatepoint(pns.geom, .5), st_3dlineinterpolatepoint(pne.geom, .5))
+        abs(ns.from_-ns.to_) >= abs(ne.from_-ne.to_)
+        and st_z(st_startpoint(ns.geom)) + st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value + (st_z(st_3dlineinterpolatepoint(pne.geom, .5)) - st_z(st_3dlineinterpolatepoint(pns.geom, .5))) >= st_z(st_startpoint(ne.geom))
+        and st_z(st_endpoint(ns.geom)) - st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value + (st_z(st_3dlineinterpolatepoint(pne.geom, .5)) - st_z(st_3dlineinterpolatepoint(pns.geom, .5))) <= st_z(st_endpoint(ne.geom))
+
     )
-    /
+    or
     (
-    1.0
-    +
-    (st_z(st_3dlineinterpolatepoint(ns.geom, .5))-st_z(st_3dlineinterpolatepoint(ne.geom,.5)))
-    /st_distance(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5))
-    *
-    (st_z(st_3dlineinterpolatepoint(pns.geom, .5))-st_z(st_3dlineinterpolatepoint(pne.geom,.5)))
-    /st_distance(st_3dlineinterpolatepoint(pns.geom, .5), st_3dlineinterpolatepoint(pne.geom, .5))
+        abs(ns.from_-ns.to_) < abs(ne.from_-ne.to_)
+        and st_z(st_startpoint(ne.geom)) + st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value  + (st_z(st_3dlineinterpolatepoint(pns.geom, .5)) - st_z(st_3dlineinterpolatepoint(pne.geom, .5))) >= st_z(st_startpoint(ns.geom)) 
+
+        and st_z(st_endpoint(ne.geom)) - st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value + (st_z(st_3dlineinterpolatepoint(pns.geom, .5)) - st_z(st_3dlineinterpolatepoint(pne.geom, .5)) ) <= st_z(st_endpoint(ns.geom)) 
+
     )
-    ) < tan_ang.parent_value
 )
 select row_number() over() as id, * from result
 ;

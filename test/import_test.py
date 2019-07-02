@@ -6,6 +6,9 @@ if __name__ == "__main__":
     import os
     import sys
     import time
+    import tempfile
+    import zipfile
+
 
 
     project_name = "import_test"
@@ -15,14 +18,12 @@ if __name__ == "__main__":
     
     project = Project.create(project_name, 32632)
     start = time.time()
-    project.import_data(sys.argv[1])
-    ## fix_print_with_import
-    #print("time for import", time.time() - start, 'sec')
-
-    #project = Project(project_name)
-    #
-    #project.triangulate()
-    #project.create_section_view_0_90(4)
+    zip_ref = zipfile.ZipFile(os.path.join(os.path.dirname(__file__), '..', 'data', 'nt.zip'), 'r')
+    zip_ref.extractall(tempfile.gettempdir())
+    zip_ref.close()
+    data_dir = os.path.join(tempfile.gettempdir(), 'nt')
+    print('###############################', data_dir)
+    project.import_data(data_dir)
     project.triangulate()
     project.create_section_view_0_90(4)
 
