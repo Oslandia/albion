@@ -452,8 +452,7 @@ class Scene(QObject):
                 cur.execute("""
                     select coalesce(st_collect(n.geom), 'GEOMETRYCOLLECTION EMPTY'::geometry)
                     from albion.section as s
-                    join albion.collar as c on st_intersects(s.geom, c.geom)
-                    join albion.hole as h on h.collar_id=c.id
+                    join albion.hole as h on s.geom && h.geom and st_intersects(s.geom, st_startpoint(h.geom))
                     join albion.node as n on n.hole_id=h.id
                     where n.graph_id='{}'
                     """.format(self.__param["graph_id"])

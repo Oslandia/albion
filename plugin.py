@@ -174,10 +174,10 @@ class Plugin(QObject):
         )
 
         self.__add_menu_entry(
-            "Refresh diagraphy",
-            self.__refresh_diagraphy,
+            "Refresh sections",
+            self.__refresh_sections,
             self.project is not None,
-            "Refresh materialized view of radiometry and resistivity.",
+            "Refresh materialized views (can take some time).",
         )
 
         self.__menu.addSeparator()
@@ -215,6 +215,9 @@ class Plugin(QObject):
         )
         self.__add_menu_entry(
             "Delete Graph", self.__delete_graph, self.project is not None
+        )
+        self.__add_menu_entry(
+            "Add selection to graph nodes", self.__add_selection_to_graph_node, self.project is not None
         )
         self.__menu.addSeparator()
         self.__add_menu_entry(
@@ -281,10 +284,9 @@ class Plugin(QObject):
             return
         self.project.refresh_all_edge()
 
-    def __refresh_diagraphy(self):
+    def __refresh_sections(self):
         if self.project:
-            self.project.refresh_radiometry()
-            self.project.refresh_resistivity()
+            self.project.refresh_sections()
 
     def __create_terminations(self):
         if self.project is None:
@@ -398,7 +400,12 @@ class Plugin(QObject):
         )
         if not ok:
             return
-        Project(project_name).update()
+        project = Project(project_name)
+        project.update()
+        QgsProject.instance().writeEntry("albion", "project_name", project.name)
+        QgsProject.instance().writeEntry("albion", "srid", project.srid)
+        self.__qgis__project__loaded()
+
 
     def __new_project(self):
 
@@ -510,9 +517,6 @@ class Plugin(QObject):
 
     def __new_graph(self):
 
-        if self.project is None:
-            return
-
         graph, ok = QInputDialog.getText(
             self.__iface.mainWindow(),
             "Graph",
@@ -540,8 +544,6 @@ class Plugin(QObject):
         self.__current_graph.setCurrentIndex(self.__current_graph.findText(graph))
 
     def __delete_graph(self):
-        if self.project is None:
-            return
 
         graph, ok = QInputDialog.getText(
             self.__iface.mainWindow(),
@@ -555,6 +557,18 @@ class Plugin(QObject):
             return
 
         self.__current_graph.removeItem(self.__current_graph.findText(graph))
+
+    def __add_selection_to_graph_node(self):
+
+        if (
+            self.__iface.activeLayer()
+            and self.__iface.activeLayer().selectedFeatures()
+        ):
+            selection = self.__iface.activeLayer().selectedFeatures()
+            graph = self.__current_graph.currentText()
+            self.project.add_to_graph_node(graph, selection)
+
+        self.__refresh_layers()
 
     def __toggle_axis(self):
         if self.__axis_layer:

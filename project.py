@@ -8,6 +8,7 @@ import os
 import sys
 import atexit
 import binascii
+import string
 from shapely import wkb
 from dxfwrite import DXFEngine as dxf
 
@@ -58,6 +59,35 @@ if not check_cluster():
 start_cluster()
 
 #atexit.register(stop_cluster)
+TABLES = [
+    {'NAME': 'radiometry',
+     'FIELDS_DEFINITION': 'gamma real',
+     'FIELDS': 'gamma',
+     },
+    {'NAME': 'resistivity',
+     'FIELDS_DEFINITION': 'rho real',
+     'FIELDS': 'rho',
+     },
+    {'NAME': 'formation',
+     'FIELDS_DEFINITION': 'code integer, comments varchar',
+     'FIELDS': 'code, comments',
+     },
+    {'NAME': 'lithology',
+     'FIELDS_DEFINITION': 'code integer, comments varchar',
+     'FIELDS': 'code, comments',
+     },
+    {'NAME': 'facies',
+     'FIELDS_DEFINITION': 'code integer, comments varchar',
+     'FIELDS': 'code, comments',
+     },
+    {'NAME': 'chemical',
+     'FIELDS_DEFINITION': 'num_sample varchar, element varchar, thickness real, gt real, grade real, equi real, comments varchar',
+     'FIELDS': 'num_sample, element, thickness, gt, grade, equi, comments',
+     },
+    {'NAME': 'mineralization',
+     'FIELDS_DEFINITION': 'level_ real, oc real, accu real, grade real, comments varchar',
+     'FIELDS': 'level_, oc, accu, grade, comments'
+     }]
 
 
 def find_in_dir(dir_, name):
@@ -188,6 +218,20 @@ class Project(object):
                             "$INCLUDE_ELEMENTARY_VOLUME", include_elementary_volume
                         )
                     )
+
+
+            for file_ in ("_albion_table.sql", "albion_table.sql"):
+                for table in TABLES:
+                    for statement in (
+                        open(os.path.join(os.path.dirname(__file__), file_))
+                        .read()
+                        .split("\n;\n")[:-1]
+                    ):
+                        table['SRID'] = str(srid)
+                        cur.execute(
+                            string.Template(statement).substitute(table)
+                        )
+
             con.commit()
         return project
 
@@ -213,7 +257,25 @@ class Project(object):
                         "$INCLUDE_ELEMENTARY_VOLUME", include_elementary_volume
                     )
                 )
+
+            for table in TABLES:
+                for statement in (
+                    open(os.path.join(os.path.dirname(__file__), "albion_table.sql"))
+                    .read()
+                    .split("\n;\n")[:-1]
+                ):
+                    table['SRID'] = str(srid)
+                    cur.execute(
+                        string.Template(statement).substitute(table)
+                    )
             con.commit()
+
+    def __srid(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select srid from albion.metadata")
+            srid, = cur.fetchone()
+        return srid
 
     def __getattr__(self, name):
         if name == "has_collar":
@@ -230,6 +292,8 @@ class Project(object):
             return self.__has_cell()
         elif name == "name":
             return self.__name
+        elif name == "srid":
+            return self.__srid()
         else:
             raise AttributeError(name)
 
@@ -269,21 +333,18 @@ class Project(object):
             cur.execute("select count(1) from albion.radiometry")
             return cur.fetchone()[0] > 1
 
+
+
     def import_data(self, dir_, progress=None):
+
         progress = progress if progress is not None else DummyProgress()
         with self.connect() as con:
             cur = con.cursor()
 
-            for statement in (
-                open(os.path.join(os.path.dirname(__file__), '_albion_drop_indexes_and_constrains.sql'))
-                .read()
-                .split("\n;\n")[:-1]
-            ):
-                cur.execute(statement)
 
             cur.execute(
                 """
-                copy _albion.collar(id, x, y, z, date_, comments) from '{}' delimiter ';' csv header
+                copy _albion.hole(id, x, y, z, depth_, date_, comments) from '{}' delimiter ';' csv header
                 """.format(
                     find_in_dir(dir_, "collar")
                 )
@@ -293,28 +354,22 @@ class Project(object):
 
             cur.execute(
                 """
-                update _albion.collar set geom=format('SRID=%s;POINTZ(%s %s %s)',m. srid, x, y, z)::geometry
-                from albion.metadata as m
-                """
-            )
-
-            cur.execute(
-                """
-                insert into _albion.hole(id, collar_id) select id, id from _albion.collar;
-                """
-            )
-
-            progress.setPercent(10)
-
-            cur.execute(
-                """
                 copy _albion.deviation(hole_id, from_, dip, azimuth) from '{}' delimiter ';' csv header
                 """.format(
                     find_in_dir(dir_, "devia")
                 )
             )
 
+            progress.setPercent(10)
+
+            cur.execute(
+                """
+                update _albion.hole set geom = albion.hole_geom(id)
+                """
+            )
+
             progress.setPercent(15)
+
 
             if find_in_dir(dir_, "avp"):
                 cur.execute(
@@ -371,100 +426,19 @@ class Project(object):
 
             progress.setPercent(40)
 
-            cur.execute(
-                """
-                with dep as (
-                    select hole_id, max(to_) as mx
-                        from (
-                            select hole_id, max(to_) as to_ from _albion.radiometry group by hole_id
-                            union all
-                            select hole_id, max(to_) as to_ from _albion.resistivity group by hole_id
-                            union all
-                            select hole_id, max(to_) as to_ from _albion.formation group by hole_id
-                            union all
-                            select hole_id, max(to_) as to_ from _albion.lithology group by hole_id
-                            union all
-                            select hole_id, max(to_) as to_ from _albion.facies group by hole_id
-                            union all
-                            select hole_id, max(from_) as to_ from _albion.deviation group by hole_id
-                            ) as t
-                    group by hole_id
-                )
-                update _albion.hole as h set depth_=d.mx
-                from dep as d where h.id=d.hole_id
-                """
-            )
-
-            progress.setPercent(50)
-
-            cur.execute("update albion.hole set geom=albion.hole_geom(id)")
-
-            progress.setPercent(55)
-
-            cur.execute(
-                "update albion.lithology set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            progress.setPercent(60)
-
-            cur.execute(
-                "update albion.formation set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            progress.setPercent(65)
-
-            cur.execute(
-                "update albion.radiometry set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            progress.setPercent(70)
-
-            cur.execute(
-                "update albion.resistivity set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            progress.setPercent(75)
-
-            cur.execute(
-                "update albion.facies set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            if find_in_dir(dir_, "mineralization"):
-                cur.execute(
-                    """
-                    copy _albion.mineralization(hole_id, level_, from_, to_, oc, accu, grade) from '{}' delimiter ';' csv header
-                    """.format(
-                        find_in_dir(dir_, "mineralization")
-                    )
-                )
-
-            cur.execute(
-                "update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            progress.setPercent(80)
-
             if find_in_dir(dir_, "chemical"):
                 cur.execute(
                     """
                     copy _albion.chemical(hole_id, from_, to_, num_sample,
-                        element, thickness, gt, grade, equi, comments
-                    )
+                        element, thickness, gt, grade, equi, comments)
                     from '{}' delimiter ';' csv header
                     """.format(
                         find_in_dir(dir_, "chemical")
                     )
                 )
 
-            progress.setPercent(90)
+            progress.setPercent(45)
 
-
-            for statement in (
-                open(os.path.join(os.path.dirname(__file__), '_albion_create_indexes_and_constrains.sql'))
-                .read()
-                .split("\n;\n")[:-1]
-            ):
-                cur.execute(statement)
 
             progress.setPercent(100)
 
@@ -484,16 +458,11 @@ class Project(object):
             cur.execute("refresh materialized view albion.all_edge")
             con.commit()
 
-    def refresh_radiometry(self):
+    def refresh_sections(self):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("refresh materialized view albion.radiometry_section")
-            con.commit()
-
-    def refresh_resistivity(self):
-        with self.connect() as con:
-            cur = con.cursor()
-            cur.execute("refresh materialized view albion.resistivity_section")
+            cur.execute("refresh materialized view albion.radiometry_section_geom_cache")
+            cur.execute("refresh materialized view albion.resistivity_section_geom_cache")
             con.commit()
 
     def create_sections(self):
@@ -669,13 +638,9 @@ class Project(object):
                     oc=oc, ci=ci, cutoff=cutoff
                 )
             )
-            cur.execute(
-                """
-                update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)
-                where geom is null
-                """
-            )
+            cur.execute("refresh materialized view albion.mineralization_section_geom_cache")
             con.commit()
+        
 
     def export_obj(self, graph_id, filename):
         with self.connect() as con:
@@ -833,8 +798,8 @@ class Project(object):
             )
             cur.execute(
                 """
-                insert into albion.end_node(geom, node_id, collar_id, graph_id)
-                select geom, node_id, collar_id, graph_id
+                insert into albion.end_node(geom, node_id, hole_id, graph_id)
+                select geom, node_id, hole_id, graph_id
                 from albion.dynamic_end_node
                 where graph_id='{}'
                 """.format(
@@ -944,7 +909,17 @@ class Project(object):
                 """
                 update albion.section set geom=ST_SetSRID('{wkb_hex}'::geometry, {srid}) where id='{id_}'
                 """.format(
-                    srid=srid, wkb_hex=binascii.hexlify(geom.wkb), id_=section_id
+                    srid=srid, wkb_hex=geom.wkb_hex, id_=section_id
                 )
             )
             con.commit()
+
+    def add_to_graph_node(self, graph, features):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.executemany(
+                """
+                insert into albion.node(from_, to_, hole_id, graph_id) values(%s, %s, %s, %s)
+                """,
+                [(f['from_'], f['to_'], f['hole_id'], graph) for f in features])
+
