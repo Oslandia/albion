@@ -32,11 +32,11 @@ create table _albion.metadata(
     snap_distance real not null default 1,
     precision real default .01,
     interpolation interpolation_method default 'balanced_tangential',
-    end_distance real default 25,
     end_angle real default 5.0,
     correlation_distance real default 200,
     correlation_angle real default 5.0,
-    parent_correlation_angle real default 1.0)
+    parent_correlation_angle real default 1.0,
+    end_node_relative_distance real default .3)
 ;
 
 insert into _albion.metadata(srid) select $SRID

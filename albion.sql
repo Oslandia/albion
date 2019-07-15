@@ -9,6 +9,18 @@ create schema albion
 -- UTILITY FUNCTIONS
 -------------------------------------------------------------------------------
 
+
+create function public.st_3dvolume(geom geometry)
+return real
+language plpgsql immutable
+as
+$$
+    begin
+        return null;
+    end;
+$$
+;
+
 create or replace function albion.hole_geom(hole_id_ varchar)
 returns geometry
 language plpgsql stable
@@ -107,7 +119,7 @@ $$
 create view albion.collar as select id, st_startpoint(geom) as geom, date_, comments, depth_ from _albion.hole
 ;
 
-create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_distance, end_angle, correlation_distance, correlation_angle, parent_correlation_angle from _albion.metadata
+create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_angle, correlation_distance, correlation_angle, parent_correlation_angle from _albion.metadata
 ;
 
 create view albion.hole as select id, depth_, geom::geometry('LINESTRINGZ', $SRID) from _albion.hole
@@ -1017,7 +1029,7 @@ $$
 ;
 
 create or replace view albion.volume as
-select id, graph_id, cell_id, triangulation
+select id, graph_id, cell_id, triangulation, st_volume(triangulation)
 from _albion.volume
 ;
 
@@ -1257,7 +1269,7 @@ join _albion.hole as hs on hs.id=ns.hole_id
 join _albion.hole as he on he.id=ne.hole_id
 ;
 
-create function albion.end_node_geom(node_geom_ geometry, collar_geom_ geometry)
+create function albion.end_node_geom(node_geom_ geometry, collar_geom_ geometry, rel_distance real default .3)
 returns geometry
 language plpython3u
 as
@@ -1268,7 +1280,6 @@ $$
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
 
-    REL_DISTANCE = .3
     HEIGHT = 1.
 
     node_geom = wkb.loads(bytes.fromhex(node_geom_))
@@ -1278,7 +1289,7 @@ $$
     center = .5*(node_coords[0] + node_coords[1])
     dir = array(collar_geom.coords[0]) - center
     dir[2] = 0
-    dir *= REL_DISTANCE
+    dir *= rel_distance
     top = center + dir + array([0,0,.5*HEIGHT])
     bottom = center + dir - array([0,0,.5*HEIGHT])
     result = LineString([tuple(top), tuple(bottom)])
@@ -1288,10 +1299,11 @@ $$
 ;
 
 create view albion.dynamic_end_node as
-select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_geom(n.geom, st_startpoint(h.geom))::geometry('LINESTRINGZ', $SRID) as geom, h.id as hole_id
+select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_geom(n.geom, st_startpoint(h.geom), m.end_node_relative_distance)::geometry('LINESTRINGZ', $SRID) as geom, h.id as hole_id
 from albion.half_edge as he
 join _albion.node as n on n.id=he.node_id
 join _albion.hole as h on h.id=he.other
+join _albion.metadata as m
 ;
 
 
