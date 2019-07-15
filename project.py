@@ -227,23 +227,38 @@ class Project(object):
         return project
 
 
-    def add_table(self, table):
+    def add_table(self, table, values=None):
         """ 
         table: a dict with keys
             NAME: the name of the table to create
             FIELDS_DEFINITION: the sql definition (name type) of the "additional" fields (i.e. excludes hole_id, from_ and to_)
-            FIELDS: comma-separated list of the fields names
+            FIELDS: comma-separated list of the fields names, same order as FIELDS_DEFINITION
             SRID: the project's SRID
+        values: list of tuples (hole_id, from_, to_, table['FIELDS'])
         """
-        for file_ in ("_albion_table.sql", "albion_table.sql"):
-            for statement in (
-                open(os.path.join(os.path.dirname(__file__), file_))
-                .read()
-                .split("\n;\n")[:-1]
-            ):
-                cur.execute(
-                    string.Template(statement).substitute(table)
-                )
+        with self.connect() as con:
+            cur = con.cursor()
+            for file_ in ("_albion_table.sql", "albion_table.sql"):
+                for statement in (
+                    open(os.path.join(os.path.dirname(__file__), file_))
+                    .read()
+                    .split("\n;\n")[:-1]
+                ):
+                    cur.execute(
+                        string.Template(statement).substitute(table)
+                    )
+            if values is not None:
+                table['FORMAT'] = ','.join([' %s' for v in table['FIELDS'].split(',')])
+                print(table)
+                cur.executemany("""
+                    insert into albion.{NAME}(hole_id, from_, to_, {FIELDS})
+                    values (%s, %s, %s, {FORMAT})
+                """.format(**table), values)
+            cur.execute("""
+                refresh materialized view albion.{NAME}_section_geom_cache
+                """.format(**table))
+            con.commit()
+        self.vacuum()
 
         # TODO add a list of tables in _albion to be able to restore them on update
 
@@ -935,4 +950,16 @@ class Project(object):
                 insert into albion.node(from_, to_, hole_id, graph_id) values(%s, %s, %s, %s)
                 """,
                 [(f['from_'], f['to_'], f['hole_id'], graph) for f in features])
+            
+    def accept_possible_edge(self, graph):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                insert into albion.edge(start_, end_, graph_id, geom, parent)
+                select start_, end_, graph_id, geom, parent from albion.possible_edge
+                where graph_id=%s
+                """,
+                (graph,))
+
 

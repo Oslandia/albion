@@ -528,8 +528,47 @@ class Plugin(QObject):
     def __import_layer(self):
         assert(self.project)
         if self.__iface.activeLayer():
-            for f in self.__iface.activeLayer().fields():
-                print(f)
+            from_idx = None
+            to_idx = None
+            hole_id_idx= None
+            other_idx = []
+            definitions = []
+            fields = []
+            for idx, f in enumerate(self.__iface.activeLayer().fields()):
+                if f.name().lower() == 'from' or f.name().lower() == 'from_':
+                    from_idx = idx
+                elif f.name().lower() == 'to' or f.name().lower() == 'to_':
+                    to_idx = idx
+                elif f.name().lower() == 'hole_id' or f.name().lower() == 'holeid':
+                    hole_id_idx = idx
+                else:
+                    other_idx.append(idx)
+                    name = f.name().lower().replace(' ', '_')
+                    fields.append(name)
+                    type_ = 'varchar'
+                    if f.typeName() == 'double':
+                        type_ = 'double precision'
+                    elif f.typeName() == 'integer':
+                        type_ = 'integer'
+                    definitions.append(name + ' ' + type_)
+
+            table = {
+                    'NAME': self.__iface.activeLayer().name().lower().replace(' ', '_'),
+                    'FIELDS_DEFINITION': ', '.join(definitions),
+                    'FIELDS': ', '.join(fields),
+                    'SRID': self.project.srid
+                    }
+
+            if from_idx is None or to_idx is None or hole_id_idx is None:
+                self.__iface.messageBar().pushCritical(
+                    "Albion", "imported layer must have 'to', 'from' and 'hole_id' fields")
+                return
+
+            values = []
+            for f in self.__iface.activeLayer().getFeatures():
+                values.append((f[hole_id_idx], f[from_idx], f[to_idx]) +
+                        tuple((f[i] for i in other_idx)))
+            self.project.add_table(table, values)
             
 
 
@@ -590,8 +629,8 @@ class Plugin(QObject):
         self.__refresh_layers()
 
     def __accept_possible_edge(self):
-        assert(false)
-        #TODO
+        assert(self.project)
+        self.project.accept_possible_edge(self.__current_graph.currentText())
 
     def __toggle_axis(self):
         if self.__axis_layer:
