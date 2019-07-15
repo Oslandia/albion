@@ -21,6 +21,7 @@ class ViewerControls(QWidget):
                 ('edges', self.__viewer.toggle_edges, True),
                 ('ends', self.__viewer.toggle_ends, True),
                 ('volumes', self.__viewer.toggle_volumes, False),
+                ('volumes sections', self.__viewer.toggle_volumes_section, True),
                 ('errors', self.__viewer.toggle_errors, False),
                 ]:
             a = menu.addAction(l)

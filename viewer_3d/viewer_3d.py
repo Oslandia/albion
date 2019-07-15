@@ -34,6 +34,7 @@ class Viewer3d(QGLWidget):
                 "end": False,
                 "edge": False,
                 "volume": False,
+                "volume_section": True,
                 "error": False,
                 "section": False,
                 "z_scale": 1,
@@ -54,7 +55,7 @@ class Viewer3d(QGLWidget):
     def refresh_data(self):
         if self.scene and self.__project.has_collar:
             self.resetScene(self.__project, False)
-            for layer in ['node', 'edge', 'volume', 'section', 'error', 'end']:
+            for layer in ['node', 'edge', 'volume', 'volume_section', 'section', 'error', 'end']:
                 self.scene.update(layer)
             self.update()
 
@@ -68,7 +69,7 @@ class Viewer3d(QGLWidget):
                 self.camera = Camera(eye, at)
 
             if self.__param['graph_id']:
-                for layer in ['node', 'edge', 'volume', 'section', 'error', 'end']:
+                for layer in ['node', 'edge', 'volume', 'volume_section', 'section', 'error', 'end']:
                     self.scene.update(layer)
             self.update()
         else:
@@ -112,6 +113,11 @@ class Viewer3d(QGLWidget):
     def toggle_volumes(self, state):
         self.__param["volume"] = state
         self.update()
+
+    def toggle_volumes_section(self, state):
+        self.__param["volume_section"] = state
+        self.update()
+
 
     def toggle_errors(self, state):
         self.__param["error"] = state

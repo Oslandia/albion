@@ -1489,3 +1489,49 @@ from res
 --'01050000A0787F00000E00000001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C9393764001020000800200000059D97C6C85BC13418A67D48DBAA93F41FF7B08EA919F7640418F5F6685BC1341B0A9D78CBAA93F4178920C2DC58A764001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C939376400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000013154A5788BC1341F27E88ADD2A93F41DDC836A48ECB7640F78772A388BC13411BFEBE9FD2A93F41C0A2699C93937640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD947640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD94764001020000800200000059D97C6C85BC13418A67D48DBAA93F41FF7B08EA919F7640418F5F6685BC1341B0A9D78CBAA93F4178920C2DC58A7640010200008002000000EAF7DBB529BC1341350EF10DD4A93F415EECEAE169E176400A74A55E2ABC1341E896ED28D4A93F4169719E7FAD9476400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000056B7652688BC1341EA1D85B9D2A93F41D7DF7D1858F87640E1BD403F88BC13418DABDEB2D2A93F41BFCC2B28C0DE76400102000080020000005E3F399385BC13419833B790BAA93F412744AD66C4EA764050BFC17285BC1341BB98A18EBAA93F4131BD49D291AF764001020000800200000056B7652688BC1341EA1D85B9D2A93F41D7DF7D1858F87640E1BD403F88BC13418DABDEB2D2A93F41BFCC2B28C0DE764001020000800200000042B5BD4C29BC134102FDA4FBD3A93F4171017AF02C16774018C4BC7729BC134173507003D4A93F4124AB1F80CAFF7640'::geometry))
 --;
 
+-- collect triangles of neighbor elementary volumes
+create or replace function albion.triangle_intersection(t1_ geometry, t2_ geometry)
+returns geometry
+language plpython3u immutable
+as
+$$
+    from shapely import geos
+    from shapely.geometry import MultiPolygon, Polygon
+    from shapely import wkb
+    import numpy
+    import plpy
+    geos.WKBWriter.defaults['include_srid'] = True
+    t1 = wkb.loads(bytes.fromhex(t1_))
+    t2 = wkb.loads(bytes.fromhex(t2_))
+
+    t1s = set((tuple(t.exterior.coords[0:3]) for t in t1))
+    t2s = set((tuple(reversed(t.exterior.coords[0:3])) for t in t2))
+
+    result = MultiPolygon([ Polygon(t) for t in t1s.intersection(t2s)])
+    if not len(result):
+        return None
+    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(t1._geom))
+    return result.wkb_hex
+$$
+;
+
+
+create or replace view albion.volume_section as
+with touching_cell as (
+    select c.id, st_intersection(s.geom, c.geom) as geom, v.triangulation, s.id as section_id, v.graph_id
+    from _albion.section as s
+    join _albion.cell as c on c.geom && s.geom 
+    and st_intersects(c.geom, s.geom) 
+    and st_length(st_intersection(s.geom, c.geom)) > 0
+    join _albion.volume as v on v.cell_id = c.id
+),
+tri as (
+    select (st_dump(albion.triangle_intersection(c1.triangulation, c2.triangulation))).geom as geom, c1.section_id, c1.graph_id
+    from touching_cell as c1
+    join touching_cell as c2 on c2.id > c1.id and st_length(st_intersection(c1.geom, c2.geom)) >0 and c1.section_id = c2.section_id and c1.graph_id = c2.graph_id
+)
+select row_number() over() as id, st_collect(geom)::geometry('MULTIPOLYGONZ', $SRID) as geom, section_id, graph_id
+from tri
+group by section_id, graph_id
+;
+

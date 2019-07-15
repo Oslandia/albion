@@ -53,6 +53,7 @@ class Scene(QObject):
                 "edge":None,
                 "section":None,
                 "volume":None,
+                "volume_section":None,
                 "error":None,
                 "end": None,
                 "inconsistency":None}
@@ -61,6 +62,7 @@ class Scene(QObject):
                 "edge":None,
                 "section":None,
                 "volume":None,
+                "volume_section":None,
                 "error":None,
                 "end":None}
 
@@ -74,6 +76,7 @@ class Scene(QObject):
                 "end":None}
         self.nrml = {
                 "volume":None,
+                "volume_section":None,
                 "error":None}
 
         self.__labels = []
@@ -239,6 +242,8 @@ class Scene(QObject):
                         glDrawElementsui(GL_LINES, a)
                         glEnable(GL_DEPTH_TEST)
         
+        if self.__param['section'] != self.__old_param['section']:
+            self.update('volume_section')
         
         # render volume
         if self.__param["transparency"] > 0.:
@@ -260,8 +265,9 @@ class Scene(QObject):
             glUseProgram(self.shaders)
 
         color = {'volume':[.7,.7,.7,1.], 
-                 'error':[.8,.5,.5,1.]}
-        for layer in ['volume', 'error']:
+                 'error':[.8,.5,.5,1.],
+                 'volume_section':[.7,.7,.7,1.]}
+        for layer in ['volume', 'volume_section', 'error']:
             if self.__useProgram:
                 glUniform4fv(self.shaders_color_location, 1, color[layer])
                 glUniform1f(self.shaders_transp_location, self.__param["transparency"])
@@ -514,6 +520,21 @@ class Scene(QObject):
                 self.idx[layer] = numpy.require(numpy.arange(len(self.vtx[layer])).reshape((-1,3)), numpy.int32, 'C')
                 self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
 
+            elif layer=='volume_section':
+                cur.execute("""
+                    select geom
+                    from albion.volume_section
+                    where graph_id='{}'
+                    """.format(self.__param["graph_id"]))
+                geom = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
+                self.vtx[layer] = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
+                if len(self.vtx[layer]):
+                    self.vtx[layer] += self.__offset
+                    self.vtx[layer][:,2] *= self.__param["z_scale"]
+                self.idx[layer] = numpy.require(numpy.arange(len(self.vtx[layer])).reshape((-1,3)), numpy.int32, 'C')
+                self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
+
+
             elif layer=='error':
                 cur.execute("""
                     select st_collectionhomogenize(coalesce(st_collect(triangulation), 'GEOMETRYCOLLECTION EMPTY'::geometry))
@@ -532,7 +553,7 @@ class Scene(QObject):
             self.__old_param[layer] = self.__param[layer]
 
     def setGraph(self, graph_id):
-        for layer in ['node', 'edge', 'volume', 'section', 'error', 'end']:
+        for layer in ['node', 'edge', 'volume', 'volume_section', 'section', 'error', 'end']:
             if self.__param[layer] != self.__old_param[layer]:
                 self.update(layer)
         self.__old_param["graph_id"] = graph_id
@@ -541,10 +562,10 @@ class Scene(QObject):
     def setZscale(self, scale):
         factor = float(scale)/self.__old_param["z_scale"]
 
-        for layer in ['node', 'edge', 'volume', 'section', 'error', 'end']:
+        for layer in ['node', 'edge', 'volume', 'volume_section', 'section', 'error', 'end']:
             if self.vtx[layer] is not None:
                 self.vtx[layer][:,2] *= factor
-                if layer in ['volume', 'error']:
+                if layer in ['volume', 'volume_section', 'error']:
                     self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
 
         for scatter in self.__labels:
