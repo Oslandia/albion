@@ -1356,19 +1356,17 @@ edge as (
     select graph_id, section_id, start_, end_ from albion.edge_section
 ),
 poly as (
-    select st_union(
+    select 
         ('SRID=$SRID; POLYGON(('||
                     st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||','||
                     st_x(st_endpoint(ns.geom))   ||' '||st_y(st_endpoint(ns.geom))  ||','||
                     st_x(st_endpoint(ne.geom))   ||' '||st_y(st_endpoint(ne.geom))  ||','||
                     st_x(st_startpoint(ne.geom)) ||' '||st_y(st_startpoint(ne.geom))||','||
                     st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||
-                    '))')::geometry
-    ) as geom, e.graph_id, e.section_id
+                    '))')::geometry as geom, e.graph_id, e.section_id
     from edge as e
     join node as ns on ns.node_id=e.start_ and ns.section_id=e.section_id
     join node as ne on ne.node_id=e.end_ and ne.section_id=e.section_id
-    group by e.graph_id, e.section_id
 ),
 term as (
     select ('SRID=$SRID; POLYGON(('||
@@ -1381,8 +1379,9 @@ term as (
         t.graph_id, t.section_id
         from albion.end_node_section as t
 )
-select row_number() over() as id, geom::geometry('POLYGON', $SRID), graph_id, section_id
+select row_number() over() as id, st_union(geom)::geometry('MULTIPOLYGON', $SRID) as geom, graph_id, section_id
 from (select * from poly union all select * from term) as t
+group by graph_id, section_id
 ;
 
 create or replace view albion.section_intersection as
