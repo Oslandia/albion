@@ -219,21 +219,34 @@ class Project(object):
                         )
                     )
 
-
-            for file_ in ("_albion_table.sql", "albion_table.sql"):
-                for table in TABLES:
-                    for statement in (
-                        open(os.path.join(os.path.dirname(__file__), file_))
-                        .read()
-                        .split("\n;\n")[:-1]
-                    ):
-                        table['SRID'] = str(srid)
-                        cur.execute(
-                            string.Template(statement).substitute(table)
-                        )
+            for table in TABLES:
+                table['SRID'] = srid
+                self.add_table(table)
 
             con.commit()
         return project
+
+
+    def add_table(self, table):
+        """ 
+        table: a dict with keys
+            NAME: the name of the table to create
+            FIELDS_DEFINITION: the sql definition (name type) of the "additional" fields (i.e. excludes hole_id, from_ and to_)
+            FIELDS: comma-separated list of the fields names
+            SRID: the project's SRID
+        """
+        for file_ in ("_albion_table.sql", "albion_table.sql"):
+            for statement in (
+                open(os.path.join(os.path.dirname(__file__), file_))
+                .read()
+                .split("\n;\n")[:-1]
+            ):
+                cur.execute(
+                    string.Template(statement).substitute(table)
+                )
+
+        # TODO add a list of tables in _albion to be able to restore them on update
+
 
     def update(self):
         "reload schema albion without changing data"

@@ -119,7 +119,7 @@ $$
 create view albion.collar as select id, st_startpoint(geom) as geom, date_, comments, depth_ from _albion.hole
 ;
 
-create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_angle, correlation_distance, correlation_angle, parent_correlation_angle from _albion.metadata
+create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_node_thickness, end_angle, correlation_distance, correlation_angle, parent_correlation_angle from _albion.metadata
 ;
 
 create view albion.hole as select id, depth_, geom::geometry('LINESTRINGZ', $SRID) from _albion.hole
@@ -1269,7 +1269,7 @@ join _albion.hole as hs on hs.id=ns.hole_id
 join _albion.hole as he on he.id=ne.hole_id
 ;
 
-create function albion.end_node_geom(node_geom_ geometry, collar_geom_ geometry, rel_distance real default .3)
+create function albion.end_node_geom(node_geom_ geometry, collar_geom_ geometry, rel_distance real default .3, thickness real default 1)
 returns geometry
 language plpython3u
 as
@@ -1280,8 +1280,6 @@ $$
     from shapely import geos
     geos.WKBWriter.defaults['include_srid'] = True
 
-    HEIGHT = 1.
-
     node_geom = wkb.loads(bytes.fromhex(node_geom_))
     collar_geom = wkb.loads(bytes.fromhex(collar_geom_))
 
@@ -1290,8 +1288,8 @@ $$
     dir = array(collar_geom.coords[0]) - center
     dir[2] = 0
     dir *= rel_distance
-    top = center + dir + array([0,0,.5*HEIGHT])
-    bottom = center + dir - array([0,0,.5*HEIGHT])
+    top = center + dir + array([0,0,.5*thickness])
+    bottom = center + dir - array([0,0,.5*thickness])
     result = LineString([tuple(top), tuple(bottom)])
     geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(node_geom._geom))
     return result.wkb_hex
@@ -1299,7 +1297,7 @@ $$
 ;
 
 create view albion.dynamic_end_node as
-select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_geom(n.geom, st_startpoint(h.geom), m.end_node_relative_distance)::geometry('LINESTRINGZ', $SRID) as geom, h.id as hole_id
+select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_geom(n.geom, st_startpoint(h.geom), m.end_node_relative_distance, end_node_thickness)::geometry('LINESTRINGZ', $SRID) as geom, h.id as hole_id
 from albion.half_edge as he
 join _albion.node as n on n.id=he.node_id
 join _albion.hole as h on h.id=he.other

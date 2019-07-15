@@ -154,8 +154,16 @@ class Plugin(QObject):
             "&Import Data",
             self.__import_data,
             self.project is not None,
-            "Import data from directory. The data files are in ",
+            "Import data from directory",
         )
+
+        self.__add_menu_entry(
+            "&Import selected layer",
+            self.__import_layer,
+            self.project is not None,
+            "Import data from layer.",
+        )
+
 
         self.__menu.addSeparator()
 
@@ -218,6 +226,9 @@ class Plugin(QObject):
         )
         self.__add_menu_entry(
             "Add selection to graph nodes", self.__add_selection_to_graph_node, self.project is not None
+        )
+        self.__add_menu_entry(
+            "Accept graph possible edges", self.__accept_possible_edge, self.project is not None
         )
         self.__menu.addSeparator()
         self.__add_menu_entry(
@@ -472,8 +483,7 @@ class Plugin(QObject):
         self.__qgis__project__loaded()
 
     def __import_data(self):
-        if self.project is None:
-            return
+        assert(self.project)
         if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
             return
         dir_ = QFileDialog.getExistingDirectory(
@@ -514,6 +524,14 @@ class Plugin(QObject):
         self.__viewer3d.widget().resetScene(self.project)
         self.__current_section.clear()
         self.__current_section.addItems(self.project.sections())
+
+    def __import_layer(self):
+        assert(self.project)
+        if self.__iface.activeLayer():
+            for f in self.__iface.activeLayer().fields():
+                print(f)
+            
+
 
     def __new_graph(self):
 
@@ -559,6 +577,7 @@ class Plugin(QObject):
         self.__current_graph.removeItem(self.__current_graph.findText(graph))
 
     def __add_selection_to_graph_node(self):
+        #TODO ADD DIALOG TO REMIND USER THE CURRENT GRAPH
 
         if (
             self.__iface.activeLayer()
@@ -569,6 +588,10 @@ class Plugin(QObject):
             self.project.add_to_graph_node(graph, selection)
 
         self.__refresh_layers()
+
+    def __accept_possible_edge(self):
+        assert(false)
+        #TODO
 
     def __toggle_axis(self):
         if self.__axis_layer:
