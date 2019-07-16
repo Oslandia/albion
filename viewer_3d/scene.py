@@ -138,14 +138,6 @@ class Scene(QObject):
                     gl_FragColor.rgb = mix(vec3(0.0), Idiff.xyz, edgeFactor());
                     gl_FragColor.a = 1. - uTransparency;
 
-                    //if(any(lessThan(vBC, vec3(0.02)))){
-                    //    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-                    //}
-                    //else{
-                    //    gl_FragColor = Idiff;
-                    //}
-                    //gl_FragColor = vec4(vBC.xyz, 1);//Idiff;
-                    //gl_FragColor = Idiff;
                 }
                 """, GL_FRAGMENT_SHADER)
 
@@ -242,9 +234,6 @@ class Scene(QObject):
                         glDrawElementsui(GL_LINES, a)
                         glEnable(GL_DEPTH_TEST)
         
-        if self.__param['section'] != self.__old_param['section']:
-            self.update('volume_section')
-        
         # render volume
         if self.__param["transparency"] > 0.:
             glDisable(GL_DEPTH_TEST)
@@ -265,9 +254,8 @@ class Scene(QObject):
             glUseProgram(self.shaders)
 
         color = {'volume':[.7,.7,.7,1.], 
-                 'error':[.8,.5,.5,1.],
-                 'volume_section':[.7,.7,.7,1.]}
-        for layer in ['volume', 'volume_section', 'error']:
+                 'error':[.8,.5,.5,1.]}
+        for layer in ['volume', 'error']:
             if self.__useProgram:
                 glUniform4fv(self.shaders_color_location, 1, color[layer])
                 glUniform1f(self.shaders_transp_location, self.__param["transparency"])
@@ -298,6 +286,36 @@ class Scene(QObject):
 
         if self.__useProgram:
             glUseProgram(0)
+
+        layer='volume_section'
+        if self.__param[layer]:
+            if self.__param[layer] != self.__old_param[layer]:
+                self.update(layer)
+            if self.vtx[layer] is not None and len(self.vtx[layer]):
+                glEnable(GL_COLOR_MATERIAL)
+                glDisable(GL_TEXTURE_2D)
+                glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [7., 4., 4., 1.])
+                glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [7., 4., 4., 1.])
+                glColor4f(.7, .4, .4, 1.)
+                glVertexPointerf(self.vtx[layer])
+                glDisableClientState(GL_COLOR_ARRAY)
+                glDisable(GL_CULL_FACE)
+                glPolygonMode(GL_FRONT_AND_BACK,  GL_FILL)
+                glNormalPointerf(self.nrml[layer])
+                glDrawElementsui(GL_TRIANGLES, self.idx[layer])
+                #if not self.__useProgram:
+                #    glDisable(GL_LIGHTING)
+                #    glDisableClientState(GL_COLOR_ARRAY)
+                #    glColor4f(.1, .1, .1, 1.)
+                #    glLineWidth(2)
+                #    glEnable(GL_CULL_FACE)
+                #    glPolygonMode(GL_FRONT,GL_LINE)
+                #    glDrawElementsui(GL_TRIANGLES, self.idx[layer])
+                #    glPolygonMode(GL_FRONT,GL_FILL)
+                #    glDisable(GL_CULL_FACE)
+                #    glEnableClientState(GL_COLOR_ARRAY)
+                #    glEnable(GL_LIGHTING)
+                glDisable(GL_COLOR_MATERIAL)
 
         # current section, highlight nodes
         glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [1., 1., 0., 1.])
@@ -522,7 +540,7 @@ class Scene(QObject):
 
             elif layer=='volume_section':
                 cur.execute("""
-                    select geom
+                    select st_collectionhomogenize(st_collect(geom))
                     from albion.volume_section
                     where graph_id='{}'
                     """.format(self.__param["graph_id"]))

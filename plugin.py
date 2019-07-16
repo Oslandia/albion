@@ -318,6 +318,7 @@ class Plugin(QObject):
         self.project.next_section(self.__current_section.currentText())
         self.__refresh_layers("section")
         self.__viewer3d.widget().scene.update("section")
+        self.__viewer3d.widget().scene.update("volume_section")
         self.__viewer3d.widget().update()
 
     def __previous_section(self):
@@ -326,6 +327,7 @@ class Plugin(QObject):
         self.project.previous_section(self.__current_section.currentText())
         self.__refresh_layers("section")
         self.__viewer3d.widget().scene.update("section")
+        self.__viewer3d.widget().scene.update("volume_section")
         self.__viewer3d.widget().update()
 
     def __refresh_layers(self, name=None, updateExtent=False):
@@ -846,6 +848,7 @@ class Plugin(QObject):
             self.project.set_section_geom(self.__current_section.currentText(), line)
             self.__refresh_layers("section")
             self.__viewer3d.widget().scene.update("section")
+            self.__viewer3d.widget().scene.update("volume_section")
             self.__viewer3d.widget().update()
 
     def open_help(self):
