@@ -467,17 +467,6 @@ create trigger section_instead_trig
 ;
 
 
-create or replace function albion.next_group()
-returns integer
-language plpgsql stable
-as
-$$
-    begin
-        return (select coalesce(max(id), 0) + 1 from _albion.group);
-    end;
-$$
-;
-
 create view albion.group as
 select id from _albion.group
 ;
@@ -1623,33 +1612,7 @@ $$
 ;
 
 
-
-
-with dc as (
-    select 
-),
-d (
-    select n.section, n.cut as geom, st_distance(n.cut, s.anchor) as dist
-    from albion.named_section as n
-    join albion.section as s on s.id=n.section
-    where not n.cut=s.geom
-),
-f as (
-    select d.section, d.geom, rank() over (partition by d.section order by d.dist)
-    where dist - st_s
-;
-
-
-create view albion.previous_section as
-select n.section as id, n.cut as geom
-from albion.named_section as n
-join albion.section as s on s.id=n.section
-where not n.cut=s.geom
-partition by n.section
-order by st_distance(s.anchor, n.geom) - st_distance(s.anchor, s.geom) desc
-limit 1
-;
-
+--SELECT row_number() over () AS _uid_,* FROM (select albion.tesselate(st_convexhull((select st_collect(st_force2d(geom)) from albion.collar)), st_multi((select st_collectionhomogenize(st_collect(cut)) from albion.named_section)), st_multi((select st_collect(st_force2d(geom)) from albion.collar))) as geom
 
 -- TODO
 -- [x] ajout de collar stérile (avec note) 
