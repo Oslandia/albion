@@ -11,7 +11,7 @@ create schema albion
 
 
 create function public.st_3dvolume(geom geometry)
-return real
+returns real
 language plpgsql immutable
 as
 $$
@@ -116,8 +116,47 @@ $$
 $$
 ;
 
-create view albion.collar as select id, st_startpoint(geom) as geom, date_, comments, depth_ from _albion.hole
+create or replace view albion.collar as select id, st_startpoint(geom)::geometry('POINTZ', $SRID) as geom, date_, comments, depth_ from _albion.hole
 ;
+
+alter view albion.collar alter id set default _albion.unique_id()::varchar
+;
+
+create or replace function albion.collar_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    begin
+        if tg_op in ('INSERT', 'UPDATE') then
+            new.date_ := coalesce(new.date_, now()::date::varchar);
+        end if;
+
+        if tg_op = 'INSERT' then
+            insert into _albion.hole(id, date_, depth_, x, y, z, comments)
+            values(new.id, new.date_, new.depth_, st_x(new.geom), st_y(new.geom), st_z(new.geom), new.comments)
+            returning id into new.id;
+            update _albion.hole set geom = albion.hole_geom(new.id) where id=new.id;
+            return new;
+        elsif tg_op = 'UPDATE' then
+            update _albion.hole set id=new.id, date_=new.date_, depth_=new.depth_, x=st_x(new.geom), y=st_y(new.geom), z=st_z(new.geom), comments=new.comments
+            where id=old.id;
+            update _albion.hole set geom = albion.hole_geom(new.id) where id=new.id;
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from _albion.collar where id=old.id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger collar_instead_trig
+    instead of insert or update or delete on albion.collar
+       for each row execute procedure albion.collar_instead_fct()
+;
+
+
 
 create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_node_thickness, end_angle, correlation_distance, correlation_angle, parent_correlation_angle from _albion.metadata
 ;
@@ -191,6 +230,26 @@ where a.id != b.id and st_dwithin(a.geom, b.geom, m.close_collar_distance)
 create view albion.cell as select id, a, b, c, geom::geometry('POLYGON', $SRID) from _albion.cell
 ;
 
+create or replace function albion.tesselate(polygon_ geometry, lines_ geometry, points_ geometry)
+returns geometry
+language plpython3u volatile
+as
+$$
+    from shapely import wkb
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+    from fourmy import tessellate
+
+    polygon = wkb.loads(bytes.fromhex(polygon_))
+    lines = wkb.loads(bytes.fromhex(lines_)) if lines_ else None
+    points = wkb.loads(bytes.fromhex(points_)) if points_ else None
+    result = tessellate(polygon, lines, points)
+
+    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(polygon._geom))
+    return result.wkb_hex
+$$
+;
+
 create or replace function albion.triangulate()
 returns integer
 language plpgsql volatile
@@ -234,39 +293,6 @@ $$
     seg /= norm(seg)
 
     return dir.dot(seg)
-$$
-;
-
--- contour of the cells that face the line
-create or replace function albion.first_section(anchor geometry)
-returns geometry
-language plpgsql stable
-as
-$$
-    begin
-        return (
-        with hull as (
-            select st_exteriorring(st_unaryunion(st_collect(geom))) as geom from _albion.cell
-        ),
-        seg as (
-            select ST_PointN(geom, generate_series(1, ST_NPoints(geom)-1)) as sp, ST_PointN(geom, generate_series(2, ST_NPoints(geom)  )) as ep
-            from hull
-        ),
-        facing as (
-            select st_force2d(st_makeline(sp, ep)) as geom
-            from seg
-            where -albion.cos_angle(anchor, sp, ep) > cos(60*pi()/180)
-        ),
-        merged as (
-            select st_linemerge(st_collect(geom)) as geom from facing
-        ),
-        sorted as (
-            select rank() over(order by st_length(geom) desc) as rk, geom
-            from (select (st_dump(geom)).geom from merged) as t
-        )
-        select geom from sorted where rk=1
-    );
-    end;
 $$
 ;
 
@@ -402,7 +428,7 @@ $$
 $$
 ;
 
-create view albion.section as select id, scale, group_id, anchor::geometry('LINESTRING', $SRID), geom::geometry('LINESTRING', $SRID)
+create view albion.section as select id, scale, anchor::geometry('LINESTRING', $SRID), geom::geometry('MULTILINESTRING', $SRID)
 from _albion.section
 ;
 
@@ -419,12 +445,12 @@ as
 $$
     begin
         if tg_op = 'INSERT' then
-            insert into _albion.section(id, anchor, geom, scale, group_id)
-                values(new.id, new.anchor, coalesce(new.geom, albion.first_section(new.anchor)), new.scale, new.group_id)
+            insert into _albion.section(id, anchor, geom, scale)
+                values(new.id, new.anchor, new.geom, new.scale)
                 returning id, geom into new.id, new.geom;
             return new;
         elsif tg_op = 'UPDATE' then
-            update _albion.section set id=new.id, anchor=new.anchor, geom=new.geom, scale=new.scale, group_id=new.group_id
+            update _albion.section set id=new.id, anchor=new.anchor, geom=new.geom, scale=new.scale 
             where id=old.id;
             return new;
         elsif tg_op = 'DELETE' then
@@ -490,40 +516,6 @@ create trigger group_cell_instead_trig
     instead of insert or update or delete on albion.group_cell
        for each row execute procedure albion.group_cell_instead_fct()
 ;
-
--- create view albion.current_section as
--- with hull as (
---     select st_unaryunion(st_collect(c.geom)) as geom, gc.section_id
---     from _albion.cell as c
---     join _albion.group_cell as gc on gc.cell_id=c.id
---     group by gc.section_id
--- ),
--- hull_contour as (
---     select st_exteriorring(geom) as geom, section_id from hull
--- ),
--- seg as (
---     select ST_PointN(geom, generate_series(1, ST_NPoints(geom)-1)) as sp, ST_PointN(geom, generate_series(2, ST_NPoints(geom)  )) as ep, section_id
---     from hull_contour
--- ),
--- facing as (
---     select st_force2d(st_makeline(seg.sp, seg.ep)) as geom, seg.section_id
---     from seg join _albion.section as s on s.id = seg.section_id
---     where albion.cos_angle(s.anchor, seg.sp, seg.ep) > cos(89*pi()/180)
--- ),
--- merged as (
---     select st_linemerge(st_collect(facing.geom)) as geom, section_id
---     from facing join _albion.section as s on s.id = facing.section_id
---     group by section_id, s.geom
--- ),
--- sorted as (
---     select rank() over(partition by section_id order by st_length(geom) desc) as rk, geom, section_id
---     from (select (st_dump(geom)).geom, section_id from merged) as t
--- )
--- select section_id as id, st_reverse(geom)::geometry('LINESTRING', $SRID) as geom from sorted where rk=1
--- union all
--- select s.id, (albion.first_section(s.anchor))::geometry('LINESTRING', $SRID) as geom from albion.section as s
--- where not exists (select 1 from sorted as st where st.section_id=s.id)
--- ;
 
 create or replace function albion.to_section(geom geometry, anchor geometry, z_scale real)
 returns geometry
@@ -1029,7 +1021,7 @@ $$
 ;
 
 create or replace view albion.volume as
-select id, graph_id, cell_id, triangulation, st_volume(triangulation)
+select id, graph_id, cell_id, triangulation, st_3dvolume(triangulation) as volume
 from _albion.volume
 ;
 
@@ -1301,7 +1293,7 @@ select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_
 from albion.half_edge as he
 join _albion.node as n on n.id=he.node_id
 join _albion.hole as h on h.id=he.other
-join _albion.metadata as m
+join _albion.metadata as m on 't'
 ;
 
 
@@ -1535,3 +1527,148 @@ from tri
 group by section_id, graph_id
 ;
 
+
+create or replace view albion.named_section as 
+select s.id, s.geom, s.section, rank() over (partition by section order by st_distance(s.geom, a.anchor)) as rank_, s.cut 
+from _albion.named_section as s
+join _albion.section as a on s.section = a.id
+;
+
+create or replace function albion.named_section_instead_fct()
+returns trigger
+language plpgsql
+as
+$$
+    begin
+        if tg_op in ('INSERT', 'UPDATE') then
+            new.id := coalesce(new.id,  _albion.unique_id()::varchar);
+            new.cut := coalesce(new.cut, (
+                with geom as (
+                    select st_dumppoints(new.geom) as pt
+                ),
+                segment as (
+                    select st_makeline(lag((pt).geom) over (order by (pt).path), (pt).geom) as geom from geom
+                ),
+                filtered as (
+                    select geom from segment as s
+                    except
+                    select s.geom from segment as s 
+                    join _albion.named_section as o 
+                    on st_intersects(o.cut, s.geom) 
+                    and st_linelocatepoint(s.geom, st_intersection(o.cut, s.geom)) not in (0.0, 1.0) 
+                    and st_geometrytype(st_intersection(o.cut, s.geom)) = 'ST_Point'
+                )
+                select st_multi(st_linemerge(st_collect(geom))) from filtered
+            ));
+        end if;
+
+
+        if tg_op = 'INSERT' then
+            insert into _albion.named_section(id, geom, cut, section)
+            values(new.id, new.geom, new.cut, new.section)
+            returning id into new.id;
+            return new;
+        elsif tg_op = 'UPDATE' then
+            update _albion.named_section set id=new.id, geom=new.geom, cut=new.cut, section=new.section
+            where id=old.id;
+            return new;
+        elsif tg_op = 'DELETE' then
+            delete from _albion.named_section where id=old.id;
+            return old;
+        end if;
+    end;
+$$
+;
+
+create trigger named_section_instead_trig
+    instead of insert or update or delete on albion.named_section
+       for each row execute procedure albion.named_section_instead_fct()
+;
+
+
+create or replace function albion.next_section(section_ varchar) 
+returns geometry
+language plpgsql stable
+as
+$$
+    begin
+        return (
+            select n.cut 
+            from albion.named_section as n
+            join albion.section as s on s.id=n.section
+            where s.id=section_ and st_distance(n.cut, s.anchor) > st_distance(s.geom, s.anchor)
+            order by st_distance(n.cut, s.anchor) asc
+            limit 1
+        );
+    end;
+$$
+;
+
+create or replace function albion.previous_section(section_ varchar) 
+returns geometry
+language plpgsql stable
+as
+$$
+    begin
+        return (
+            select n.cut 
+            from albion.named_section as n
+            join albion.section as s on s.id=n.section
+            where s.id=section_ and st_distance(n.cut, s.anchor) < st_distance(s.geom, s.anchor)
+            order by st_distance(n.cut, s.anchor) desc
+            limit 1
+        );
+    end;
+$$
+;
+
+
+
+
+with dc as (
+    select 
+),
+d (
+    select n.section, n.cut as geom, st_distance(n.cut, s.anchor) as dist
+    from albion.named_section as n
+    join albion.section as s on s.id=n.section
+    where not n.cut=s.geom
+),
+f as (
+    select d.section, d.geom, rank() over (partition by d.section order by d.dist)
+    where dist - st_s
+;
+
+
+create view albion.previous_section as
+select n.section as id, n.cut as geom
+from albion.named_section as n
+join albion.section as s on s.id=n.section
+where not n.cut=s.geom
+partition by n.section
+order by st_distance(s.anchor, n.geom) - st_distance(s.anchor, s.geom) desc
+limit 1
+;
+
+
+-- TODO
+-- [x] ajout de collar stérile (avec note) 
+-- [ ] polygone de maillage convex hull ou un trou
+-- supprimer des cellules et les edges associés
+
+-- Methode
+-- import des collar et deviations dans répertoire + option data to_ from_
+-- calcul des minéralisations
+-- ajout de collar stériles flmaggés (verticaux)
+-- creation des sections nommées
+-- triangulation
+-- effacer des cellules
+-- creation de graph
+
+
+
+/*
+select (st_dumppoints(st_intersection(a.geom, b.geom))).geom as geom from albion.named_section as a join albion.named_section as b on st_intersects(a.geom, b.geom) and a.id > b.id
+except
+select st_force2d(geom) as geom from albion.collar
+*/

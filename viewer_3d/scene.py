@@ -540,7 +540,7 @@ class Scene(QObject):
 
             elif layer=='volume_section':
                 cur.execute("""
-                    select st_collectionhomogenize(st_collect(geom))
+                    select st_collectionhomogenize(coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry))
                     from albion.volume_section
                     where graph_id='{}'
                     """.format(self.__param["graph_id"]))

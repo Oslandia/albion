@@ -62,31 +62,24 @@ start_cluster()
 TABLES = [
     {'NAME': 'radiometry',
      'FIELDS_DEFINITION': 'gamma real',
-     'FIELDS': 'gamma',
      },
     {'NAME': 'resistivity',
      'FIELDS_DEFINITION': 'rho real',
-     'FIELDS': 'rho',
      },
     {'NAME': 'formation',
      'FIELDS_DEFINITION': 'code integer, comments varchar',
-     'FIELDS': 'code, comments',
      },
     {'NAME': 'lithology',
      'FIELDS_DEFINITION': 'code integer, comments varchar',
-     'FIELDS': 'code, comments',
      },
     {'NAME': 'facies',
      'FIELDS_DEFINITION': 'code integer, comments varchar',
-     'FIELDS': 'code, comments',
      },
     {'NAME': 'chemical',
      'FIELDS_DEFINITION': 'num_sample varchar, element varchar, thickness real, gt real, grade real, equi real, comments varchar',
-     'FIELDS': 'num_sample, element, thickness, gt, grade, equi, comments',
      },
     {'NAME': 'mineralization',
      'FIELDS_DEFINITION': 'level_ real, oc real, accu real, grade real, comments varchar',
-     'FIELDS': 'level_, oc, accu, grade, comments'
      }]
 
 
@@ -218,12 +211,12 @@ class Project(object):
                             "$INCLUDE_ELEMENTARY_VOLUME", include_elementary_volume
                         )
                     )
-
-            for table in TABLES:
-                table['SRID'] = srid
-                self.add_table(table)
-
             con.commit()
+
+        for table in TABLES:
+            table['SRID'] = srid
+            project.add_table(table)
+
         return project
 
 
@@ -232,10 +225,16 @@ class Project(object):
         table: a dict with keys
             NAME: the name of the table to create
             FIELDS_DEFINITION: the sql definition (name type) of the "additional" fields (i.e. excludes hole_id, from_ and to_)
-            FIELDS: comma-separated list of the fields names, same order as FIELDS_DEFINITION
             SRID: the project's SRID
-        values: list of tuples (hole_id, from_, to_, table['FIELDS'])
+        values: list of tuples (hole_id, from_, to_, ...)
         """
+
+        fields = [f.split()[0].strip() for f in table['FIELDS_DEFINITION'].split(',')]
+        table['FIELDS'] = ', '.join(fields)
+        table['T_FIELDS'] = ', '.join(['t.{}'.format(f.replace(' ', '')) for f in fields])
+        table['FORMAT'] = ','.join([' %s' for v in fields])
+        table['NEW_FIELDS'] = ','.join(['new.{}'.format(v) for v in fields])
+        table['SET_FIELDS'] = ','.join(['{}=new.{}'.format(v,v) for v in fields])
         with self.connect() as con:
             cur = con.cursor()
             for file_ in ("_albion_table.sql", "albion_table.sql"):
@@ -248,15 +247,14 @@ class Project(object):
                         string.Template(statement).substitute(table)
                     )
             if values is not None:
-                table['FORMAT'] = ','.join([' %s' for v in table['FIELDS'].split(',')])
                 print(table)
                 cur.executemany("""
                     insert into albion.{NAME}(hole_id, from_, to_, {FIELDS})
                     values (%s, %s, %s, {FORMAT})
                 """.format(**table), values)
-            cur.execute("""
-                refresh materialized view albion.{NAME}_section_geom_cache
-                """.format(**table))
+                cur.execute("""
+                    refresh materialized view albion.{NAME}_section_geom_cache
+                    """.format(**table))
             con.commit()
         self.vacuum()
 
@@ -306,9 +304,7 @@ class Project(object):
         return srid
 
     def __getattr__(self, name):
-        if name == "has_collar":
-            return self.__has_collar()
-        elif name == "has_hole":
+        if name == "has_hole":
             return self.__has_hole()
         elif name == "has_section":
             return self.__has_section()
@@ -329,12 +325,6 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.cell")
-            return cur.fetchone()[0] > 1
-
-    def __has_collar(self):
-        with self.connect() as con:
-            cur = con.cursor()
-            cur.execute("select count(1) from albion.collar")
             return cur.fetchone()[0] > 1
 
     def __has_hole(self):
@@ -478,19 +468,7 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select albion.triangulate()")
-            con.commit()
-
-    def refresh_all_edge(self):
-        with self.connect() as con:
-            cur = con.cursor()
             cur.execute("refresh materialized view albion.all_edge")
-            con.commit()
-
-    def refresh_sections(self):
-        with self.connect() as con:
-            cur = con.cursor()
-            cur.execute("refresh materialized view albion.radiometry_section_geom_cache")
-            cur.execute("refresh materialized view albion.resistivity_section_geom_cache")
             con.commit()
 
     def create_sections(self):
@@ -522,7 +500,7 @@ class Project(object):
                 cur.execute("insert into albion.graph(id) values ('{}');".format(graph))
             con.commit()
 
-    def delete_graph(self):
+    def delete_graph(self, graph):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("delete from albion.graph cascade where id='{}';".format(graph))
@@ -534,38 +512,8 @@ class Project(object):
             cur = con.cursor()
             cur.execute(
                 """
-                select group_id from albion.section where id='{}'
-                """.format(
-                    section
-                )
-            )
-            group, = cur.fetchone()
-            group = group or 0
-            cur.execute(
-                """
-                select group_id, geom from albion.section_geom
-                where section_id='{section}'
-                and group_id < {group}
-                order by group_id desc
-                limit 1
-                """.format(
-                    group=group, section=section
-                )
-            )
-            res = cur.fetchone()
-            if res:
-                sql = """
-                    update albion.section set group_id={}, geom='{}'::geometry where id='{}'
-                    """.format(
-                    res[0], res[1], section
-                )
-            else:
-                sql = """
-                    update albion.section set group_id=null, geom=albion.first_section(anchor) where id='{}'
-                    """.format(
-                    section
-                )
-            cur.execute(sql)
+                update albion.section set geom=coalesce(albion.previous_section(%s), geom) where id=%s
+                """, (section, section))
             con.commit()
 
     def next_section(self, section):
@@ -575,33 +523,9 @@ class Project(object):
             cur = con.cursor()
             cur.execute(
                 """
-                select group_id from albion.section where id='{}'
-                """.format(
-                    section
-                )
-            )
-            group, = cur.fetchone()
-            group = group or 0
-            cur.execute(
-                """
-                select group_id, geom from albion.section_geom
-                where section_id='{section}'
-                and group_id > {group}
-                order by group_id asc
-                limit 1
-                """.format(
-                    group=group, section=section
-                )
-            )
-            res = cur.fetchone()
-            if res:
-                sql = """
-                    update albion.section set group_id={}, geom='{}'::geometry where id='{}'
-                    """.format(
-                    res[0], res[1], section
-                )
-                cur.execute(sql)
-                con.commit()
+                update albion.section set geom=coalesce(albion.next_section(%s), geom) where id=%s
+                """, (section, section))
+            con.commit()
 
     def next_group_ids(self):
         with self.connect() as con:
@@ -917,7 +841,7 @@ class Project(object):
             if not res:
                 cur.execute(
                     """
-                    select hole_id from albion.current_hole_section
+                    select hole_id from albion.hole_section
                     where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 25)
                     order by st_distance('SRID={srid} ;POINT({x} {y})'::geometry, geom)
                     limit 1""".format(
@@ -928,6 +852,21 @@ class Project(object):
 
             return res[0] if res else None
 
+    def add_named_section(self, section_id, geom):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select srid from albion.metadata")
+            srid, = cur.fetchone()
+            cur.execute(
+                """
+                insert into albion.named_section(geom, section) 
+                values (ST_SetSRID('{wkb_hex}'::geometry, {srid}), '{section_id}')
+                """.format(
+                    srid=srid, wkb_hex=geom.wkb_hex, section_id=section_id
+                )
+            )
+            con.commit()
+
     def set_section_geom(self, section_id, geom):
         with self.connect() as con:
             cur = con.cursor()
@@ -935,7 +874,7 @@ class Project(object):
             srid, = cur.fetchone()
             cur.execute(
                 """
-                update albion.section set geom=ST_SetSRID('{wkb_hex}'::geometry, {srid}) where id='{id_}'
+                update albion.section set geom=st_multi(ST_SetSRID('{wkb_hex}'::geometry, {srid})) where id='{id_}'
                 """.format(
                     srid=srid, wkb_hex=geom.wkb_hex, id_=section_id
                 )

@@ -69,6 +69,7 @@ class Plugin(QObject):
             (Qt.CTRL + Qt.ALT + Qt.Key_S, self.__select_next_group),
             (Qt.CTRL + Qt.ALT + Qt.Key_N, self.__next_section),
             (Qt.CTRL + Qt.ALT + Qt.Key_B, self.__previous_section),
+            (Qt.CTRL + Qt.ALT + Qt.Key_M, self.__add_section_from_selection),
         ):
 
             short = QShortcut(QKeySequence(keyseq), self.__iface.mainWindow())
@@ -143,70 +144,51 @@ class Plugin(QObject):
         return act
 
     def __create_menu_entries(self):
+        
         self.__menu.clear()
+
         self.__add_menu_entry("New &Project", self.__new_project)
+        
         self.__add_menu_entry("Import Project", self.__import_project)
+        
+        self.__add_menu_entry("Export Project", self.__export_project, self.project is not None)
+        
         self.__add_menu_entry("Upgrade Project", self.__upgrade_project)
 
         self.__menu.addSeparator()
 
         self.__add_menu_entry(
-            "&Import Data",
+            "&Import directory",
             self.__import_data,
             self.project is not None,
-            "Import data from directory",
+            "Import data from directory"
         )
 
         self.__add_menu_entry(
-            "&Import selected layer",
+            "&Import holes",
+            None, #self.__import_holes,
+            self.project is not None,
+            "Import hole data from directory"
+        )
+
+        self.__add_menu_entry(
+            "Export holes",
+            None, #self.__export_holes,
+            self.project is not None
+        )
+
+        self.__add_menu_entry(
+            "Import layer",
             self.__import_layer,
             self.project is not None,
-            "Import data from layer.",
-        )
-
-
-        self.__menu.addSeparator()
-
-        self.__add_menu_entry(
-            "Create cells",
-            self.__create_cells,
-            self.project is not None and self.project.has_collar,
-            "Create Delaunay triangulation of collar layer.",
+            "Import data from selected layer."
         )
 
         self.__add_menu_entry(
-            "Refresh all edges",
-            self.__refresh_all_edge,
-            self.project is not None and self.project.has_cell,
-            "Refresh materialized view of all cell edges used by graph possible edges.",
+            "Export layer",
+            None, #self.__export_layer,
+            self.project is not None
         )
-
-        self.__add_menu_entry(
-            "Refresh sections",
-            self.__refresh_sections,
-            self.project is not None,
-            "Refresh materialized views (can take some time).",
-        )
-
-        self.__menu.addSeparator()
-
-        # self.__add_menu_entry(u'Create section views 0° and 90°', self.__create_section_view_0_90,
-        #        False and self.project is not None and self.project.has_hole,
-        #        "Create section views (i.e. cut directions) to work West-East and South-North for this project")
-        # self.__add_menu_entry(u'Create section views -45° and 45°', None,
-        #        False and self.project is not None and self.project.has_hole,
-        #        "Create section views (i.e. cut directions) to work SE-NW and SW-NE for this project")
-        #
-        # self.__menu.addSeparator()
-
-        self.__add_menu_entry(
-            "Create sections",
-            self.__create_sections,
-            self.project is not None and self.project.has_group_cell,
-            "Once cell groups have been defined, create section lines.",
-        )
-
-        self.__menu.addSeparator()
 
         self.__add_menu_entry(
             "Compute &Mineralization",
@@ -215,49 +197,60 @@ class Plugin(QObject):
             "",
         )
         self.__menu.addSeparator()
+
+        self.__menu.addSeparator()
+
+        self.__add_menu_entry(
+            "Create sections (to be removed)",
+            self.__create_sections,
+            self.project is not None and self.project.has_group_cell,
+            "Once cell groups have been defined, create section lines.",
+        )
+
+        self.__add_menu_entry(
+            "Create cells",
+            self.__create_cells,
+            self.project is not None and self.project.has_hole,
+            "Create Delaunay triangulation of collar layer.",
+        )
+
+        self.__menu.addSeparator()
+
         self.__add_menu_entry(
             "New &Graph",
             self.__new_graph,
             self.project is not None,
-            "Create a new grap.h",
+            "Create a new graph",
         )
+
         self.__add_menu_entry(
             "Delete Graph", self.__delete_graph, self.project is not None
         )
+
         self.__add_menu_entry(
             "Add selection to graph nodes", self.__add_selection_to_graph_node, self.project is not None
         )
+
         self.__add_menu_entry(
             "Accept graph possible edges", self.__accept_possible_edge, self.project is not None
         )
-        self.__menu.addSeparator()
-        self.__add_menu_entry(
-            "Create volumes",
-            self.__create_volumes,
-            self.project is not None and bool(self.__current_graph.currentText()),
-            "Create volumes associated with current graph.",
-        )
-        self.__menu.addSeparator()
+        
         self.__add_menu_entry(
             "Create terminations",
             self.__create_terminations,
             self.project is not None and bool(self.__current_graph.currentText()),
             "Create terminations associated with current graph.",
         )
-        self.__menu.addSeparator()
-        self.__add_menu_entry("Toggle axis", self.__toggle_axis)
 
         self.__menu.addSeparator()
+        
+        self.__add_menu_entry(
+            "Create volumes",
+            self.__create_volumes,
+            self.project is not None and bool(self.__current_graph.currentText()),
+            "Create volumes associated with current graph.",
+        )
 
-        self.__add_menu_entry(
-            "Export Project", self.__export_project, self.project is not None
-        )
-        self.__add_menu_entry(
-            "Export Sections",
-            None,
-            self.project is not None and self.project.has_section,
-            "Export triangulated section in .obj or .dxf format",
-        )
         self.__add_menu_entry(
             "Export Volume",
             self.__export_volume,
@@ -271,6 +264,17 @@ class Plugin(QObject):
             self.project is not None and bool(self.__current_graph.currentText()),
             "Export an elementary volume of current graph in .obj or .dxf format",
         )
+
+        self.__add_menu_entry(
+            "Export Sections",
+            None, #self.__export_sections
+            self.project is not None and self.project.has_section,
+            "Export triangulated section in .obj or .dxf format",
+        )
+
+        self.__menu.addSeparator()
+
+        self.__add_menu_entry("Toggle axis", self.__toggle_axis)
 
         self.__menu.addSeparator()
 
@@ -290,31 +294,16 @@ class Plugin(QObject):
         else:
             raise AttributeError(name)
 
-    def __refresh_all_edge(self):
-        if self.project is None:
-            return
-        self.project.refresh_all_edge()
-
-    def __refresh_sections(self):
-        if self.project:
-            self.project.refresh_sections()
-
     def __create_terminations(self):
-        if self.project is None:
-            return
         self.project.create_terminations(self.__current_graph.currentText())
         self.__viewer3d.widget().refresh_data()
         self.__refresh_layers("section")
 
     def __create_volumes(self):
-        if self.project is None:
-            return
         self.project.create_volumes(self.__current_graph.currentText())
         self.__viewer3d.widget().refresh_data()
 
     def __next_section(self):
-        if self.project is None:
-            return
         self.project.next_section(self.__current_section.currentText())
         self.__refresh_layers("section")
         self.__viewer3d.widget().scene.update("section")
@@ -322,8 +311,6 @@ class Plugin(QObject):
         self.__viewer3d.widget().update()
 
     def __previous_section(self):
-        if self.project is None:
-            return
         self.project.previous_section(self.__current_section.currentText())
         self.__refresh_layers("section")
         self.__viewer3d.widget().scene.update("section")
@@ -352,8 +339,7 @@ class Plugin(QObject):
 
     def __select_next_group(self):
         if (
-            self.project
-            and self.__iface.activeLayer()
+            self.__iface.activeLayer()
             and self.__iface.activeLayer().name() == u"cell"
         ):
             self.__iface.activeLayer().removeSelection()
@@ -363,8 +349,7 @@ class Plugin(QObject):
 
     def __create_group(self):
         if (
-            self.project
-            and self.__iface.activeLayer()
+            self.__iface.activeLayer()
             and self.__iface.activeLayer().name() == u"cell"
         ):
             if self.__iface.activeLayer().selectedFeatureCount():
@@ -475,6 +460,7 @@ class Plugin(QObject):
             open(resource("template_project.qgs"))
             .read()
             .replace("template_project", project_name)
+            .replace("32632", str(srid))
         )
         self.__iface.newProject()
         QgsProject.instance().setFileName(fil)
@@ -616,8 +602,10 @@ class Plugin(QObject):
             return
 
         self.__current_graph.removeItem(self.__current_graph.findText(graph))
+        self.project.delete_graph(graph)
 
     def __add_selection_to_graph_node(self):
+        assert(self.project)
         #TODO ADD DIALOG TO REMIND USER THE CURRENT GRAPH
 
         if (
@@ -647,22 +635,19 @@ class Plugin(QObject):
         self.__refresh_layers()
 
     def __create_cells(self):
-        if self.project is None:
-            return
+        assert(self.project)
         self.project.triangulate()
         self.__refresh_layers("cells")
 
     def __create_sections(self):
-        if self.project is None:
-            return
+        assert(self.project)
         self.project.create_sections()
 
     def __compute_mineralization(self):
         MineralizationDialog(self.project).exec_()
 
     def __export_volume(self):
-        if self.project is None:
-            return
+        assert(self.project)
 
         fil, __ = QFileDialog.getSaveFileName(
             None,
@@ -685,8 +670,7 @@ class Plugin(QObject):
             )
 
     def __export_elementary_volume(self):
-        if self.project is None:
-            return
+        assert(self.project)
 
         layer = self.__layer("cell")
         if not layer:
@@ -774,11 +758,6 @@ class Plugin(QObject):
                 os.path.split(QgsProject.instance().fileName())[1],
             )
 
-    def __create_section_view_0_90(self):
-        if self.project is None:
-            return
-        self.project.create_section_view_0_90()
-
     def __log_strati_clicked(self):
         # @todo switch behavior when in section view -> ortho
         self.__click_tool = QgsMapToolEmitPoint(self.__iface.mapCanvas())
@@ -809,10 +788,7 @@ class Plugin(QObject):
             self.__log_strati.show()
             self.__log_strati.raise_()
 
-    def __section_from_selection(self):
-        if self.project is None:
-            return
-
+    def __line_from_selection(self):
         if (
             self.__iface.activeLayer()
             and self.__iface.activeLayer().name() == u"collar"
@@ -845,6 +821,22 @@ class Plugin(QObject):
                 align(numpy.array([f.geometry().asPoint() for f in selection]))
             )
             collar.removeSelection()
+            return line
+        else:
+            return None
+
+    def __add_section_from_selection(self):
+        assert(self.project)
+        line = self.__line_from_selection()
+        if line:
+            self.project.add_named_section(self.__current_section.currentText(), line)
+            self.__refresh_layers("named_section")
+
+
+    def __section_from_selection(self):
+        assert(self.project)
+        line = self.__line_from_selection()
+        if line:
             self.project.set_section_geom(self.__current_section.currentText(), line)
             self.__refresh_layers("section")
             self.__viewer3d.widget().scene.update("section")

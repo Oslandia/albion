@@ -53,14 +53,14 @@ class Viewer3d(QGLWidget):
         self.previous_pick = None
 
     def refresh_data(self):
-        if self.scene and self.__project.has_collar:
+        if self.scene and self.__project.has_hole:
             self.resetScene(self.__project, False)
             for layer in ['node', 'edge', 'volume', 'volume_section', 'section', 'error', 'end']:
                 self.scene.update(layer)
             self.update()
 
     def resetScene(self, project, resetCamera=True):
-        if project and project.has_collar:
+        if project and project.has_hole:
             self.scene = Scene(project, self.__param, self.bindTexture, self)
             if resetCamera:
                 at = self.scene.center
