@@ -223,7 +223,7 @@ create trigger node_instead_trig
 
 
 create or replace view albion.close_collar as
-select a.id, a.geom from albion.collar as a, albion.collar as b, _albion.metadata as m
+select distinct on (a.id) a.id, a.geom from albion.collar as a, albion.collar as b, _albion.metadata as m
 where a.id != b.id and st_dwithin(a.geom, b.geom, m.close_collar_distance)
 ;
 
@@ -259,7 +259,11 @@ $$
         delete from _albion.cell;
         insert into _albion.cell(a, b, c, geom)
         with cell as (
-            select ST_DelaunayTriangles(ST_Collect(ST_Force2D(geom))) as geom from albion.collar
+            select albion.tesselate(
+                st_convexhull((select st_collect(st_force2d(geom)) from albion.collar)), 
+                st_multi((select st_collectionhomogenize(st_collect(cut)) from albion.named_section)),
+                st_multi((select st_collect(st_force2d(geom)) from albion.collar))
+            ) as geom
         ),
         splt as (
             select (ST_Dump(geom)).geom from cell
@@ -270,6 +274,8 @@ $$
             (select c.id from albion.collar as c where st_intersects(c.geom, st_pointn(st_exteriorring(s.geom), 3))),
             s.geom
         from splt as s;
+
+        refresh materialized view albion.all_edge;
 
         return (select count(1) from _albion.cell);
     end;
@@ -361,7 +367,7 @@ select albion.is_touchingrightside('LINESTRING(327627.06 2079630.27,327229.65 20
 ;
 
 
--- triangle is visible if points are on the line, or by removing the trinagle edge that touch
+-- polygon is visible if points are on the line, or by removing the edge that touches
 -- the line, the line of sight from anchor to point doesn't cross the line
 create or replace function albion.is_visible(anchor geometry, section geometry, poly geometry)
 returns boolean
@@ -372,24 +378,30 @@ $$
         nb_visible integer;
         ring geometry;
         occluder geometry;
+        point_on_poly geometry;
         line_od_sight geometry;
     begin
         nb_visible := 0;
         ring := st_exteriorring(poly);
-        for i in 1..st_numpoints(ring) loop
-            if st_intersects(section, st_pointn(ring, i)) then
-                nb_visible := nb_visible + 1;
-            else
-                occluder := coalesce(occluder, st_difference(section, ring));
-                line_od_sight := st_makeline(st_closestpoint(anchor, st_pointn(ring, i)), st_pointn(ring, i));
-                --raise notice 'occluder %', st_astext(occluder);
-                --raise notice 'los %', st_astext(line_od_sight);
-                if not st_intersects(line_od_sight, occluder) then
+        occluder := st_difference(section, ring);
+        if occluder is not null then
+            for i in 1..st_numpoints(ring) loop
+                if st_intersects(section, st_pointn(ring, i)) then
                     nb_visible := nb_visible + 1;
+                else
+                    line_od_sight := st_makeline(st_closestpoint(anchor, st_pointn(ring, i)), st_pointn(ring, i));
+                    --raise notice 'occluder %', st_astext(occluder);
+                    --raise notice 'los %', st_astext(line_od_sight);
+                    if not st_intersects(line_od_sight, occluder) then
+                        nb_visible := nb_visible + 1;
+                    end if;
                 end if;
-            end if;
-        end loop;
-        return nb_visible = st_numpoints(ring);
+            end loop;
+        end if;
+        -- we also check that the line between a point on surface and the anchor crosses the section (we are looking "away" from anchor)
+        point_on_poly := st_pointonsurface(poly);
+        line_od_sight := st_makeline(st_closestpoint(anchor, point_on_poly), point_on_poly);
+        return nb_visible = st_numpoints(ring) and st_intersects(line_od_sight, section);
     end;
 $$
 ;
@@ -469,9 +481,6 @@ create trigger section_instead_trig
 
 create view albion.group as
 select id from _albion.group
-;
-
-alter view albion.group alter column id set default albion.next_group()
 ;
 
 create view albion.group_cell as
@@ -618,13 +627,13 @@ $$
     begin
         return (
         with hull as (
-            select st_unaryunion(st_collect(c.geom)) as geom
+            select st_multi(st_unaryunion(st_collect(c.geom))) as geom
             from _albion.cell as c
             join _albion.group_cell as gc on gc.cell_id=c.id
             where gc.section_id=section_id_ and gc.group_id <= group_id_
         ),
         hull_contour as (
-            select st_exteriorring(geom) as geom from hull
+            select st_exteriorring(geom) as geom from (select (st_dump(geom)).geom from hull) as t
         ),
         seg as (
             select ST_PointN(geom, generate_series(1, ST_NPoints(geom)-1)) as sp, ST_PointN(geom, generate_series(2, ST_NPoints(geom)  )) as ep
@@ -1250,15 +1259,17 @@ join _albion.hole as hs on hs.id=ns.hole_id
 join _albion.hole as he on he.id=ne.hole_id
 ;
 
-create function albion.end_node_geom(node_geom_ geometry, collar_geom_ geometry, rel_distance real default .3, thickness real default 1)
+create or replace function albion.end_node_geom(node_geom_ geometry, collar_geom_ geometry, rel_distance real default .3, thickness real default 1, nx real default null, ny real default null, nz real default null)
 returns geometry
 language plpython3u
 as
 $$
     from numpy import array
+    from numpy import cross
     from shapely import wkb
     from shapely.geometry import LineString
     from shapely import geos
+    from math import sqrt
     geos.WKBWriter.defaults['include_srid'] = True
 
     node_geom = wkb.loads(bytes.fromhex(node_geom_))
@@ -1269,20 +1280,44 @@ $$
     dir = array(collar_geom.coords[0]) - center
     dir[2] = 0
     dir *= rel_distance
+    dir = cross(array([nx, ny, nz]), cross(dir, array([0,0,1])))
     top = center + dir + array([0,0,.5*thickness])
     bottom = center + dir - array([0,0,.5*thickness])
     result = LineString([tuple(top), tuple(bottom)])
+
     geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(node_geom._geom))
     return result.wkb_hex
 $$
 ;
 
-create view albion.dynamic_end_node as
-select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_geom(n.geom, st_startpoint(h.geom), m.end_node_relative_distance, end_node_thickness)::geometry('LINESTRINGZ', $SRID) as geom, h.id as hole_id
+create or replace view albion.normal as
+select e.id, e.start_, e.end_,
+    - (st_x(st_endpoint(geom)) - st_x(st_startpoint(geom))) * ((st_z(st_endpoint(geom)) - st_z(st_startpoint(geom)))) as nx,
+    - (st_y(st_endpoint(geom)) - st_y(st_startpoint(geom))) * ((st_z(st_endpoint(geom)) - st_z(st_startpoint(geom)))) as ny,
+      (st_x(st_endpoint(geom)) - st_x(st_startpoint(geom)))^2 + ((st_y(st_endpoint(geom)) - st_y(st_startpoint(geom))))^2 as nz,
+      (180/pi())*atan(abs(st_z(st_endpoint(geom)) - st_z(st_startpoint(geom)))/st_length(geom)) as angl
+from _albion.edge as e
+;
+
+create or replace view albion.average_normal as
+with nrml as ( 
+    select avg(nx) as nx, avg(ny) as ny, avg(nz) as nz, n.id
+    from _albion.node as n
+    left join albion.normal as e on e.start_=n.id or e.end_=n.id
+    group by n.id
+)
+select id, coalesce(nx/sqrt(nx^2+ny^2+nz^2), 0) as nx,  coalesce(ny/sqrt(nx^2+ny^2+nz^2), 0) as ny,  coalesce(nz/sqrt(nx^2+ny^2+nz^2), 1) as nz
+from nrml
+;
+
+
+create or replace view albion.dynamic_end_node as
+select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_geom(n.geom, st_startpoint(h.geom), m.end_node_relative_distance, end_node_thickness, nrml.nx::real, nrml.ny::real, nrml.nz::real)::geometry('LINESTRINGZ', $SRID) as geom, h.id as hole_id
 from albion.half_edge as he
 join _albion.node as n on n.id=he.node_id
 join _albion.hole as h on h.id=he.other
 join _albion.metadata as m on 't'
+join albion.average_normal as nrml on nrml.id = coalesce(n.parent, n.id);
 ;
 
 
@@ -1612,11 +1647,10 @@ $$
 ;
 
 
---SELECT row_number() over () AS _uid_,* FROM (select albion.tesselate(st_convexhull((select st_collect(st_force2d(geom)) from albion.collar)), st_multi((select st_collectionhomogenize(st_collect(cut)) from albion.named_section)), st_multi((select st_collect(st_force2d(geom)) from albion.collar))) as geom
 
 -- TODO
 -- [x] ajout de collar stérile (avec note) 
--- [ ] polygone de maillage convex hull ou un trou
+-- [x] polygone de maillage convex hull ou un trou
 -- supprimer des cellules et les edges associés
 
 -- Methode

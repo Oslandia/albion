@@ -66,7 +66,7 @@ class Plugin(QObject):
 
         for keyseq, slot in (
             (Qt.CTRL + Qt.ALT + Qt.Key_K, self.__create_group),
-            (Qt.CTRL + Qt.ALT + Qt.Key_S, self.__select_next_group),
+#            (Qt.CTRL + Qt.ALT + Qt.Key_S, self.__select_next_group),
             (Qt.CTRL + Qt.ALT + Qt.Key_N, self.__next_section),
             (Qt.CTRL + Qt.ALT + Qt.Key_B, self.__previous_section),
             (Qt.CTRL + Qt.ALT + Qt.Key_M, self.__add_section_from_selection),
@@ -99,12 +99,22 @@ class Plugin(QObject):
         )
 
         self.__toolbar.addAction(
-            icon("previous_line.svg"), "previous section  (Ctrl+Alt+b)"
+            icon("previous_line_big.svg"), "previous section  (Ctrl+Alt+b)"
         ).triggered.connect(self.__previous_section)
 
+
         self.__toolbar.addAction(
-            icon("next_line.svg"), "next section (Ctrl+Alt+n)"
+            icon("previous_line.svg"), "previous sub section"
+        ).triggered.connect(self.__previous_subsection)
+
+        self.__toolbar.addAction(
+            icon("next_line.svg"), "next sub section"
+        ).triggered.connect(self.__next_subsection)
+
+        self.__toolbar.addAction(
+            icon("next_line_big.svg"), "next section (Ctrl+Alt+n)"
         ).triggered.connect(self.__next_section)
+
 
         self.__toolbar.addAction(
             icon("line_from_selected.svg"), "create temporary section"
@@ -200,12 +210,12 @@ class Plugin(QObject):
 
         self.__menu.addSeparator()
 
-        self.__add_menu_entry(
-            "Create sections (to be removed)",
-            self.__create_sections,
-            self.project is not None and self.project.has_group_cell,
-            "Once cell groups have been defined, create section lines.",
-        )
+#        self.__add_menu_entry(
+#            "Create sections (to be removed)",
+#            self.__create_sections,
+#            self.project is not None and self.project.has_group_cell,
+#            "Once cell groups have been defined, create section lines.",
+#        )
 
         self.__add_menu_entry(
             "Create cells",
@@ -317,6 +327,21 @@ class Plugin(QObject):
         self.__viewer3d.widget().scene.update("volume_section")
         self.__viewer3d.widget().update()
 
+    def __next_subsection(self):
+        self.project.next_subsection(self.__current_section.currentText())
+        self.__refresh_layers("section")
+        self.__viewer3d.widget().scene.update("section")
+        self.__viewer3d.widget().scene.update("volume_section")
+        self.__viewer3d.widget().update()
+
+    def __previous_subsection(self):
+        self.project.previous_subsection(self.__current_section.currentText())
+        self.__refresh_layers("section")
+        self.__viewer3d.widget().scene.update("section")
+        self.__viewer3d.widget().scene.update("volume_section")
+        self.__viewer3d.widget().update()
+
+
     def __refresh_layers(self, name=None, updateExtent=False):
         for layer in self.__iface.mapCanvas().layers():
             if name is None or layer.name().find(name) != -1:
@@ -332,21 +357,21 @@ class Plugin(QObject):
         return lay
 
     def __current_section_changed(self, section_id):
-        layers = QgsProject.instance().mapLayersByName(u"group_cell")
-        if len(layers):
-            layers[0].setSubsetString("section_id='{}'".format(section_id))
+        #layers = QgsProject.instance().mapLayersByName(u"group_cell")
+        #if len(layers):
+        #    layers[0].setSubsetString("section_id='{}'".format(section_id))
         self.__refresh_layers("section")
 
-    def __select_next_group(self):
-        if (
-            self.__iface.activeLayer()
-            and self.__iface.activeLayer().name() == u"cell"
-        ):
-            self.__iface.activeLayer().removeSelection()
-            self.__iface.activeLayer().selectByExpression(
-                "id in ({})".format(",".join(project.next_group_ids()))
-            )
-
+#    def __select_next_group(self):
+#        if (
+#            self.__iface.activeLayer()
+#            and self.__iface.activeLayer().name() == u"cell"
+#        ):
+#            self.__iface.activeLayer().removeSelection()
+#            self.__iface.activeLayer().selectByExpression(
+#                "id in ({})".format(",".join(project.next_group_ids()))
+#            )
+#
     def __create_group(self):
         if (
             self.__iface.activeLayer()
@@ -637,7 +662,7 @@ class Plugin(QObject):
     def __create_cells(self):
         assert(self.project)
         self.project.triangulate()
-        self.__refresh_layers("cells")
+        self.__refresh_layers("cell")
 
     def __create_sections(self):
         assert(self.project)

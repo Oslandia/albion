@@ -14,19 +14,15 @@ from __future__ import print_function
 #  |                                             _ -100 m
 
 SQL = """
-INSERT INTO albion.collar(id, geom) VALUES
-    (1, 'SRID=32632;POINT(0 0 0)'::geometry),
-    (2, 'SRID=32632;POINT(100 0 0)'::geometry),
-    (3, 'SRID=32632;POINT(100 100 0)'::geometry)
+INSERT INTO albion.collar(id, geom, depth_) VALUES
+    (1, 'SRID=32632;POINT(0 0 0)'::geometry, 100),
+    (2, 'SRID=32632;POINT(100 0 0)'::geometry, 100),
+    (3, 'SRID=32632;POINT(100 100 0)'::geometry, 100)
 ;
 INSERT INTO albion.cell(id, a, b, c, geom) VALUES
     (1, 1, 2, 3, 'SRID=32632;POLYGON((0 0, 100 0, 100 100, 0 0))'::geometry)
 ;
 REFRESH MATERIALIZED VIEW albion.all_edge
-;
-INSERT INTO albion.hole(id, collar_id, depth_, geom) VALUES
-    (1, 1, 100, 'SRID=32632;LINESTRING(0 0 0, 0 0 -100)'::geometry),
-    (2, 2, 100, 'SRID=32632;LINESTRING(100 0 0, 100 0 -100)'::geometry)
 ;
 INSERT INTO albion.graph(id) VALUES
     ('graph1')

@@ -308,8 +308,8 @@ class Project(object):
             return self.__has_hole()
         elif name == "has_section":
             return self.__has_section()
-        elif name == "has_group_cell":
-            return self.__has_group_cell()
+#        elif name == "has_group_cell":
+#            return self.__has_group_cell()
         elif name == "has_radiometry":
             return self.__has_radiometry()
         elif name == "has_cell":
@@ -339,11 +339,11 @@ class Project(object):
             cur.execute("select count(1) from albion.section_geom")
             return cur.fetchone()[0] > 1
 
-    def __has_group_cell(self):
-        with self.connect() as con:
-            cur = con.cursor()
-            cur.execute("select count(1) from albion.group_cell")
-            return cur.fetchone()[0] > 1
+#    def __has_group_cell(self):
+#        with self.connect() as con:
+#            cur = con.cursor()
+#            cur.execute("select count(1) from albion.group_cell")
+#            return cur.fetchone()[0] > 1
 
     def __has_radiometry(self):
         with self.connect() as con:
@@ -468,7 +468,6 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select albion.triangulate()")
-            cur.execute("refresh materialized view albion.all_edge")
             con.commit()
 
     def create_sections(self):
@@ -527,18 +526,84 @@ class Project(object):
                 """, (section, section))
             con.commit()
 
-    def next_group_ids(self):
+    def next_subsection(self, section):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute(
                 """
-                select cell_id from albion.next_group where section_id='{}'
-                """.format(
-                    self.__current_section.currentText()
-                )
+                    select sg.group_id 
+                    from albion.section_geom sg 
+                    join albion.section s on s.id=sg.section_id 
+                    where s.id='{section}' 
+                    order by st_distance(s.geom, sg.geom), st_HausdorffDistance(s.geom, sg.geom) asc 
+                    limit 1
+                """.format(section=section))
+            res = cur.fetchone()
+            if not res:
+                return
+            group = res[0] or 0
+            cur.execute(
+                """
+                select geom from albion.section_geom
+                where section_id='{section}'
+                and group_id > {group}
+                order by group_id asc
+                limit 1 """.format( group=group, section=section)
             )
-            return [cell_id for cell_id, in cur.fetchall()]
+            res = cur.fetchone()
+            if res:
+                sql = """
+                    update albion.section set geom=st_multi('{}'::geometry) where id='{}'
+                    """.format(res[0], section)
+                cur.execute(sql)
+                con.commit()
 
+    def previous_subsection(self, section):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                    select sg.group_id 
+                    from albion.section_geom sg 
+                    join albion.section s on s.id=sg.section_id 
+                    where s.id='{section}' 
+                    order by st_distance(s.geom, sg.geom), st_HausdorffDistance(s.geom, sg.geom) asc 
+                    limit 1
+                """.format(section=section))
+            res = cur.fetchone()
+            if not res:
+                return
+            group = res[0] or 0
+            cur.execute(
+                """
+                select geom from albion.section_geom
+                where section_id='{section}'
+                and group_id < {group}
+                order by group_id desc
+                limit 1
+                """.format(group=group, section=section))
+            res = cur.fetchone()
+            if res:
+                sql = """
+                    update albion.section set geom=st_multi('{}'::geometry) where id='{}'
+                    """.format(res[0], section)
+                cur.execute(sql)
+                con.commit()
+
+
+
+#    def next_group_ids(self):
+#        with self.connect() as con:
+#            cur = con.cursor()
+#            cur.execute(
+#                """
+#                select cell_id from albion.next_group where section_id='{}'
+#                """.format(
+#                    self.__current_section.currentText()
+#                )
+#            )
+#            return [cell_id for cell_id, in cur.fetchall()]
+#
     def create_group(self, section, ids):
         with self.connect() as con:
             # add group
