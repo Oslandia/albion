@@ -123,8 +123,8 @@ class Project(object):
         self.__conn_info = "dbname={} {}".format(project_name, cluster_params())
 
     def connect(self):
-        con = psycopg2.connect(self.__conn_info, connection_factory=MyLoggingConnection)
-        con.initialize(logger)
+        con = psycopg2.connect(self.__conn_info)#, connection_factory=MyLoggingConnection)
+        #con.initialize(logger)
         return con
 
     def vacuum(self):
@@ -284,7 +284,9 @@ class Project(object):
                     )
                 )
 
-            for table in TABLES:
+            cur.execute("select name, fields_definition from albion.layers")
+            tables = [{'NAME': r[0], 'FIELDS_DEFINITION': r[1]} for r in cur.fetchall()]
+            for table in tables:
                 for statement in (
                     open(os.path.join(os.path.dirname(__file__), "albion_table.sql"))
                     .read()
@@ -295,6 +297,10 @@ class Project(object):
                         string.Template(statement).substitute(table)
                     )
             con.commit()
+
+    def export_sections(self, graph):
+        assert(False)
+        pass
 
     def __srid(self):
         with self.connect() as con:
@@ -308,6 +314,8 @@ class Project(object):
             return self.__has_hole()
         elif name == "has_section":
             return self.__has_section()
+        elif name == "has_volume":
+            return self.__has_volume()
         elif name == "has_group_cell":
             return self.__has_group_cell()
         elif name == "has_radiometry":
@@ -331,6 +339,12 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.hole")
+            return cur.fetchone()[0] > 1
+
+    def __has_volume(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.volume")
             return cur.fetchone()[0] > 1
 
     def __has_section(self):
@@ -888,6 +902,14 @@ class Project(object):
             #cur.execute("refresh materialized view albion.resistivity_section")
             con.commit()
 
+    def refresh_section_geom(self, table):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.layer where id='{}'".format(table))
+            if cur.fetchone()[0]:
+                cur.execute("refresh materialized view albion.{}_section_geom_cache".format(table))
+                con.commit()
+
     def closest_hole_id(self, x, y):
         with self.connect() as con:
             cur = con.cursor()
@@ -960,8 +982,8 @@ class Project(object):
             cur = con.cursor()
             cur.execute(
                 """
-                insert into albion.edge(start_, end_, graph_id, geom, parent)
-                select start_, end_, graph_id, geom, parent from albion.possible_edge
+                insert into albion.edge(start_, end_, graph_id, geom)
+                select start_, end_, graph_id, geom from albion.possible_edge
                 where graph_id=%s
                 """,
                 (graph,))

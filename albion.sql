@@ -10,7 +10,7 @@ create schema albion
 -------------------------------------------------------------------------------
 
 
-create function public.st_3dvolume(geom geometry)
+create or replace function public.st_3dvolume(geom geometry)
 returns real
 language plpgsql immutable
 as
@@ -156,9 +156,10 @@ create trigger collar_instead_trig
        for each row execute procedure albion.collar_instead_fct()
 ;
 
-
-
 create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_node_thickness, end_angle, correlation_distance, correlation_angle, parent_correlation_angle from _albion.metadata
+;
+
+create view albion.layer as select name, fields_definition from _albion.layer
 ;
 
 create view albion.hole as select id, depth_, geom::geometry('LINESTRINGZ', $SRID) from _albion.hole
@@ -795,7 +796,8 @@ with tan_ang as (
     from _albion.metadata
 ),
 result as (
-select ns.id as start_, ne.id as end_, ns.graph_id as graph_id, (st_makeline(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)))::geometry('LINESTRINGZ', $SRID) as geom, null as parent
+select ns.id as start_, ne.id as end_, ns.graph_id as graph_id, (st_makeline(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)))::geometry('LINESTRINGZ', $SRID) as geom --, null as parent
+
 from albion.all_edge as e
 join _albion.hole as hs on hs.id=e.start_
 join _albion.hole as he on he.id=e.end_
@@ -822,7 +824,7 @@ and ne.parent is null
 
 union all -- for graphs with parents
 
-select ns.id as start_, ne.id as end_, ns.graph_id as graph_id, (st_makeline(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)))::geometry('LINESTRINGZ', $SRID) as geom, ns.parent as parent
+select ns.id as start_, ne.id as end_, ns.graph_id as graph_id, (st_makeline(st_3dlineinterpolatepoint(ns.geom, .5), st_3dlineinterpolatepoint(ne.geom, .5)))::geometry('LINESTRINGZ', $SRID) as geom --, ns.parent as parent
 from _albion.edge as pe
 join _albion.node as pns on pns.id=pe.start_
 join _albion.node as pne on pne.id=pe.end_
@@ -910,7 +912,7 @@ create trigger edge_instead_trig
 
 create view albion.edge_section as
 with hole_idx as (
-    select h.id, rank() over(partition by s.id order by st_linelocatepoint(s.geom, st_startpoint(h.geom))) as rk, s.id as section_id
+    select h.id, rank() over(partition by s.id order by st_linelocatepoint(s.anchor, st_startpoint(h.geom))) as rk, s.id as section_id
     from _albion.section as s
     join _albion.hole as h on s.geom && h.geom and st_intersects(s.geom, st_startpoint(h.geom))
 )
@@ -983,7 +985,7 @@ create trigger edge_section_instead_trig
 
 create view albion.possible_edge_section as
 select row_number() over() as id, e.start_, e.end_, e.graph_id, s.id as section_id,
-    (albion.to_section(e.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom, e.parent
+    (albion.to_section(e.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom --, e.parent
 from albion.possible_edge as e
 join _albion.node as ns on ns.id=e.start_
 join _albion.node as ne on ne.id=e.end_
@@ -1321,9 +1323,9 @@ join albion.average_normal as nrml on nrml.id = coalesce(n.parent, n.id);
 ;
 
 
-create view albion.end_node_section as
+create or replace view albion.end_node_section as
 with hole_idx as (
-    select h.id, rank() over(partition by s.id order by st_linelocatepoint(s.geom, st_startpoint(h.geom))) as rk, h.id as hole_id, s.id as section_id
+    select h.id, rank() over(partition by s.id order by st_linelocatepoint(s.anchor, st_startpoint(h.geom))) as rk, h.id as hole_id, s.id as section_id
     from _albion.section as s
     join _albion.hole as h on s.geom && h.geom and st_intersects(s.geom, st_startpoint(h.geom))
 )
@@ -1383,7 +1385,7 @@ edge as (
 ),
 poly as (
     select 
-        ('SRID=$SRID; POLYGON(('||
+        ('SRID=32632; POLYGON(('||
                     st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||','||
                     st_x(st_endpoint(ns.geom))   ||' '||st_y(st_endpoint(ns.geom))  ||','||
                     st_x(st_endpoint(ne.geom))   ||' '||st_y(st_endpoint(ne.geom))  ||','||
@@ -1395,7 +1397,7 @@ poly as (
     join node as ne on ne.node_id=e.end_ and ne.section_id=e.section_id
 ),
 term as (
-    select ('SRID=$SRID; POLYGON(('||
+    select ('SRID=32632; POLYGON(('||
                     st_x(st_startpoint(t.node_geom)) ||' '||st_y(st_startpoint(t.node_geom))||','||
                     st_x(st_endpoint(t.node_geom))   ||' '||st_y(st_endpoint(t.node_geom))  ||','||
                     st_x(st_endpoint(t.geom))   ||' '||st_y(st_endpoint(t.geom))  ||','||
@@ -1405,7 +1407,7 @@ term as (
         t.graph_id, t.section_id
         from albion.end_node_section as t
 )
-select row_number() over() as id, st_union(geom)::geometry('MULTIPOLYGON', $SRID) as geom, graph_id, section_id
+select row_number() over() as id, st_multi(st_union(geom))::geometry('MULTIPOLYGON', 32632) as geom, graph_id, section_id
 from (select * from poly union all select * from term) as t
 group by graph_id, section_id
 ;
@@ -1620,7 +1622,7 @@ $$
             select n.cut 
             from albion.named_section as n
             join albion.section as s on s.id=n.section
-            where s.id=section_ and st_distance(n.cut, s.anchor) > st_distance(s.geom, s.anchor)
+            where s.id=section_ and st_distance(n.cut, s.anchor) > coalesce(st_distance(s.geom, s.anchor), 0)
             order by st_distance(n.cut, s.anchor) asc
             limit 1
         );
@@ -1638,7 +1640,7 @@ $$
             select n.cut 
             from albion.named_section as n
             join albion.section as s on s.id=n.section
-            where s.id=section_ and st_distance(n.cut, s.anchor) < st_distance(s.geom, s.anchor)
+            where s.id=section_ and st_distance(n.cut, s.anchor) < coalesce(st_distance(s.geom, s.anchor), 9999999)
             order by st_distance(n.cut, s.anchor) desc
             limit 1
         );

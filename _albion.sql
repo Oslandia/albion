@@ -43,6 +43,11 @@ create table _albion.metadata(
 insert into _albion.metadata(srid) select $SRID
 ;
 
+create table _albion.layer(
+    name varchar primary key,
+    fields_definition text not null)
+;
+
 create table _albion.hole(
     id varchar primary key default _albion.unique_id()::varchar,
     date_ varchar,
@@ -148,7 +153,7 @@ create table _albion.group(
 create table _albion.section(
     id varchar primary key default _albion.unique_id()::varchar,
     anchor geometry('LINESTRING', $SRID) not null check(st_numpoints(anchor)=2),
-    geom geometry('MULTILINESTRING', $SRID) not null,
+    geom geometry('MULTILINESTRING', $SRID),
     scale real not null default 1
 )
 ;
@@ -197,7 +202,7 @@ create table _albion.named_section(
     id varchar primary key default _albion.unique_id()::varchar,
     geom geometry('LINESTRING', $SRID) not null,
     cut geometry('MULTILINESTRING', $SRID) not null,
-    section varchar references _albion.section(id) not null
+    section varchar not null references _albion.section(id) on delete cascade on update cascade
 )
 ;
 

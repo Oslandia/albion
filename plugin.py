@@ -224,6 +224,13 @@ class Plugin(QObject):
             "Once cell groups have been defined, create section lines.",
         )
 
+        self.__add_menu_entry(
+            "Refresh selected layers sections",
+            self.__refresh_selected_layers_sections,
+            self.project is not None,
+            ""
+        )
+
         self.__menu.addSeparator()
 
         self.__add_menu_entry(
@@ -277,8 +284,8 @@ class Plugin(QObject):
 
         self.__add_menu_entry(
             "Export Sections",
-            None, #self.__export_sections
-            self.project is not None and self.project.has_section,
+            self.__export_sections,
+            self.project is not None and bool(self.__current_graph.currentText()) and self.project.has_section and self.project.has_volume,
             "Export triangulated section in .obj or .dxf format",
         )
 
@@ -402,8 +409,9 @@ class Plugin(QObject):
 
         # We make sure that corresponding extents are valid when the project
         # is loaded
-        cell = QgsProject.instance().mapLayersByName("cell")[0]
-        cell.updateExtents()
+        cell = QgsProject.instance().mapLayersByName("cell")
+        if len(cell):
+            cell[0].updateExtents()
 
         section_geom = QgsProject.instance().mapLayersByName("section.geom")
         if section_geom:
@@ -477,16 +485,19 @@ class Plugin(QObject):
                 return
             Project.delete(project_name)
 
+        if os.path.exists(fil):
+            os.remove(fil)
+
         self.__iface.messageBar().pushInfo("Albion:", "creating project...")
         Project.create(project_name, srid)
 
         # load template
-        open(fil, "w").write(
-            open(resource("template_project.qgs"))
-            .read()
-            .replace("template_project", project_name)
-            .replace("32632", str(srid))
-        )
+        #open(fil, "w").write(
+        #    open(resource("template_project.qgs"))
+        #    .read()
+        #    .replace("template_project", project_name)
+        #    .replace("32632", str(srid))
+        #)
         self.__iface.newProject()
         QgsProject.instance().setFileName(fil)
         QgsProject.instance().read()
@@ -497,8 +508,6 @@ class Plugin(QObject):
 
     def __import_data(self):
         assert(self.project)
-        if not QgsProject.instance().readEntry("albion", "conn_info", "")[0]:
-            return
         dir_ = QFileDialog.getExistingDirectory(
             None,
             u"Data directory",
@@ -523,14 +532,15 @@ class Plugin(QObject):
 
         self.__iface.messageBar().clearWidgets()
 
-        collar = QgsProject.instance().mapLayersByName("collar")[0]
-        collar.reload()
-        collar.updateExtents()
-        self.__iface.setActiveLayer(collar)
-        QApplication.instance().processEvents()
-        while self.__iface.mapCanvas().isDrawing():
+        collar = QgsProject.instance().mapLayersByName("collar")
+        if len(collar):
+            collar[0].reload()
+            collar[0].updateExtents()
+            self.__iface.setActiveLayer(collar[0])
             QApplication.instance().processEvents()
-        self.__iface.zoomToActiveLayer()
+            while self.__iface.mapCanvas().isDrawing():
+                QApplication.instance().processEvents()
+            self.__iface.zoomToActiveLayer()
 
         self.__iface.actionSaveProject().trigger()
 
@@ -668,6 +678,12 @@ class Plugin(QObject):
         assert(self.project)
         self.project.create_sections()
 
+    def __refresh_selected_layers_sections(self):
+        assert(self.project)
+        for l in iface.layerTreeView().selectedLayers(): 
+            uri = QgsDataSourceUri(l.dataProvider().dataSourceUri())
+            self.project.refresh_section_geom(uri.table())
+
     def __compute_mineralization(self):
         MineralizationDialog(self.project).exec_()
 
@@ -705,6 +721,10 @@ class Plugin(QObject):
         export_widget = ExportElementaryVolume(layer, self.project, graph)
         export_widget.show()
         export_widget.exec_()
+
+    def __export_sections(self):
+        assert(self.project)
+        self.project.export_sections(self.__current_graph.currentText())
 
     def __import_project(self):
         fil, __ = QFileDialog.getOpenFileName(

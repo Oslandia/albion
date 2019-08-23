@@ -5,3 +5,6 @@ create table _albion.$NAME(
     to_ real check (to_>=0),
     ${FIELDS_DEFINITION})
 ;
+
+insert into _albion.layer(name, fields_definition) values ('$NAME', '$FIELDS_DEFINITION')
+;
