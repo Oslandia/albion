@@ -308,8 +308,8 @@ class Project(object):
             return self.__has_hole()
         elif name == "has_section":
             return self.__has_section()
-#        elif name == "has_group_cell":
-#            return self.__has_group_cell()
+        elif name == "has_group_cell":
+            return self.__has_group_cell()
         elif name == "has_radiometry":
             return self.__has_radiometry()
         elif name == "has_cell":
@@ -339,11 +339,11 @@ class Project(object):
             cur.execute("select count(1) from albion.section_geom")
             return cur.fetchone()[0] > 1
 
-#    def __has_group_cell(self):
-#        with self.connect() as con:
-#            cur = con.cursor()
-#            cur.execute("select count(1) from albion.group_cell")
-#            return cur.fetchone()[0] > 1
+    def __has_group_cell(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.group_cell")
+            return cur.fetchone()[0] > 1
 
     def __has_radiometry(self):
         with self.connect() as con:

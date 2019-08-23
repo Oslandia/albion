@@ -210,18 +210,18 @@ class Plugin(QObject):
 
         self.__menu.addSeparator()
 
-#        self.__add_menu_entry(
-#            "Create sections (to be removed)",
-#            self.__create_sections,
-#            self.project is not None and self.project.has_group_cell,
-#            "Once cell groups have been defined, create section lines.",
-#        )
-
         self.__add_menu_entry(
             "Create cells",
             self.__create_cells,
             self.project is not None and self.project.has_hole,
             "Create Delaunay triangulation of collar layer.",
+        )
+
+        self.__add_menu_entry(
+            "Create subsections",
+            self.__create_sections,
+            self.project is not None and self.project.has_group_cell,
+            "Once cell groups have been defined, create section lines.",
         )
 
         self.__menu.addSeparator()
@@ -357,9 +357,9 @@ class Plugin(QObject):
         return lay
 
     def __current_section_changed(self, section_id):
-        #layers = QgsProject.instance().mapLayersByName(u"group_cell")
-        #if len(layers):
-        #    layers[0].setSubsetString("section_id='{}'".format(section_id))
+        layers = QgsProject.instance().mapLayersByName(u"group_cell")
+        if len(layers):
+            layers[0].setSubsetString("section_id='{}'".format(section_id))
         self.__refresh_layers("section")
 
 #    def __select_next_group(self):
