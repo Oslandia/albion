@@ -1,0 +1,7 @@
+gitpython
+dxfwrite
+PyOpenGL
+pglite
+pyqt5
+psycopg2
+shapely
