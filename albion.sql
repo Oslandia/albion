@@ -10,17 +10,6 @@ create schema albion
 -------------------------------------------------------------------------------
 
 
-create or replace function public.st_3dvolume(geom geometry)
-returns real
-language plpgsql immutable
-as
-$$
-    begin
-        return null;
-    end;
-$$
-;
-
 create or replace function albion.hole_geom(hole_id_ varchar)
 returns geometry
 language plpgsql stable
@@ -156,7 +145,7 @@ create trigger collar_instead_trig
        for each row execute procedure albion.collar_instead_fct()
 ;
 
-create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_node_thickness, end_angle, correlation_distance, correlation_angle, parent_correlation_angle from _albion.metadata
+create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_node_thickness, correlation_distance, correlation_angle, parent_correlation_angle, version from _albion.metadata
 ;
 
 create view albion.layer as select name, fields_definition from _albion.layer
@@ -833,6 +822,7 @@ join _albion.node as ne on ne.parent=pne.id, tan_ang
 where ns.graph_id = ne.graph_id
 and
     (
+    (
         abs(ns.from_-ns.to_) >= abs(ne.from_-ne.to_)
         and st_z(st_startpoint(ns.geom)) + st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value + (st_z(st_3dlineinterpolatepoint(pne.geom, .5)) - st_z(st_3dlineinterpolatepoint(pns.geom, .5))) >= st_z(st_startpoint(ne.geom))
         and st_z(st_endpoint(ns.geom)) - st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value + (st_z(st_3dlineinterpolatepoint(pne.geom, .5)) - st_z(st_3dlineinterpolatepoint(pns.geom, .5))) <= st_z(st_endpoint(ne.geom))
@@ -845,6 +835,7 @@ and
 
         and st_z(st_endpoint(ne.geom)) - st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value + (st_z(st_3dlineinterpolatepoint(pns.geom, .5)) - st_z(st_3dlineinterpolatepoint(pne.geom, .5)) ) <= st_z(st_endpoint(ns.geom)) 
 
+    )
     )
 )
 select row_number() over() as id, * from result
@@ -959,6 +950,8 @@ $$
             select st_makeline(st_3dlineinterpolatepoint(s.geom, .5), st_3dlineinterpolatepoint(e.geom, .5))
             from _albion.node as s, _albion.node as e
             where s.id=new.start_ and e.id=new.end_ into new_geom;
+
+            -- TODO test if edge is possible
         end if;
 
         if tg_op = 'INSERT' then
@@ -1001,72 +994,22 @@ returns setof geometry
 language plpython3u immutable
 as
 $$
-#open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
-#    cell_id_+'\n'+
-#    graph_id_+'\n'+
-#    geom_+'\n'+
-#    ' '.join(holes_)+'\n'+
-#    ' '.join(starts_)+'\n'+
-#    ' '.join(ends_)+'\n'+
-#    ' '.join(hole_ids_)+'\n'+
-#    ' '.join(node_ids_)+'\n'+
-#    ' '.join(nodes_)+'\n'+
-#    ' '.join(end_ids_)+'\n'+
-#    ' '.join(end_geoms_)+'\n'
-#)
+open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
+    cell_id_+'\n'+
+    graph_id_+'\n'+
+    geom_+'\n'+
+    ' '.join(holes_)+'\n'+
+    ' '.join(starts_)+'\n'+
+    ' '.join(ends_)+'\n'+
+    ' '.join(hole_ids_)+'\n'+
+    ' '.join(node_ids_)+'\n'+
+    ' '.join(nodes_)+'\n'+
+    ' '.join(end_ids_)+'\n'+
+    ' '.join(end_geoms_)+'\n'
+)
 $INCLUDE_ELEMENTARY_VOLUME
 for v in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, $SRID):
     yield v
-$$
-;
-
-create or replace view albion.volume as
-select id, graph_id, cell_id, triangulation, st_3dvolume(triangulation) as volume
-from _albion.volume
-;
-
-create or replace function albion.is_closed_volume(multipoly geometry)
-returns boolean
-language plpython3u immutable
-as
-$$
-    from shapely import wkb
-
-    m = wkb.loads(bytes.fromhex(multipoly))
-
-    edges = set()
-    for p in m:
-        for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
-            if (e, s) in edges:
-                edges.remove((e, s))
-            else:
-                edges.add((s, e))
-    return len(edges)==0
-$$
-;
-
-create or replace function albion.mesh_boundarie(multipoly geometry)
-returns geometry
-language plpython3u immutable
-as
-$$
-    from shapely import wkb
-    from shapely.geometry import MultiLineString
-    from shapely import geos
-    geos.WKBWriter.defaults['include_srid'] = True
-
-    m = wkb.loads(bytes.fromhex(multipoly))
-
-    edges = set()
-    for p in m:
-        for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
-            if (e, s) in edges:
-                edges.remove((e, s))
-            else:
-                edges.add((s, e))
-    result = MultiLineString(list(edges))
-    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(m._geom))
-    return result
 $$
 ;
 
@@ -1091,6 +1034,56 @@ $$
         v012 = r[0][0]*r[1][1]*r[2][2];
         volume += (1./6.)*(-v210 + v120 + v201 - v021 - v102 + v012)
     return volume
+$$
+;
+
+create or replace function albion.is_closed_volume(multipoly geometry)
+returns boolean
+language plpython3u immutable
+as
+$$
+    from shapely import wkb
+
+    m = wkb.loads(bytes.fromhex(multipoly))
+
+    edges = set()
+    for p in m:
+        for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
+            if (e, s) in edges:
+                edges.remove((e, s))
+            else:
+                edges.add((s, e))
+    return len(edges)==0
+$$
+;
+
+create or replace view albion.volume as
+select id, graph_id, cell_id, triangulation, albion.volume_of_geom(triangulation) as volume--, albion.is_closed_volume(triangulation) as is_closed
+from _albion.volume
+;
+
+create or replace function albion.mesh_boundarie(multipoly geometry)
+returns geometry
+language plpython3u immutable
+as
+$$
+    from shapely import wkb
+    from shapely.geometry import MultiLineString
+    from shapely import geos
+    geos.WKBWriter.defaults['include_srid'] = True
+
+    m = wkb.loads(bytes.fromhex(multipoly))
+
+    edges = set()
+    for p in m:
+        for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
+            if (e, s) in edges:
+                edges.remove((e, s))
+            else:
+                edges.add((s, e))
+    result = MultiLineString(list(edges))
+    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(m._geom))
+    return result
 $$
 ;
 
@@ -1408,7 +1401,7 @@ term as (
         from albion.end_node_section as t
 )
 select row_number() over() as id, st_multi(st_union(geom))::geometry('MULTIPOLYGON', 32632) as geom, graph_id, section_id
-from (select * from poly union all select * from term) as t
+from (select * from poly union all select * from term where st_isvalid(geom)) as t
 group by graph_id, section_id
 ;
 

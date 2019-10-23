@@ -263,11 +263,32 @@ class Project(object):
 
     def update(self):
         "reload schema albion without changing data"
+
+
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select srid from albion.metadata")
             srid, = cur.fetchone()
             cur.execute("drop schema if exists albion cascade")
+
+            # test if version number is in metadata
+            cur.execute("""
+                select column_name                                                       
+                from information_schema.columns where table_name = 'metadata'
+                and column_name='version'
+                """);
+            if cur.fetchone():
+                # here goes future upgrades
+                cur.execute("select version from albion.metadata")
+            else:
+                # old albion version, we upgrade the data
+                for statement in (
+                    open(os.path.join(os.path.dirname(__file__), "_albion_v1_to_v2.sql"))
+                    .read()
+                    .split("\n;\n")[:-1]
+                ):
+                    cur.execute(statement.replace("$SRID", str(srid)))
+
             include_elementary_volume = open(
                 os.path.join(
                     os.path.dirname(__file__), "elementary_volume", "__init__.py"

@@ -19,49 +19,55 @@
   </projectCrs>
   <layer-tree-group>
     <customproperties/>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="section_polygon" id="section_polygon_f49e48f4_9101_4351_a07c_0a99748eaca2" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=MultiPolygon checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;section_polygon&quot; (geom) sql=" expanded="1">
+    <layer-tree-group checked="Qt::Checked" expanded="1" name="section">
+      <customproperties/>
+      <layer-tree-layer id="hole_section_1f8c7d9f_7032_4a97_8033_d7ee1c22ea2a" providerKey="postgres" checked="Qt::Checked" expanded="1" name="hole_section" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;hole_section&quot; (geom) sql=">
+        <customproperties/>
+      </layer-tree-layer>
+      <layer-tree-layer id="section_intersection_13a1d3a9_897b_48fc_9714_e20439ad1ff6" providerKey="postgres" checked="Qt::Checked" expanded="1" name="section_intersection" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=Polygon checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;section_intersection&quot; (geom) sql=">
+        <customproperties/>
+      </layer-tree-layer>
+      <layer-tree-layer id="section_polygon_f49e48f4_9101_4351_a07c_0a99748eaca2" providerKey="postgres" checked="Qt::Checked" expanded="1" name="section_polygon" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=MultiPolygon checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;section_polygon&quot; (geom) sql=">
+        <customproperties/>
+      </layer-tree-layer>
+      <layer-tree-layer id="section_geom_7c5467f1_628b_4313_a00b_a79b3801f4c0" providerKey="postgres" checked="Qt::Checked" expanded="1" name="section.geom" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=MultiLineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;section&quot; (geom) sql=">
+        <customproperties/>
+      </layer-tree-layer>
+      <layer-tree-layer id="possible_edge_section_04705590_fcdc_4fe9_8309_3d2c648db28f" providerKey="postgres" checked="Qt::Checked" expanded="1" name="possible_edge_section" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;possible_edge_section&quot; (geom) sql=">
+        <customproperties/>
+      </layer-tree-layer>
+      <layer-tree-layer id="edge_section_8b745326_1406_43a8_803e_8ee85be59103" providerKey="postgres" checked="Qt::Checked" expanded="1" name="edge_section" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;edge_section&quot; (geom) sql=">
+        <customproperties/>
+      </layer-tree-layer>
+      <layer-tree-layer id="node_section_63e3816d_ea42_44c6_937c_65c10a3b3ac4" providerKey="postgres" checked="Qt::Checked" expanded="1" name="node_section" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;node_section&quot; (geom) sql=">
+        <customproperties/>
+      </layer-tree-layer>
+      <layer-tree-layer id="named_section_cut_47ba5a59_cd54_4752_9fee_3cbe01d07af4" providerKey="postgres" checked="Qt::Checked" expanded="1" name="named_section.cut" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=MultiLineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;named_section&quot; (cut) sql=">
+        <customproperties/>
+      </layer-tree-layer>
+      <layer-tree-layer id="section_anchor_5a49e7a1_cea4_4a35_982c_00e7801cd6da" providerKey="postgres" checked="Qt::Checked" expanded="1" name="section.anchor" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;section&quot; (anchor) sql=">
+        <customproperties/>
+      </layer-tree-layer>
+      <layer-tree-layer id="end_node_section_node_geom_f653243c_2e98_4638_b428_1acca01868dc" providerKey="postgres" checked="Qt::Checked" expanded="1" name="end_node_section.node_geom" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;end_node_section&quot; (node_geom) sql=">
+        <customproperties/>
+      </layer-tree-layer>
+    </layer-tree-group>
+    <layer-tree-layer id="close_collar_95b0fcfd_f8c9_476f_9b9d_39d3d8c782f7" providerKey="postgres" checked="Qt::Checked" expanded="1" name="close_collar" source="dbname='import_test' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=PointZ checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;close_collar&quot; (geom) sql=">
       <customproperties/>
     </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="section_intersection" id="section_intersection_13a1d3a9_897b_48fc_9714_e20439ad1ff6" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=Polygon checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;section_intersection&quot; (geom) sql=" expanded="1">
+    <layer-tree-layer id="collar_7e814841_4cc9_495a_8ef6_9229fcfffb5e" providerKey="postgres" checked="Qt::Checked" expanded="1" name="collar" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=PointZ checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;collar&quot; (geom) sql=">
       <customproperties/>
     </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="section.geom" id="section_geom_7c5467f1_628b_4313_a00b_a79b3801f4c0" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=MultiLineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;section&quot; (geom) sql=" expanded="1">
+    <layer-tree-layer id="possible_edge_a6b83b46_56da_4098_b0fe_e703633800f5" providerKey="postgres" checked="Qt::Checked" expanded="1" name="possible_edge" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineStringZ checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;possible_edge&quot; (geom) sql=">
       <customproperties/>
     </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="section.anchor" id="section_anchor_5a49e7a1_cea4_4a35_982c_00e7801cd6da" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;section&quot; (anchor) sql=" expanded="1">
+    <layer-tree-layer id="edge_32c6a82a_82cd_477f_b119_398536a6b6ed" providerKey="postgres" checked="Qt::Checked" expanded="1" name="edge" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineStringZ checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;edge&quot; (geom) sql=">
       <customproperties/>
     </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="possible_edge_section" id="possible_edge_section_04705590_fcdc_4fe9_8309_3d2c648db28f" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;possible_edge_section&quot; (geom) sql=" expanded="1">
+    <layer-tree-layer id="group_cell_ec51a010_ab41_49d7_ac55_8ce0cfbb8838" providerKey="postgres" checked="Qt::Checked" expanded="1" name="group_cell" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='id' srid=32632 type=Polygon checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;group_cell&quot; (geom) sql=section_id='SN x4'">
       <customproperties/>
     </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="possible_edge" id="possible_edge_a6b83b46_56da_4098_b0fe_e703633800f5" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineStringZ checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;possible_edge&quot; (geom) sql=" expanded="1">
-      <customproperties/>
-    </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="node_section" id="node_section_63e3816d_ea42_44c6_937c_65c10a3b3ac4" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;node_section&quot; (geom) sql=" expanded="1">
-      <customproperties/>
-    </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="named_section.cut" id="named_section_cut_47ba5a59_cd54_4752_9fee_3cbe01d07af4" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=MultiLineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;named_section&quot; (cut) sql=" expanded="1">
-      <customproperties/>
-    </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="hole_section" id="hole_section_1f8c7d9f_7032_4a97_8033_d7ee1c22ea2a" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;hole_section&quot; (geom) sql=" expanded="1">
-      <customproperties/>
-    </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="group_cell" id="group_cell_ec51a010_ab41_49d7_ac55_8ce0cfbb8838" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=Polygon checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;group_cell&quot; (geom) sql=" expanded="1">
-      <customproperties/>
-    </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="end_node_section.node_geom" id="end_node_section_node_geom_f653243c_2e98_4638_b428_1acca01868dc" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;end_node_section&quot; (node_geom) sql=" expanded="1">
-      <customproperties/>
-    </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="edge_section" id="edge_section_8b745326_1406_43a8_803e_8ee85be59103" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;edge_section&quot; (geom) sql=" expanded="1">
-      <customproperties/>
-    </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="edge" id="edge_32c6a82a_82cd_477f_b119_398536a6b6ed" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=LineStringZ checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;edge&quot; (geom) sql=" expanded="1">
-      <customproperties/>
-    </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="collar" id="collar_7e814841_4cc9_495a_8ef6_9229fcfffb5e" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=PointZ checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;collar&quot; (geom) sql=" expanded="1">
-      <customproperties/>
-    </layer-tree-layer>
-    <layer-tree-layer checked="Qt::Checked" providerKey="postgres" name="cell" id="cell_99e875c2_110e_4f52_a7f4_54ea9cff1367" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=Polygon checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;cell&quot; (geom) sql=" expanded="1">
+    <layer-tree-layer id="cell_99e875c2_110e_4f52_a7f4_54ea9cff1367" providerKey="postgres" checked="Qt::Checked" expanded="1" name="cell" source="dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='&quot;id&quot;' srid=32632 type=Polygon checkPrimaryKeyUnicity='1' table=&quot;albion&quot;.&quot;cell&quot; (geom) sql=">
       <customproperties/>
     </layer-tree-layer>
     <custom-order enabled="0">
@@ -80,35 +86,37 @@
       <item>section_geom_7c5467f1_628b_4313_a00b_a79b3801f4c0</item>
       <item>section_intersection_13a1d3a9_897b_48fc_9714_e20439ad1ff6</item>
       <item>section_polygon_f49e48f4_9101_4351_a07c_0a99748eaca2</item>
+      <item>close_collar_95b0fcfd_f8c9_476f_9b9d_39d3d8c782f7</item>
     </custom-order>
   </layer-tree-group>
-  <snapping-settings type="1" intersection-snapping="0" enabled="0" mode="2" unit="1" tolerance="12">
+  <snapping-settings mode="2" intersection-snapping="0" type="1" unit="1" tolerance="12" enabled="0">
     <individual-layer-settings>
-      <layer-setting type="1" id="end_node_section_node_geom_f653243c_2e98_4638_b428_1acca01868dc" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="named_section_cut_47ba5a59_cd54_4752_9fee_3cbe01d07af4" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="section_geom_7c5467f1_628b_4313_a00b_a79b3801f4c0" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="collar_7e814841_4cc9_495a_8ef6_9229fcfffb5e" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="node_section_63e3816d_ea42_44c6_937c_65c10a3b3ac4" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="edge_32c6a82a_82cd_477f_b119_398536a6b6ed" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="section_polygon_f49e48f4_9101_4351_a07c_0a99748eaca2" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="edge_section_8b745326_1406_43a8_803e_8ee85be59103" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="section_anchor_5a49e7a1_cea4_4a35_982c_00e7801cd6da" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="group_cell_ec51a010_ab41_49d7_ac55_8ce0cfbb8838" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="hole_section_1f8c7d9f_7032_4a97_8033_d7ee1c22ea2a" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="possible_edge_a6b83b46_56da_4098_b0fe_e703633800f5" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="cell_99e875c2_110e_4f52_a7f4_54ea9cff1367" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="section_intersection_13a1d3a9_897b_48fc_9714_e20439ad1ff6" units="1" enabled="0" tolerance="12"/>
-      <layer-setting type="1" id="possible_edge_section_04705590_fcdc_4fe9_8309_3d2c648db28f" units="1" enabled="0" tolerance="12"/>
+      <layer-setting id="edge_section_8b745326_1406_43a8_803e_8ee85be59103" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="section_polygon_f49e48f4_9101_4351_a07c_0a99748eaca2" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="collar_7e814841_4cc9_495a_8ef6_9229fcfffb5e" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="cell_99e875c2_110e_4f52_a7f4_54ea9cff1367" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="hole_section_1f8c7d9f_7032_4a97_8033_d7ee1c22ea2a" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="node_section_63e3816d_ea42_44c6_937c_65c10a3b3ac4" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="section_intersection_13a1d3a9_897b_48fc_9714_e20439ad1ff6" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="end_node_section_node_geom_f653243c_2e98_4638_b428_1acca01868dc" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="section_anchor_5a49e7a1_cea4_4a35_982c_00e7801cd6da" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="section_geom_7c5467f1_628b_4313_a00b_a79b3801f4c0" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="group_cell_ec51a010_ab41_49d7_ac55_8ce0cfbb8838" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="possible_edge_a6b83b46_56da_4098_b0fe_e703633800f5" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="named_section_cut_47ba5a59_cd54_4752_9fee_3cbe01d07af4" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="close_collar_95b0fcfd_f8c9_476f_9b9d_39d3d8c782f7" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="edge_32c6a82a_82cd_477f_b119_398536a6b6ed" type="1" tolerance="12" enabled="0" units="1"/>
+      <layer-setting id="possible_edge_section_04705590_fcdc_4fe9_8309_3d2c648db28f" type="1" tolerance="12" enabled="0" units="1"/>
     </individual-layer-settings>
   </snapping-settings>
   <relations/>
   <mapcanvas name="theMapCanvas" annotationsVisible="1">
     <units>meters</units>
     <extent>
-      <xmin>31738882.47595356032252312</xmin>
-      <ymin>33490501.01186897233128548</ymin>
-      <xmax>31740105.545461256057024</xmax>
-      <ymax>33491314.78998938575387001</ymax>
+      <xmin>31739052.35575000196695328</xmin>
+      <ymin>33490786.30525000020861626</ymin>
+      <xmax>31739525.45425000041723251</xmax>
+      <ymax>33491101.08475000038743019</ymax>
     </extent>
     <rotation>0</rotation>
     <destinationsrs>
@@ -127,91 +135,92 @@
     <expressionContextScope/>
   </mapcanvas>
   <legend updateDrawingOrder="true">
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="section_polygon" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="section_polygon_f49e48f4_9101_4351_a07c_0a99748eaca2"/>
+    <legendgroup checked="Qt::Checked" open="true" name="section">
+      <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="hole_section" drawingOrder="-1">
+        <filegroup open="true" hidden="false">
+          <legendlayerfile visible="1" isInOverview="0" layerid="hole_section_1f8c7d9f_7032_4a97_8033_d7ee1c22ea2a"/>
+        </filegroup>
+      </legendlayer>
+      <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="section_intersection" drawingOrder="-1">
+        <filegroup open="true" hidden="false">
+          <legendlayerfile visible="1" isInOverview="0" layerid="section_intersection_13a1d3a9_897b_48fc_9714_e20439ad1ff6"/>
+        </filegroup>
+      </legendlayer>
+      <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="section_polygon" drawingOrder="-1">
+        <filegroup open="true" hidden="false">
+          <legendlayerfile visible="1" isInOverview="0" layerid="section_polygon_f49e48f4_9101_4351_a07c_0a99748eaca2"/>
+        </filegroup>
+      </legendlayer>
+      <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="section.geom" drawingOrder="-1">
+        <filegroup open="true" hidden="false">
+          <legendlayerfile visible="1" isInOverview="0" layerid="section_geom_7c5467f1_628b_4313_a00b_a79b3801f4c0"/>
+        </filegroup>
+      </legendlayer>
+      <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="possible_edge_section" drawingOrder="-1">
+        <filegroup open="true" hidden="false">
+          <legendlayerfile visible="1" isInOverview="0" layerid="possible_edge_section_04705590_fcdc_4fe9_8309_3d2c648db28f"/>
+        </filegroup>
+      </legendlayer>
+      <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="edge_section" drawingOrder="-1">
+        <filegroup open="true" hidden="false">
+          <legendlayerfile visible="1" isInOverview="0" layerid="edge_section_8b745326_1406_43a8_803e_8ee85be59103"/>
+        </filegroup>
+      </legendlayer>
+      <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="node_section" drawingOrder="-1">
+        <filegroup open="true" hidden="false">
+          <legendlayerfile visible="1" isInOverview="0" layerid="node_section_63e3816d_ea42_44c6_937c_65c10a3b3ac4"/>
+        </filegroup>
+      </legendlayer>
+      <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="named_section.cut" drawingOrder="-1">
+        <filegroup open="true" hidden="false">
+          <legendlayerfile visible="1" isInOverview="0" layerid="named_section_cut_47ba5a59_cd54_4752_9fee_3cbe01d07af4"/>
+        </filegroup>
+      </legendlayer>
+      <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="section.anchor" drawingOrder="-1">
+        <filegroup open="true" hidden="false">
+          <legendlayerfile visible="1" isInOverview="0" layerid="section_anchor_5a49e7a1_cea4_4a35_982c_00e7801cd6da"/>
+        </filegroup>
+      </legendlayer>
+      <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="end_node_section.node_geom" drawingOrder="-1">
+        <filegroup open="true" hidden="false">
+          <legendlayerfile visible="1" isInOverview="0" layerid="end_node_section_node_geom_f653243c_2e98_4638_b428_1acca01868dc"/>
+        </filegroup>
+      </legendlayer>
+    </legendgroup>
+    <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="close_collar" drawingOrder="-1">
+      <filegroup open="true" hidden="false">
+        <legendlayerfile visible="1" isInOverview="0" layerid="close_collar_95b0fcfd_f8c9_476f_9b9d_39d3d8c782f7"/>
       </filegroup>
     </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="section_intersection" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="section_intersection_13a1d3a9_897b_48fc_9714_e20439ad1ff6"/>
+    <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="collar" drawingOrder="-1">
+      <filegroup open="true" hidden="false">
+        <legendlayerfile visible="1" isInOverview="0" layerid="collar_7e814841_4cc9_495a_8ef6_9229fcfffb5e"/>
       </filegroup>
     </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="section.geom" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="section_geom_7c5467f1_628b_4313_a00b_a79b3801f4c0"/>
+    <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="possible_edge" drawingOrder="-1">
+      <filegroup open="true" hidden="false">
+        <legendlayerfile visible="1" isInOverview="0" layerid="possible_edge_a6b83b46_56da_4098_b0fe_e703633800f5"/>
       </filegroup>
     </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="section.anchor" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="section_anchor_5a49e7a1_cea4_4a35_982c_00e7801cd6da"/>
+    <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="edge" drawingOrder="-1">
+      <filegroup open="true" hidden="false">
+        <legendlayerfile visible="1" isInOverview="0" layerid="edge_32c6a82a_82cd_477f_b119_398536a6b6ed"/>
       </filegroup>
     </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="possible_edge_section" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="possible_edge_section_04705590_fcdc_4fe9_8309_3d2c648db28f"/>
+    <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="group_cell" drawingOrder="-1">
+      <filegroup open="true" hidden="false">
+        <legendlayerfile visible="1" isInOverview="0" layerid="group_cell_ec51a010_ab41_49d7_ac55_8ce0cfbb8838"/>
       </filegroup>
     </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="possible_edge" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="possible_edge_a6b83b46_56da_4098_b0fe_e703633800f5"/>
-      </filegroup>
-    </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="node_section" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="node_section_63e3816d_ea42_44c6_937c_65c10a3b3ac4"/>
-      </filegroup>
-    </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="named_section.cut" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="named_section_cut_47ba5a59_cd54_4752_9fee_3cbe01d07af4"/>
-      </filegroup>
-    </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="hole_section" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="hole_section_1f8c7d9f_7032_4a97_8033_d7ee1c22ea2a"/>
-      </filegroup>
-    </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="group_cell" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="group_cell_ec51a010_ab41_49d7_ac55_8ce0cfbb8838"/>
-      </filegroup>
-    </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="end_node_section.node_geom" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="end_node_section_node_geom_f653243c_2e98_4638_b428_1acca01868dc"/>
-      </filegroup>
-    </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="edge_section" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="edge_section_8b745326_1406_43a8_803e_8ee85be59103"/>
-      </filegroup>
-    </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="edge" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="edge_32c6a82a_82cd_477f_b119_398536a6b6ed"/>
-      </filegroup>
-    </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="collar" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="collar_7e814841_4cc9_495a_8ef6_9229fcfffb5e"/>
-      </filegroup>
-    </legendlayer>
-    <legendlayer drawingOrder="-1" checked="Qt::Checked" name="cell" showFeatureCount="0" open="true">
-      <filegroup hidden="false" open="true">
-        <legendlayerfile isInOverview="0" visible="1" layerid="cell_99e875c2_110e_4f52_a7f4_54ea9cff1367"/>
+    <legendlayer checked="Qt::Checked" showFeatureCount="0" open="true" name="cell" drawingOrder="-1">
+      <filegroup open="true" hidden="false">
+        <legendlayerfile visible="1" isInOverview="0" layerid="cell_99e875c2_110e_4f52_a7f4_54ea9cff1367"/>
       </filegroup>
     </legendlayer>
   </legend>
   <mapViewDocks/>
   <projectlayers>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Polygon" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
-      <extent>
-        <xmin>31739063.62000000104308128</xmin>
-        <ymin>33490793.80000000074505806</ymin>
-        <xmax>31739514.19000000134110451</xmax>
-        <ymax>33491093.58999999985098839</ymax>
-      </extent>
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Polygon" autoRefreshTime="0">
       <id>cell_99e875c2_110e_4f52_a7f4_54ea9cff1367</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=Polygon checkPrimaryKeyUnicity='1' table="albion"."cell" (geom) sql=</datasource>
       <keywordList>
@@ -269,26 +278,26 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="fill" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleFill" pass="0">
-              <prop k="border_width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="color" v="183,72,75,255"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="offset" v="0,0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="outline_color" v="35,35,35,255"/>
-              <prop k="outline_style" v="solid"/>
-              <prop k="outline_width" v="0.26"/>
-              <prop k="outline_width_unit" v="MM"/>
-              <prop k="style" v="solid"/>
+          <symbol type="fill" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleFill" locked="0" enabled="1">
+              <prop v="3x:0,0,0,0,0,0" k="border_width_map_unit_scale"/>
+              <prop v="183,72,75,255" k="color"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="0,0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="35,35,35,255" k="outline_color"/>
+              <prop v="solid" k="outline_style"/>
+              <prop v="0.26" k="outline_width"/>
+              <prop v="MM" k="outline_width_unit"/>
+              <prop v="solid" k="style"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -336,24 +345,24 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="a" name=""/>
-        <alias index="2" field="b" name=""/>
-        <alias index="3" field="c" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="a"/>
+        <alias index="2" name="" field="b"/>
+        <alias index="3" name="" field="c"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="a" applyOnUpdate="0" expression=""/>
-        <default field="b" applyOnUpdate="0" expression=""/>
-        <default field="c" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="a"/>
+        <default applyOnUpdate="0" expression="" field="b"/>
+        <default applyOnUpdate="0" expression="" field="c"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="a" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="b" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="c" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="a"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="b"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="c"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -365,7 +374,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -385,7 +394,212 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Point" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="0" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Point" autoRefreshTime="0">
+      <id>close_collar_95b0fcfd_f8c9_476f_9b9d_39d3d8c782f7</id>
+      <datasource>dbname='import_test' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=PointZ checkPrimaryKeyUnicity='1' table="albion"."close_collar" (geom) sql=</datasource>
+      <keywordList>
+        <value></value>
+      </keywordList>
+      <layername>close_collar</layername>
+      <srs>
+        <spatialrefsys>
+          <proj4>+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs</proj4>
+          <srsid>3116</srsid>
+          <srid>32632</srid>
+          <authid>EPSG:32632</authid>
+          <description>WGS 84 / UTM zone 32N</description>
+          <projectionacronym>utm</projectionacronym>
+          <ellipsoidacronym>WGS84</ellipsoidacronym>
+          <geographicflag>false</geographicflag>
+        </spatialrefsys>
+      </srs>
+      <resourceMetadata>
+        <identifier></identifier>
+        <parentidentifier></parentidentifier>
+        <language></language>
+        <type>dataset</type>
+        <title></title>
+        <abstract></abstract>
+        <contact>
+          <name></name>
+          <organization></organization>
+          <position></position>
+          <voice></voice>
+          <fax></fax>
+          <email></email>
+          <role></role>
+        </contact>
+        <links/>
+        <fees></fees>
+        <encoding></encoding>
+        <crs>
+          <spatialrefsys>
+            <proj4>+proj=utm +zone=32 +datum=WGS84 +units=m +no_defs</proj4>
+            <srsid>3116</srsid>
+            <srid>32632</srid>
+            <authid>EPSG:32632</authid>
+            <description>WGS 84 / UTM zone 32N</description>
+            <projectionacronym>utm</projectionacronym>
+            <ellipsoidacronym>WGS84</ellipsoidacronym>
+            <geographicflag>false</geographicflag>
+          </spatialrefsys>
+        </crs>
+        <extent>
+          <spatial dimensions="2" maxz="0" maxx="0" crs="EPSG:32632" minz="0" maxy="0" miny="0" minx="0"/>
+          <temporal>
+            <period>
+              <start></start>
+              <end></end>
+            </period>
+          </temporal>
+        </extent>
+      </resourceMetadata>
+      <provider encoding="UTF-8">postgres</provider>
+      <vectorjoins/>
+      <layerDependencies/>
+      <dataDependencies/>
+      <legend type="default-vector"/>
+      <expressionfields/>
+      <map-layer-style-manager current="défaut">
+        <map-layer-style name="défaut"/>
+      </map-layer-style-manager>
+      <auxiliaryLayer/>
+      <flags>
+        <Identifiable>1</Identifiable>
+        <Removable>1</Removable>
+        <Searchable>1</Searchable>
+      </flags>
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
+        <symbols>
+          <symbol type="marker" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleMarker" locked="0" enabled="1">
+              <prop v="0" k="angle"/>
+              <prop v="227,26,28,255" k="color"/>
+              <prop v="1" k="horizontal_anchor_point"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="star" k="name"/>
+              <prop v="0,0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0,0,0,255" k="outline_color"/>
+              <prop v="solid" k="outline_style"/>
+              <prop v="0" k="outline_width"/>
+              <prop v="3x:0,0,0,0,0,0" k="outline_width_map_unit_scale"/>
+              <prop v="MM" k="outline_width_unit"/>
+              <prop v="area" k="scale_method"/>
+              <prop v="4" k="size"/>
+              <prop v="3x:0,0,0,0,0,0" k="size_map_unit_scale"/>
+              <prop v="MM" k="size_unit"/>
+              <prop v="1" k="vertical_anchor_point"/>
+              <data_defined_properties>
+                <Option type="Map">
+                  <Option type="QString" name="name" value=""/>
+                  <Option name="properties"/>
+                  <Option type="QString" name="type" value="collection"/>
+                </Option>
+              </data_defined_properties>
+            </layer>
+          </symbol>
+        </symbols>
+        <rotation/>
+        <sizescale/>
+      </renderer-v2>
+      <customproperties>
+        <property value="0" key="embeddedWidgets/count"/>
+        <property key="variableNames"/>
+        <property key="variableValues"/>
+      </customproperties>
+      <blendMode>0</blendMode>
+      <featureBlendMode>0</featureBlendMode>
+      <layerOpacity>1</layerOpacity>
+      <SingleCategoryDiagramRenderer diagramType="Histogram" attributeLegend="1">
+        <DiagramCategory opacity="1" scaleDependency="Area" height="15" backgroundColor="#ffffff" maxScaleDenominator="1e+8" rotationOffset="270" sizeScale="3x:0,0,0,0,0,0" backgroundAlpha="255" lineSizeType="MM" diagramOrientation="Up" minScaleDenominator="0" penAlpha="255" lineSizeScale="3x:0,0,0,0,0,0" barWidth="5" scaleBasedVisibility="0" penColor="#000000" labelPlacementMethod="XHeight" enabled="0" penWidth="0" sizeType="MM" minimumSize="0" width="15">
+          <fontProperties description="Noto Sans,9,-1,5,50,0,0,0,0,0" style=""/>
+        </DiagramCategory>
+      </SingleCategoryDiagramRenderer>
+      <DiagramLayerSettings showAll="1" obstacle="0" linePlacementFlags="18" priority="0" zIndex="0" placement="0" dist="0">
+        <properties>
+          <Option type="Map">
+            <Option type="QString" name="name" value=""/>
+            <Option name="properties"/>
+            <Option type="QString" name="type" value="collection"/>
+          </Option>
+        </properties>
+      </DiagramLayerSettings>
+      <geometryOptions removeDuplicateNodes="0" geometryPrecision="0">
+        <activeChecks/>
+        <checkConfiguration/>
+      </geometryOptions>
+      <fieldConfiguration>
+        <field name="id">
+          <editWidget type="TextEdit">
+            <config>
+              <Option/>
+            </config>
+          </editWidget>
+        </field>
+      </fieldConfiguration>
+      <aliases>
+        <alias index="0" name="" field="id"/>
+      </aliases>
+      <excludeAttributesWMS/>
+      <excludeAttributesWFS/>
+      <defaults>
+        <default applyOnUpdate="0" expression="" field="id"/>
+      </defaults>
+      <constraints>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+      </constraints>
+      <constraintExpressions>
+        <constraint field="id" exp="" desc=""/>
+      </constraintExpressions>
+      <expressionfields/>
+      <attributeactions>
+        <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
+      </attributeactions>
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
+        <columns>
+          <column type="field" name="id" hidden="0" width="-1"/>
+          <column type="actions" hidden="1" width="-1"/>
+        </columns>
+      </attributetableconfig>
+      <conditionalstyles>
+        <rowstyles/>
+        <fieldstyles/>
+      </conditionalstyles>
+      <editform tolerant="1"></editform>
+      <editforminit/>
+      <editforminitcodesource>0</editforminitcodesource>
+      <editforminitfilepath></editforminitfilepath>
+      <editforminitcode><![CDATA[# -*- coding: utf-8 -*-
+"""
+Les formulaires QGIS peuvent avoir une fonction Python qui sera appelée à l'ouverture du formulaire.
+
+Utilisez cette fonction pour ajouter plus de fonctionnalités à vos formulaires.
+
+Entrez le nom de la fonction dans le champ "Fonction d'initialisation Python".
+Voici un exemple à suivre:
+"""
+from qgis.PyQt.QtWidgets import QWidget
+
+def my_form_open(dialog, layer, feature):
+    geom = feature.geometry()
+    control = dialog.findChild(QWidget, "MyLineEdit")
+
+]]></editforminitcode>
+      <featformsuppress>0</featformsuppress>
+      <editorlayout>generatedlayout</editorlayout>
+      <editable>
+        <field name="id" editable="1"/>
+      </editable>
+      <labelOnTop>
+        <field labelOnTop="0" name="id"/>
+      </labelOnTop>
+      <widgets/>
+      <previewExpression>id</previewExpression>
+      <mapTip></mapTip>
+    </maplayer>
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Point" autoRefreshTime="0">
       <extent>
         <xmin>31739063.62000000104308128</xmin>
         <ymin>33490793.80000000074505806</ymin>
@@ -449,33 +663,33 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="marker" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleMarker" pass="0">
-              <prop k="angle" v="0"/>
-              <prop k="color" v="231,113,72,255"/>
-              <prop k="horizontal_anchor_point" v="1"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="name" v="circle"/>
-              <prop k="offset" v="0,0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="outline_color" v="35,35,35,255"/>
-              <prop k="outline_style" v="solid"/>
-              <prop k="outline_width" v="0"/>
-              <prop k="outline_width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="outline_width_unit" v="MM"/>
-              <prop k="scale_method" v="diameter"/>
-              <prop k="size" v="2"/>
-              <prop k="size_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="size_unit" v="MM"/>
-              <prop k="vertical_anchor_point" v="1"/>
+          <symbol type="marker" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleMarker" locked="0" enabled="1">
+              <prop v="0" k="angle"/>
+              <prop v="231,113,72,255" k="color"/>
+              <prop v="1" k="horizontal_anchor_point"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="circle" k="name"/>
+              <prop v="0,0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="35,35,35,255" k="outline_color"/>
+              <prop v="solid" k="outline_style"/>
+              <prop v="0" k="outline_width"/>
+              <prop v="3x:0,0,0,0,0,0" k="outline_width_map_unit_scale"/>
+              <prop v="MM" k="outline_width_unit"/>
+              <prop v="diameter" k="scale_method"/>
+              <prop v="2" k="size"/>
+              <prop v="3x:0,0,0,0,0,0" k="size_map_unit_scale"/>
+              <prop v="MM" k="size_unit"/>
+              <prop v="1" k="vertical_anchor_point"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -523,24 +737,24 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="date_" name=""/>
-        <alias index="2" field="comments" name=""/>
-        <alias index="3" field="depth_" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="date_"/>
+        <alias index="2" name="" field="comments"/>
+        <alias index="3" name="" field="depth_"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="date_" applyOnUpdate="0" expression=""/>
-        <default field="comments" applyOnUpdate="0" expression=""/>
-        <default field="depth_" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="date_"/>
+        <default applyOnUpdate="0" expression="" field="comments"/>
+        <default applyOnUpdate="0" expression="" field="depth_"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="date_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="comments" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="depth_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="date_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="comments"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="depth_"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -552,7 +766,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -572,7 +786,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Line" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Line" autoRefreshTime="0">
       <id>edge_32c6a82a_82cd_477f_b119_398536a6b6ed</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=LineStringZ checkPrimaryKeyUnicity='1' table="albion"."edge" (geom) sql=</datasource>
       <keywordList>
@@ -630,31 +844,31 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="line" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleLine" pass="0">
-              <prop k="capstyle" v="square"/>
-              <prop k="customdash" v="5;2"/>
-              <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="customdash_unit" v="MM"/>
-              <prop k="draw_inside_polygon" v="0"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="line_color" v="152,125,183,255"/>
-              <prop k="line_style" v="solid"/>
-              <prop k="line_width" v="0.26"/>
-              <prop k="line_width_unit" v="MM"/>
-              <prop k="offset" v="0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="ring_filter" v="0"/>
-              <prop k="use_custom_dash" v="0"/>
-              <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+          <symbol type="line" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleLine" locked="0" enabled="1">
+              <prop v="square" k="capstyle"/>
+              <prop v="5;2" k="customdash"/>
+              <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+              <prop v="MM" k="customdash_unit"/>
+              <prop v="0" k="draw_inside_polygon"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="152,125,183,255" k="line_color"/>
+              <prop v="solid" k="line_style"/>
+              <prop v="0.26" k="line_width"/>
+              <prop v="MM" k="line_width_unit"/>
+              <prop v="0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0" k="ring_filter"/>
+              <prop v="0" k="use_custom_dash"/>
+              <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -702,24 +916,24 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="start_" name=""/>
-        <alias index="2" field="end_" name=""/>
-        <alias index="3" field="graph_id" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="start_"/>
+        <alias index="2" name="" field="end_"/>
+        <alias index="3" name="" field="graph_id"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="start_" applyOnUpdate="0" expression=""/>
-        <default field="end_" applyOnUpdate="0" expression=""/>
-        <default field="graph_id" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="start_"/>
+        <default applyOnUpdate="0" expression="" field="end_"/>
+        <default applyOnUpdate="0" expression="" field="graph_id"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="start_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="end_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="graph_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="start_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="end_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="graph_id"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -731,7 +945,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -751,7 +965,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Line" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Line" autoRefreshTime="0">
       <id>edge_section_8b745326_1406_43a8_803e_8ee85be59103</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table="albion"."edge_section" (geom) sql=</datasource>
       <keywordList>
@@ -809,31 +1023,31 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="line" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleLine" pass="0">
-              <prop k="capstyle" v="square"/>
-              <prop k="customdash" v="5;2"/>
-              <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="customdash_unit" v="MM"/>
-              <prop k="draw_inside_polygon" v="0"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="line_color" v="190,207,80,255"/>
-              <prop k="line_style" v="solid"/>
-              <prop k="line_width" v="0.26"/>
-              <prop k="line_width_unit" v="MM"/>
-              <prop k="offset" v="0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="ring_filter" v="0"/>
-              <prop k="use_custom_dash" v="0"/>
-              <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+          <symbol type="line" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleLine" locked="0" enabled="1">
+              <prop v="square" k="capstyle"/>
+              <prop v="5;2" k="customdash"/>
+              <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+              <prop v="MM" k="customdash_unit"/>
+              <prop v="0" k="draw_inside_polygon"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="190,207,80,255" k="line_color"/>
+              <prop v="solid" k="line_style"/>
+              <prop v="0.26" k="line_width"/>
+              <prop v="MM" k="line_width_unit"/>
+              <prop v="0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0" k="ring_filter"/>
+              <prop v="0" k="use_custom_dash"/>
+              <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -895,30 +1109,30 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="edge_id" name=""/>
-        <alias index="2" field="start_" name=""/>
-        <alias index="3" field="end_" name=""/>
-        <alias index="4" field="graph_id" name=""/>
-        <alias index="5" field="section_id" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="edge_id"/>
+        <alias index="2" name="" field="start_"/>
+        <alias index="3" name="" field="end_"/>
+        <alias index="4" name="" field="graph_id"/>
+        <alias index="5" name="" field="section_id"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="edge_id" applyOnUpdate="0" expression=""/>
-        <default field="start_" applyOnUpdate="0" expression=""/>
-        <default field="end_" applyOnUpdate="0" expression=""/>
-        <default field="graph_id" applyOnUpdate="0" expression=""/>
-        <default field="section_id" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="edge_id"/>
+        <default applyOnUpdate="0" expression="" field="start_"/>
+        <default applyOnUpdate="0" expression="" field="end_"/>
+        <default applyOnUpdate="0" expression="" field="graph_id"/>
+        <default applyOnUpdate="0" expression="" field="section_id"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="edge_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="start_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="end_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="graph_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="section_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="edge_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="start_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="end_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="graph_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="section_id"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -932,7 +1146,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -952,7 +1166,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Line" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Line" autoRefreshTime="0">
       <id>end_node_section_node_geom_f653243c_2e98_4638_b428_1acca01868dc</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table="albion"."end_node_section" (node_geom) sql=</datasource>
       <keywordList>
@@ -1010,31 +1224,31 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="line" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleLine" pass="0">
-              <prop k="capstyle" v="square"/>
-              <prop k="customdash" v="5;2"/>
-              <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="customdash_unit" v="MM"/>
-              <prop k="draw_inside_polygon" v="0"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="line_color" v="225,89,137,255"/>
-              <prop k="line_style" v="solid"/>
-              <prop k="line_width" v="0.26"/>
-              <prop k="line_width_unit" v="MM"/>
-              <prop k="offset" v="0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="ring_filter" v="0"/>
-              <prop k="use_custom_dash" v="0"/>
-              <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+          <symbol type="line" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleLine" locked="0" enabled="1">
+              <prop v="square" k="capstyle"/>
+              <prop v="5;2" k="customdash"/>
+              <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+              <prop v="MM" k="customdash_unit"/>
+              <prop v="0" k="draw_inside_polygon"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="225,89,137,255" k="line_color"/>
+              <prop v="solid" k="line_style"/>
+              <prop v="0.26" k="line_width"/>
+              <prop v="MM" k="line_width_unit"/>
+              <prop v="0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0" k="ring_filter"/>
+              <prop v="0" k="use_custom_dash"/>
+              <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -1096,30 +1310,30 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="end_node_id" name=""/>
-        <alias index="2" field="node_id" name=""/>
-        <alias index="3" field="graph_id" name=""/>
-        <alias index="4" field="section_id" name=""/>
-        <alias index="5" field="geom" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="end_node_id"/>
+        <alias index="2" name="" field="node_id"/>
+        <alias index="3" name="" field="graph_id"/>
+        <alias index="4" name="" field="section_id"/>
+        <alias index="5" name="" field="geom"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="end_node_id" applyOnUpdate="0" expression=""/>
-        <default field="node_id" applyOnUpdate="0" expression=""/>
-        <default field="graph_id" applyOnUpdate="0" expression=""/>
-        <default field="section_id" applyOnUpdate="0" expression=""/>
-        <default field="geom" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="end_node_id"/>
+        <default applyOnUpdate="0" expression="" field="node_id"/>
+        <default applyOnUpdate="0" expression="" field="graph_id"/>
+        <default applyOnUpdate="0" expression="" field="section_id"/>
+        <default applyOnUpdate="0" expression="" field="geom"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="end_node_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="node_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="graph_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="section_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="geom" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="end_node_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="node_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="graph_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="section_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="geom"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -1133,7 +1347,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -1153,9 +1367,9 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Polygon" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Polygon" autoRefreshTime="0">
       <id>group_cell_ec51a010_ab41_49d7_ac55_8ce0cfbb8838</id>
-      <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=Polygon checkPrimaryKeyUnicity='1' table="albion"."group_cell" (geom) sql=</datasource>
+      <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='id' srid=32632 type=Polygon checkPrimaryKeyUnicity='1' table="albion"."group_cell" (geom) sql=section_id='SN x4'</datasource>
       <keywordList>
         <value></value>
       </keywordList>
@@ -1211,26 +1425,26 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="fill" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleFill" pass="0">
-              <prop k="border_width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="color" v="229,182,54,255"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="offset" v="0,0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="outline_color" v="35,35,35,255"/>
-              <prop k="outline_style" v="solid"/>
-              <prop k="outline_width" v="0.26"/>
-              <prop k="outline_width_unit" v="MM"/>
-              <prop k="style" v="solid"/>
+          <symbol type="fill" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleFill" locked="0" enabled="1">
+              <prop v="3x:0,0,0,0,0,0" k="border_width_map_unit_scale"/>
+              <prop v="229,182,54,255" k="color"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="0,0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="35,35,35,255" k="outline_color"/>
+              <prop v="solid" k="outline_style"/>
+              <prop v="0.26" k="outline_width"/>
+              <prop v="MM" k="outline_width_unit"/>
+              <prop v="solid" k="style"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -1278,24 +1492,24 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="cell_id" name=""/>
-        <alias index="2" field="group_id" name=""/>
-        <alias index="3" field="section_id" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="cell_id"/>
+        <alias index="2" name="" field="group_id"/>
+        <alias index="3" name="" field="section_id"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="cell_id" applyOnUpdate="0" expression=""/>
-        <default field="group_id" applyOnUpdate="0" expression=""/>
-        <default field="section_id" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="cell_id"/>
+        <default applyOnUpdate="0" expression="" field="group_id"/>
+        <default applyOnUpdate="0" expression="" field="section_id"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="cell_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="group_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="section_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="cell_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="group_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="section_id"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -1307,7 +1521,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -1327,7 +1541,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Line" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Line" autoRefreshTime="0">
       <id>hole_section_1f8c7d9f_7032_4a97_8033_d7ee1c22ea2a</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table="albion"."hole_section" (geom) sql=</datasource>
       <keywordList>
@@ -1385,31 +1599,31 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="line" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleLine" pass="0">
-              <prop k="capstyle" v="square"/>
-              <prop k="customdash" v="5;2"/>
-              <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="customdash_unit" v="MM"/>
-              <prop k="draw_inside_polygon" v="0"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="line_color" v="196,60,57,255"/>
-              <prop k="line_style" v="solid"/>
-              <prop k="line_width" v="0.26"/>
-              <prop k="line_width_unit" v="MM"/>
-              <prop k="offset" v="0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="ring_filter" v="0"/>
-              <prop k="use_custom_dash" v="0"/>
-              <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+          <symbol type="line" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleLine" locked="0" enabled="1">
+              <prop v="square" k="capstyle"/>
+              <prop v="5;2" k="customdash"/>
+              <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+              <prop v="MM" k="customdash_unit"/>
+              <prop v="0" k="draw_inside_polygon"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="196,60,57,255" k="line_color"/>
+              <prop v="solid" k="line_style"/>
+              <prop v="0.26" k="line_width"/>
+              <prop v="MM" k="line_width_unit"/>
+              <prop v="0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0" k="ring_filter"/>
+              <prop v="0" k="use_custom_dash"/>
+              <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -1457,24 +1671,24 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="hole_id" name=""/>
-        <alias index="2" field="depth_" name=""/>
-        <alias index="3" field="section_id" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="hole_id"/>
+        <alias index="2" name="" field="depth_"/>
+        <alias index="3" name="" field="section_id"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="hole_id" applyOnUpdate="0" expression=""/>
-        <default field="depth_" applyOnUpdate="0" expression=""/>
-        <default field="section_id" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="hole_id"/>
+        <default applyOnUpdate="0" expression="" field="depth_"/>
+        <default applyOnUpdate="0" expression="" field="section_id"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="hole_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="depth_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="section_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="hole_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="depth_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="section_id"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -1486,7 +1700,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -1506,7 +1720,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Line" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Line" autoRefreshTime="0">
       <id>named_section_cut_47ba5a59_cd54_4752_9fee_3cbe01d07af4</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=MultiLineString checkPrimaryKeyUnicity='1' table="albion"."named_section" (cut) sql=</datasource>
       <keywordList>
@@ -1564,31 +1778,31 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="line" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleLine" pass="0">
-              <prop k="capstyle" v="square"/>
-              <prop k="customdash" v="5;2"/>
-              <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="customdash_unit" v="MM"/>
-              <prop k="draw_inside_polygon" v="0"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="line_color" v="190,178,151,255"/>
-              <prop k="line_style" v="solid"/>
-              <prop k="line_width" v="0.26"/>
-              <prop k="line_width_unit" v="MM"/>
-              <prop k="offset" v="0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="ring_filter" v="0"/>
-              <prop k="use_custom_dash" v="0"/>
-              <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+          <symbol type="line" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleLine" locked="0" enabled="1">
+              <prop v="square" k="capstyle"/>
+              <prop v="5;2" k="customdash"/>
+              <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+              <prop v="MM" k="customdash_unit"/>
+              <prop v="0" k="draw_inside_polygon"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="190,178,151,255" k="line_color"/>
+              <prop v="solid" k="line_style"/>
+              <prop v="0.26" k="line_width"/>
+              <prop v="MM" k="line_width_unit"/>
+              <prop v="0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0" k="ring_filter"/>
+              <prop v="0" k="use_custom_dash"/>
+              <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -1636,24 +1850,24 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="geom" name=""/>
-        <alias index="2" field="section" name=""/>
-        <alias index="3" field="rank_" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="geom"/>
+        <alias index="2" name="" field="section"/>
+        <alias index="3" name="" field="rank_"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="geom" applyOnUpdate="0" expression=""/>
-        <default field="section" applyOnUpdate="0" expression=""/>
-        <default field="rank_" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="geom"/>
+        <default applyOnUpdate="0" expression="" field="section"/>
+        <default applyOnUpdate="0" expression="" field="rank_"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="geom" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="section" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="rank_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="geom"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="section"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="rank_"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -1665,7 +1879,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -1685,7 +1899,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Line" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Line" autoRefreshTime="0">
       <id>node_section_63e3816d_ea42_44c6_937c_65c10a3b3ac4</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table="albion"."node_section" (geom) sql=</datasource>
       <keywordList>
@@ -1743,31 +1957,31 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="line" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleLine" pass="0">
-              <prop k="capstyle" v="square"/>
-              <prop k="customdash" v="5;2"/>
-              <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="customdash_unit" v="MM"/>
-              <prop k="draw_inside_polygon" v="0"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="line_color" v="145,82,45,255"/>
-              <prop k="line_style" v="solid"/>
-              <prop k="line_width" v="0.26"/>
-              <prop k="line_width_unit" v="MM"/>
-              <prop k="offset" v="0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="ring_filter" v="0"/>
-              <prop k="use_custom_dash" v="0"/>
-              <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+          <symbol type="line" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleLine" locked="0" enabled="1">
+              <prop v="square" k="capstyle"/>
+              <prop v="5;2" k="customdash"/>
+              <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+              <prop v="MM" k="customdash_unit"/>
+              <prop v="0" k="draw_inside_polygon"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="145,82,45,255" k="line_color"/>
+              <prop v="solid" k="line_style"/>
+              <prop v="0.26" k="line_width"/>
+              <prop v="MM" k="line_width_unit"/>
+              <prop v="0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0" k="ring_filter"/>
+              <prop v="0" k="use_custom_dash"/>
+              <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -1836,33 +2050,33 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="node_id" name=""/>
-        <alias index="2" field="hole_id" name=""/>
-        <alias index="3" field="from_" name=""/>
-        <alias index="4" field="to_" name=""/>
-        <alias index="5" field="graph_id" name=""/>
-        <alias index="6" field="section_id" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="node_id"/>
+        <alias index="2" name="" field="hole_id"/>
+        <alias index="3" name="" field="from_"/>
+        <alias index="4" name="" field="to_"/>
+        <alias index="5" name="" field="graph_id"/>
+        <alias index="6" name="" field="section_id"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="node_id" applyOnUpdate="0" expression=""/>
-        <default field="hole_id" applyOnUpdate="0" expression=""/>
-        <default field="from_" applyOnUpdate="0" expression=""/>
-        <default field="to_" applyOnUpdate="0" expression=""/>
-        <default field="graph_id" applyOnUpdate="0" expression=""/>
-        <default field="section_id" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="node_id"/>
+        <default applyOnUpdate="0" expression="" field="hole_id"/>
+        <default applyOnUpdate="0" expression="" field="from_"/>
+        <default applyOnUpdate="0" expression="" field="to_"/>
+        <default applyOnUpdate="0" expression="" field="graph_id"/>
+        <default applyOnUpdate="0" expression="" field="section_id"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="node_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="hole_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="from_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="to_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="graph_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="section_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="node_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="hole_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="from_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="to_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="graph_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="section_id"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -1877,7 +2091,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -1897,7 +2111,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Line" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Line" autoRefreshTime="0">
       <id>possible_edge_a6b83b46_56da_4098_b0fe_e703633800f5</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=LineStringZ checkPrimaryKeyUnicity='1' table="albion"."possible_edge" (geom) sql=</datasource>
       <keywordList>
@@ -1955,31 +2169,31 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="line" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleLine" pass="0">
-              <prop k="capstyle" v="square"/>
-              <prop k="customdash" v="5;2"/>
-              <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="customdash_unit" v="MM"/>
-              <prop k="draw_inside_polygon" v="0"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="line_color" v="125,139,143,255"/>
-              <prop k="line_style" v="solid"/>
-              <prop k="line_width" v="0.26"/>
-              <prop k="line_width_unit" v="MM"/>
-              <prop k="offset" v="0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="ring_filter" v="0"/>
-              <prop k="use_custom_dash" v="0"/>
-              <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+          <symbol type="line" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleLine" locked="0" enabled="1">
+              <prop v="square" k="capstyle"/>
+              <prop v="5;2" k="customdash"/>
+              <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+              <prop v="MM" k="customdash_unit"/>
+              <prop v="0" k="draw_inside_polygon"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="125,139,143,255" k="line_color"/>
+              <prop v="solid" k="line_style"/>
+              <prop v="0.26" k="line_width"/>
+              <prop v="MM" k="line_width_unit"/>
+              <prop v="0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0" k="ring_filter"/>
+              <prop v="0" k="use_custom_dash"/>
+              <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -2027,24 +2241,24 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="start_" name=""/>
-        <alias index="2" field="end_" name=""/>
-        <alias index="3" field="graph_id" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="start_"/>
+        <alias index="2" name="" field="end_"/>
+        <alias index="3" name="" field="graph_id"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="start_" applyOnUpdate="0" expression=""/>
-        <default field="end_" applyOnUpdate="0" expression=""/>
-        <default field="graph_id" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="start_"/>
+        <default applyOnUpdate="0" expression="" field="end_"/>
+        <default applyOnUpdate="0" expression="" field="graph_id"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="start_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="end_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="graph_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="start_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="end_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="graph_id"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -2056,7 +2270,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -2076,7 +2290,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Line" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Line" autoRefreshTime="0">
       <id>possible_edge_section_04705590_fcdc_4fe9_8309_3d2c648db28f</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table="albion"."possible_edge_section" (geom) sql=</datasource>
       <keywordList>
@@ -2134,31 +2348,31 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="line" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleLine" pass="0">
-              <prop k="capstyle" v="square"/>
-              <prop k="customdash" v="5;2"/>
-              <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="customdash_unit" v="MM"/>
-              <prop k="draw_inside_polygon" v="0"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="line_color" v="133,182,111,255"/>
-              <prop k="line_style" v="solid"/>
-              <prop k="line_width" v="0.26"/>
-              <prop k="line_width_unit" v="MM"/>
-              <prop k="offset" v="0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="ring_filter" v="0"/>
-              <prop k="use_custom_dash" v="0"/>
-              <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+          <symbol type="line" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleLine" locked="0" enabled="1">
+              <prop v="square" k="capstyle"/>
+              <prop v="5;2" k="customdash"/>
+              <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+              <prop v="MM" k="customdash_unit"/>
+              <prop v="0" k="draw_inside_polygon"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="133,182,111,255" k="line_color"/>
+              <prop v="solid" k="line_style"/>
+              <prop v="0.26" k="line_width"/>
+              <prop v="MM" k="line_width_unit"/>
+              <prop v="0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0" k="ring_filter"/>
+              <prop v="0" k="use_custom_dash"/>
+              <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -2213,27 +2427,27 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="start_" name=""/>
-        <alias index="2" field="end_" name=""/>
-        <alias index="3" field="graph_id" name=""/>
-        <alias index="4" field="section_id" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="start_"/>
+        <alias index="2" name="" field="end_"/>
+        <alias index="3" name="" field="graph_id"/>
+        <alias index="4" name="" field="section_id"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="start_" applyOnUpdate="0" expression=""/>
-        <default field="end_" applyOnUpdate="0" expression=""/>
-        <default field="graph_id" applyOnUpdate="0" expression=""/>
-        <default field="section_id" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="start_"/>
+        <default applyOnUpdate="0" expression="" field="end_"/>
+        <default applyOnUpdate="0" expression="" field="graph_id"/>
+        <default applyOnUpdate="0" expression="" field="section_id"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="start_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="end_" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="graph_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="section_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="start_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="end_"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="graph_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="section_id"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -2246,7 +2460,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -2266,13 +2480,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Line" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
-      <extent>
-        <xmin>31739063.30036709830164909</xmin>
-        <ymin>33490657.7391928993165493</ymin>
-        <xmax>31739651.99177160114049911</xmax>
-        <ymax>33491093.58999999985098839</ymax>
-      </extent>
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Line" autoRefreshTime="0">
       <id>section_anchor_5a49e7a1_cea4_4a35_982c_00e7801cd6da</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=LineString checkPrimaryKeyUnicity='1' table="albion"."section" (anchor) sql=</datasource>
       <keywordList>
@@ -2330,31 +2538,31 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="line" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleLine" pass="0">
-              <prop k="capstyle" v="square"/>
-              <prop k="customdash" v="5;2"/>
-              <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="customdash_unit" v="MM"/>
-              <prop k="draw_inside_polygon" v="0"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="line_color" v="164,113,88,255"/>
-              <prop k="line_style" v="solid"/>
-              <prop k="line_width" v="0.26"/>
-              <prop k="line_width_unit" v="MM"/>
-              <prop k="offset" v="0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="ring_filter" v="0"/>
-              <prop k="use_custom_dash" v="0"/>
-              <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+          <symbol type="line" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleLine" locked="0" enabled="1">
+              <prop v="square" k="capstyle"/>
+              <prop v="5;2" k="customdash"/>
+              <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+              <prop v="MM" k="customdash_unit"/>
+              <prop v="0" k="draw_inside_polygon"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="164,113,88,255" k="line_color"/>
+              <prop v="solid" k="line_style"/>
+              <prop v="0.26" k="line_width"/>
+              <prop v="MM" k="line_width_unit"/>
+              <prop v="0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0" k="ring_filter"/>
+              <prop v="0" k="use_custom_dash"/>
+              <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -2395,21 +2603,21 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="scale" name=""/>
-        <alias index="2" field="geom" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="scale"/>
+        <alias index="2" name="" field="geom"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="scale" applyOnUpdate="0" expression=""/>
-        <default field="geom" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="scale"/>
+        <default applyOnUpdate="0" expression="" field="geom"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="scale" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="geom" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="scale"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="geom"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -2420,7 +2628,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -2440,7 +2648,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Line" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Line" autoRefreshTime="0">
       <id>section_geom_7c5467f1_628b_4313_a00b_a79b3801f4c0</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=MultiLineString checkPrimaryKeyUnicity='1' table="albion"."section" (geom) sql=</datasource>
       <keywordList>
@@ -2498,31 +2706,31 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="line" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleLine" pass="0">
-              <prop k="capstyle" v="square"/>
-              <prop k="customdash" v="5;2"/>
-              <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="customdash_unit" v="MM"/>
-              <prop k="draw_inside_polygon" v="0"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="line_color" v="213,180,60,255"/>
-              <prop k="line_style" v="solid"/>
-              <prop k="line_width" v="0.26"/>
-              <prop k="line_width_unit" v="MM"/>
-              <prop k="offset" v="0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="ring_filter" v="0"/>
-              <prop k="use_custom_dash" v="0"/>
-              <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+          <symbol type="line" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleLine" locked="0" enabled="1">
+              <prop v="square" k="capstyle"/>
+              <prop v="5;2" k="customdash"/>
+              <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+              <prop v="MM" k="customdash_unit"/>
+              <prop v="0" k="draw_inside_polygon"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="213,180,60,255" k="line_color"/>
+              <prop v="solid" k="line_style"/>
+              <prop v="0.26" k="line_width"/>
+              <prop v="MM" k="line_width_unit"/>
+              <prop v="0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="0" k="ring_filter"/>
+              <prop v="0" k="use_custom_dash"/>
+              <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -2563,21 +2771,21 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="scale" name=""/>
-        <alias index="2" field="anchor" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="scale"/>
+        <alias index="2" name="" field="anchor"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="scale" applyOnUpdate="0" expression=""/>
-        <default field="anchor" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="scale"/>
+        <default applyOnUpdate="0" expression="" field="anchor"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="scale" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="anchor" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="scale"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="anchor"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -2588,7 +2796,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -2608,7 +2816,7 @@
       <previewExpression></previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Polygon" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Polygon" autoRefreshTime="0">
       <id>section_intersection_13a1d3a9_897b_48fc_9714_e20439ad1ff6</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=Polygon checkPrimaryKeyUnicity='1' table="albion"."section_intersection" (geom) sql=</datasource>
       <keywordList>
@@ -2634,6 +2842,15 @@
         <type>dataset</type>
         <title></title>
         <abstract></abstract>
+        <contact>
+          <name></name>
+          <organization></organization>
+          <position></position>
+          <voice></voice>
+          <fax></fax>
+          <email></email>
+          <role></role>
+        </contact>
         <links/>
         <fees></fees>
         <encoding></encoding>
@@ -2649,7 +2866,15 @@
             <geographicflag>false</geographicflag>
           </spatialrefsys>
         </crs>
-        <extent/>
+        <extent>
+          <spatial dimensions="2" maxz="0" maxx="0" crs="EPSG:32632" minz="0" maxy="0" miny="0" minx="0"/>
+          <temporal>
+            <period>
+              <start></start>
+              <end></end>
+            </period>
+          </temporal>
+        </extent>
       </resourceMetadata>
       <provider encoding="UTF-8">postgres</provider>
       <vectorjoins/>
@@ -2666,26 +2891,26 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="fill" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleFill" pass="0">
-              <prop k="border_width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="color" v="114,155,111,255"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="offset" v="0,0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="outline_color" v="35,35,35,255"/>
-              <prop k="outline_style" v="solid"/>
-              <prop k="outline_width" v="0.26"/>
-              <prop k="outline_width_unit" v="MM"/>
-              <prop k="style" v="solid"/>
+          <symbol type="fill" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleFill" locked="0" enabled="1">
+              <prop v="3x:0,0,0,0,0,0" k="border_width_map_unit_scale"/>
+              <prop v="252,33,4,255" k="color"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="0,0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="35,35,35,255" k="outline_color"/>
+              <prop v="solid" k="outline_style"/>
+              <prop v="0.26" k="outline_width"/>
+              <prop v="MM" k="outline_width_unit"/>
+              <prop v="solid" k="style"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -2694,17 +2919,35 @@
         <rotation/>
         <sizescale/>
       </renderer-v2>
-      <customproperties/>
+      <customproperties>
+        <property value="0" key="embeddedWidgets/count"/>
+        <property key="variableNames"/>
+        <property key="variableValues"/>
+      </customproperties>
       <blendMode>0</blendMode>
       <featureBlendMode>0</featureBlendMode>
       <layerOpacity>1</layerOpacity>
+      <SingleCategoryDiagramRenderer diagramType="Histogram" attributeLegend="1">
+        <DiagramCategory opacity="1" scaleDependency="Area" height="15" backgroundColor="#ffffff" maxScaleDenominator="1e+8" rotationOffset="270" sizeScale="3x:0,0,0,0,0,0" backgroundAlpha="255" lineSizeType="MM" diagramOrientation="Up" minScaleDenominator="0" penAlpha="255" lineSizeScale="3x:0,0,0,0,0,0" barWidth="5" scaleBasedVisibility="0" penColor="#000000" labelPlacementMethod="XHeight" enabled="0" penWidth="0" sizeType="MM" minimumSize="0" width="15">
+          <fontProperties description="Noto Sans,9,-1,5,50,0,0,0,0,0" style=""/>
+        </DiagramCategory>
+      </SingleCategoryDiagramRenderer>
+      <DiagramLayerSettings showAll="1" obstacle="0" linePlacementFlags="18" priority="0" zIndex="0" placement="1" dist="0">
+        <properties>
+          <Option type="Map">
+            <Option type="QString" name="name" value=""/>
+            <Option name="properties"/>
+            <Option type="QString" name="type" value="collection"/>
+          </Option>
+        </properties>
+      </DiagramLayerSettings>
       <geometryOptions removeDuplicateNodes="0" geometryPrecision="0">
         <activeChecks/>
         <checkConfiguration/>
       </geometryOptions>
       <fieldConfiguration>
         <field name="id">
-          <editWidget type="">
+          <editWidget type="TextEdit">
             <config>
               <Option/>
             </config>
@@ -2712,15 +2955,15 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
+        <alias index="0" name="" field="id"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -2729,8 +2972,11 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
-        <columns/>
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
+        <columns>
+          <column type="field" name="id" hidden="0" width="-1"/>
+          <column type="actions" hidden="1" width="-1"/>
+        </columns>
       </attributetableconfig>
       <conditionalstyles>
         <rowstyles/>
@@ -2740,16 +2986,35 @@
       <editforminit/>
       <editforminitcodesource>0</editforminitcodesource>
       <editforminitfilepath></editforminitfilepath>
-      <editforminitcode><![CDATA[]]></editforminitcode>
+      <editforminitcode><![CDATA[# -*- coding: utf-8 -*-
+"""
+Les formulaires QGIS peuvent avoir une fonction Python qui sera appelée à l'ouverture du formulaire.
+
+Utilisez cette fonction pour ajouter plus de fonctionnalités à vos formulaires.
+
+Entrez le nom de la fonction dans le champ "Fonction d'initialisation Python".
+Voici un exemple à suivre:
+"""
+from qgis.PyQt.QtWidgets import QWidget
+
+def my_form_open(dialog, layer, feature):
+    geom = feature.geometry()
+    control = dialog.findChild(QWidget, "MyLineEdit")
+
+]]></editforminitcode>
       <featformsuppress>0</featformsuppress>
       <editorlayout>generatedlayout</editorlayout>
-      <editable/>
-      <labelOnTop/>
+      <editable>
+        <field name="id" editable="1"/>
+      </editable>
+      <labelOnTop>
+        <field labelOnTop="0" name="id"/>
+      </labelOnTop>
       <widgets/>
-      <previewExpression></previewExpression>
+      <previewExpression>id</previewExpression>
       <mapTip></mapTip>
     </maplayer>
-    <maplayer hasScaleBasedVisibilityFlag="0" styleCategories="AllStyleCategories" simplifyDrawingHints="1" autoRefreshEnabled="0" type="vector" maxScale="0" refreshOnNotifyMessage="" geometry="Polygon" simplifyDrawingTol="1" simplifyMaxScale="1" autoRefreshTime="0" labelsEnabled="0" refreshOnNotifyEnabled="0" minScale="1e+8" readOnly="0" simplifyAlgorithm="0" simplifyLocal="1">
+    <maplayer autoRefreshEnabled="0" styleCategories="AllStyleCategories" labelsEnabled="0" simplifyLocal="1" hasScaleBasedVisibilityFlag="0" simplifyAlgorithm="0" simplifyDrawingTol="1" type="vector" maxScale="0" minScale="1e+8" simplifyDrawingHints="1" refreshOnNotifyEnabled="0" simplifyMaxScale="1" refreshOnNotifyMessage="" readOnly="0" geometry="Polygon" autoRefreshTime="0">
       <id>section_polygon_f49e48f4_9101_4351_a07c_0a99748eaca2</id>
       <datasource>dbname='template_project' host=127.0.0.1 port=55432 sslmode=disable key='"id"' srid=32632 type=MultiPolygon checkPrimaryKeyUnicity='1' table="albion"."section_polygon" (geom) sql=</datasource>
       <keywordList>
@@ -2807,26 +3072,26 @@
         <Removable>1</Removable>
         <Searchable>1</Searchable>
       </flags>
-      <renderer-v2 type="singleSymbol" forceraster="0" enableorderby="0" symbollevels="0">
+      <renderer-v2 type="singleSymbol" symbollevels="0" enableorderby="0" forceraster="0">
         <symbols>
-          <symbol clip_to_extent="1" type="fill" name="0" alpha="1" force_rhr="0">
-            <layer locked="0" enabled="1" class="SimpleFill" pass="0">
-              <prop k="border_width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="color" v="243,166,178,255"/>
-              <prop k="joinstyle" v="bevel"/>
-              <prop k="offset" v="0,0"/>
-              <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-              <prop k="offset_unit" v="MM"/>
-              <prop k="outline_color" v="35,35,35,255"/>
-              <prop k="outline_style" v="solid"/>
-              <prop k="outline_width" v="0.26"/>
-              <prop k="outline_width_unit" v="MM"/>
-              <prop k="style" v="solid"/>
+          <symbol type="fill" name="0" force_rhr="0" clip_to_extent="1" alpha="1">
+            <layer pass="0" class="SimpleFill" locked="0" enabled="1">
+              <prop v="3x:0,0,0,0,0,0" k="border_width_map_unit_scale"/>
+              <prop v="243,166,178,255" k="color"/>
+              <prop v="bevel" k="joinstyle"/>
+              <prop v="0,0" k="offset"/>
+              <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+              <prop v="MM" k="offset_unit"/>
+              <prop v="35,35,35,255" k="outline_color"/>
+              <prop v="solid" k="outline_style"/>
+              <prop v="0.26" k="outline_width"/>
+              <prop v="MM" k="outline_width_unit"/>
+              <prop v="solid" k="style"/>
               <data_defined_properties>
                 <Option type="Map">
-                  <Option type="QString" value="" name="name"/>
+                  <Option type="QString" name="name" value=""/>
                   <Option name="properties"/>
-                  <Option type="QString" value="collection" name="type"/>
+                  <Option type="QString" name="type" value="collection"/>
                 </Option>
               </data_defined_properties>
             </layer>
@@ -2867,21 +3132,21 @@
         </field>
       </fieldConfiguration>
       <aliases>
-        <alias index="0" field="id" name=""/>
-        <alias index="1" field="graph_id" name=""/>
-        <alias index="2" field="section_id" name=""/>
+        <alias index="0" name="" field="id"/>
+        <alias index="1" name="" field="graph_id"/>
+        <alias index="2" name="" field="section_id"/>
       </aliases>
       <excludeAttributesWMS/>
       <excludeAttributesWFS/>
       <defaults>
-        <default field="id" applyOnUpdate="0" expression=""/>
-        <default field="graph_id" applyOnUpdate="0" expression=""/>
-        <default field="section_id" applyOnUpdate="0" expression=""/>
+        <default applyOnUpdate="0" expression="" field="id"/>
+        <default applyOnUpdate="0" expression="" field="graph_id"/>
+        <default applyOnUpdate="0" expression="" field="section_id"/>
       </defaults>
       <constraints>
-        <constraint field="id" exp_strength="0" constraints="3" notnull_strength="1" unique_strength="1"/>
-        <constraint field="graph_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
-        <constraint field="section_id" exp_strength="0" constraints="0" notnull_strength="0" unique_strength="0"/>
+        <constraint constraints="3" unique_strength="1" notnull_strength="1" exp_strength="0" field="id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="graph_id"/>
+        <constraint constraints="0" unique_strength="0" notnull_strength="0" exp_strength="0" field="section_id"/>
       </constraints>
       <constraintExpressions>
         <constraint field="id" exp="" desc=""/>
@@ -2892,7 +3157,7 @@
       <attributeactions>
         <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
       </attributeactions>
-      <attributetableconfig sortExpression="" actionWidgetStyle="dropDown" sortOrder="0">
+      <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
         <columns/>
       </attributetableconfig>
       <conditionalstyles>
@@ -2929,30 +3194,38 @@
     <layer id="section_geom_7c5467f1_628b_4313_a00b_a79b3801f4c0"/>
     <layer id="section_intersection_13a1d3a9_897b_48fc_9714_e20439ad1ff6"/>
     <layer id="section_polygon_f49e48f4_9101_4351_a07c_0a99748eaca2"/>
+    <layer id="close_collar_95b0fcfd_f8c9_476f_9b9d_39d3d8c782f7"/>
   </layerorder>
   <properties>
+    <albion>
+      <last_dir type="QString">/home/vmo/albion/nt</last_dir>
+      <srid type="int">32632</srid>
+      <project_name type="QString">template_project</project_name>
+    </albion>
     <Measure>
       <Ellipsoid type="QString">WGS84</Ellipsoid>
     </Measure>
-    <Gui>
-      <SelectionColorAlphaPart type="int">255</SelectionColorAlphaPart>
-      <SelectionColorRedPart type="int">255</SelectionColorRedPart>
-      <CanvasColorGreenPart type="int">255</CanvasColorGreenPart>
-      <SelectionColorBluePart type="int">0</SelectionColorBluePart>
-      <SelectionColorGreenPart type="int">255</SelectionColorGreenPart>
-      <CanvasColorRedPart type="int">255</CanvasColorRedPart>
-      <CanvasColorBluePart type="int">255</CanvasColorBluePart>
-    </Gui>
+    <Measurement>
+      <DistanceUnits type="QString">meters</DistanceUnits>
+      <AreaUnits type="QString">m2</AreaUnits>
+    </Measurement>
+    <PositionPrecision>
+      <DecimalPlaces type="int">2</DecimalPlaces>
+      <Automatic type="bool">true</Automatic>
+    </PositionPrecision>
+    <Legend>
+      <filterByMap type="bool">false</filterByMap>
+    </Legend>
     <PAL>
-      <DrawRectOnly type="bool">false</DrawRectOnly>
-      <CandidatesPoint type="int">16</CandidatesPoint>
-      <ShowingAllLabels type="bool">false</ShowingAllLabels>
-      <TextFormat type="int">0</TextFormat>
-      <ShowingCandidates type="bool">false</ShowingCandidates>
-      <CandidatesLine type="int">50</CandidatesLine>
       <ShowingPartialsLabels type="bool">true</ShowingPartialsLabels>
-      <SearchMethod type="int">0</SearchMethod>
+      <CandidatesPoint type="int">16</CandidatesPoint>
+      <ShowingCandidates type="bool">false</ShowingCandidates>
       <CandidatesPolygon type="int">30</CandidatesPolygon>
+      <ShowingAllLabels type="bool">false</ShowingAllLabels>
+      <SearchMethod type="int">0</SearchMethod>
+      <DrawRectOnly type="bool">false</DrawRectOnly>
+      <TextFormat type="int">0</TextFormat>
+      <CandidatesLine type="int">50</CandidatesLine>
     </PAL>
     <SpatialRefSys>
       <ProjectionsEnabled type="int">1</ProjectionsEnabled>
@@ -2960,22 +3233,15 @@
     <Paths>
       <Absolute type="bool">false</Absolute>
     </Paths>
-    <Legend>
-      <filterByMap type="bool">false</filterByMap>
-    </Legend>
-    <PositionPrecision>
-      <DecimalPlaces type="int">2</DecimalPlaces>
-      <Automatic type="bool">true</Automatic>
-    </PositionPrecision>
-    <albion>
-      <srid type="int">32632</srid>
-      <project_name type="QString">template_project</project_name>
-      <last_dir type="QString">/home/vmo/albion/nt</last_dir>
-    </albion>
-    <Measurement>
-      <AreaUnits type="QString">m2</AreaUnits>
-      <DistanceUnits type="QString">meters</DistanceUnits>
-    </Measurement>
+    <Gui>
+      <SelectionColorAlphaPart type="int">255</SelectionColorAlphaPart>
+      <CanvasColorGreenPart type="int">255</CanvasColorGreenPart>
+      <SelectionColorGreenPart type="int">255</SelectionColorGreenPart>
+      <CanvasColorRedPart type="int">255</CanvasColorRedPart>
+      <SelectionColorRedPart type="int">255</SelectionColorRedPart>
+      <SelectionColorBluePart type="int">0</SelectionColorBluePart>
+      <CanvasColorBluePart type="int">255</CanvasColorBluePart>
+    </Gui>
   </properties>
   <visibility-presets/>
   <transformContext/>

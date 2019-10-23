@@ -69,7 +69,7 @@ class Plugin(QObject):
 #            (Qt.CTRL + Qt.ALT + Qt.Key_S, self.__select_next_group),
             (Qt.CTRL + Qt.ALT + Qt.Key_N, self.__next_section),
             (Qt.CTRL + Qt.ALT + Qt.Key_B, self.__previous_section),
-            (Qt.CTRL + Qt.ALT + Qt.Key_M, self.__add_section_from_selection),
+            (Qt.CTRL + Qt.ALT + Qt.Key_J, self.__add_section_from_selection),
         ):
 
             short = QShortcut(QKeySequence(keyseq), self.__iface.mainWindow())
@@ -482,22 +482,22 @@ class Plugin(QObject):
                     QMessageBox.Yes | QMessageBox.No,
                 ).exec_()
             ):
-                return
-            Project.delete(project_name)
+                self.__iface.messageBar().pushInfo("Albion:", "keeping existing database...")
+            else:
+                Project.delete(project_name)
+                self.__iface.messageBar().pushInfo("Albion:", "creating project...")
+                Project.create(project_name, srid)
 
         if os.path.exists(fil):
             os.remove(fil)
 
-        self.__iface.messageBar().pushInfo("Albion:", "creating project...")
-        Project.create(project_name, srid)
-
         # load template
-        #open(fil, "w").write(
-        #    open(resource("template_project.qgs"))
-        #    .read()
-        #    .replace("template_project", project_name)
-        #    .replace("32632", str(srid))
-        #)
+        open(fil, "w").write(
+            open(resource("template_project.qgs"))
+            .read()
+            .replace("template_project", project_name)
+            .replace("32632", str(srid))
+        )
         self.__iface.newProject()
         QgsProject.instance().setFileName(fil)
         QgsProject.instance().read()
@@ -527,7 +527,7 @@ class Plugin(QObject):
         self.__iface.messageBar().pushWidget(progressMessageBar)
 
         self.project.import_data(dir_, ProgressBar(progress))
-        self.project.triangulate()
+        #self.project.triangulate()
         self.project.create_section_view_0_90(4)
 
         self.__iface.messageBar().clearWidgets()
@@ -715,6 +715,9 @@ class Plugin(QObject):
 
         layer = self.__layer("cell")
         if not layer:
+            self.__iface.messageBar().pushWarning(
+                "Albion", "cell layer must be selected"
+            )
             return
 
         graph = self.__current_graph.currentText()

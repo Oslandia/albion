@@ -197,8 +197,9 @@ def offset_coords(offsets, coords):
 
 def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, srid_=32632):
 
+    #TODO add REL_DISTANCE and HEIGHT as parameters
     DEBUG = False
-    PRECI = 9
+    PRECI = 6
     REL_DISTANCE = .3
     HEIGHT = 1.
     debug_files = []
@@ -210,6 +211,19 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
     holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
     edges = [(s, e) for s, e in zip(starts_, ends_)]
     assert(len(edges) == len(set(edges)))
+
+
+    # translate everything close to origin to avoid numerical issues
+    translation = None
+    for id_ in nodes.keys():
+        if translation is None:
+            translation = nodes[id_].coords[0]
+        nodes[id_] = translate(nodes[id_], -translation[0], -translation[1], -translation[2])
+
+    for id_ in ends.keys():
+        for i in range(len(ends[id_])):
+            ends[id_][i] = translate(ends[id_][i],  -translation[0], -translation[1], -translation[2])
+
 
     graph = defaultdict(set) # undirected (edge in both directions)
     for e in edges:
@@ -291,9 +305,10 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
             if p and p not in offsets:
                 if face_lines[i].points[0] in offsets and face_lines[i].points[-1] in offsets\
                         and face_lines[j].points[0] in offsets and face_lines[j].points[-1] in offsets:
-                    offsets[p] = sym_split(
+                    splt = sym_split(
                             offset_coords(offsets, [face_lines[i].points[0], face_lines[i].points[-1]]),
                             offset_coords(offsets, [face_lines[j].points[0], face_lines[j].points[-1]]))
+                    offsets[p] = splt if splt else p
                 else:
                     offsets[p] = p
 
@@ -522,9 +537,40 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         connected.append(pop_connected(n, graph))
 
     for c in connected:
-        r = MultiPolygon([result[i] for i in c])
-        geos.lgeos.GEOSSetSRID(r._geom, srid_)
-        yield r.wkb_hex
+        res = MultiPolygon([result[i] for i in c])
+        if DEBUG:
+            open("/tmp/volume_tr.obj", 'w').write(to_obj(res.wkb_hex))
+            # check volume is closed
+            edges = set()
+            for p in res:
+                for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
+                    if (e, s) in edges:
+                        edges.remove((e, s))
+                    else:
+                        edges.add((s, e))
+            if len(edges):
+                print("volume is not closed", edges)
+                open("/tmp/unconnected_edge.vtk", 'w').write(to_vtk(MultiLineString([LineString(e) for e in edges]).wkb_hex))
+
+
+            # check volume is positive
+            volume = 0
+            for p in res:
+                r = p.exterior.coords
+                v210 = r[2][0]*r[1][1]*r[0][2];
+                v120 = r[1][0]*r[2][1]*r[0][2];
+                v201 = r[2][0]*r[0][1]*r[1][2];
+                v021 = r[0][0]*r[2][1]*r[1][2];
+                v102 = r[1][0]*r[0][1]*r[2][2];
+                v012 = r[0][0]*r[1][1]*r[2][2];
+                volume += (1./6.)*(-v210 + v120 + v201 - v021 - v102 + v012)
+            if volume <= 0 :
+                print("volume is", volume)
+        
+        res = translate(res, translation[0], translation[1], translation[2])
+        geos.lgeos.GEOSSetSRID(res._geom, srid_)
+            
+        yield res.wkb_hex
 
     for f in debug_files:
         os.remove(f)
