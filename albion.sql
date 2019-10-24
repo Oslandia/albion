@@ -1526,6 +1526,22 @@ $$
 $$
 ;
 
+--create or replace function albion.triangle_intersection(t1_ geometry, t2_ geometry)
+--returns geometry
+--language plpgsql immutable
+--as
+--$$
+--    begin
+--        return (select st_collect(geom) from 
+--            ( select a.geom
+--                from st_dump(t1_) a, st_dump(t2_) b
+--                where a.geom = st_reverse(b.geom)
+--            ) as t);
+--
+--    end;
+--$$
+--;
+
 
 create or replace view albion.volume_section as
 with touching_cell as (

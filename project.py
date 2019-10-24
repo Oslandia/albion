@@ -129,7 +129,6 @@ class Project(object):
 
     def vacuum(self):
         with self.connect() as con:
-            old_isolation_level = con.isolation_level
             con.set_isolation_level(0)
             cur = con.cursor()
             cur.execute("vacuum analyze")
@@ -220,7 +219,7 @@ class Project(object):
         return project
 
 
-    def add_table(self, table, values=None):
+    def add_table(self, table, values=None, view_only=False):
         """ 
         table: a dict with keys
             NAME: the name of the table to create
@@ -237,7 +236,7 @@ class Project(object):
         table['SET_FIELDS'] = ','.join(['{}=new.{}'.format(v,v) for v in fields])
         with self.connect() as con:
             cur = con.cursor()
-            for file_ in ("_albion_table.sql", "albion_table.sql"):
+            for file_ in (("albion_table.sql",) if view_only else ("_albion_table.sql", "albion_table.sql")):
                 for statement in (
                     open(os.path.join(os.path.dirname(__file__), file_))
                     .read()
@@ -279,7 +278,7 @@ class Project(object):
                 """);
             if cur.fetchone():
                 # here goes future upgrades
-                cur.execute("select version from albion.metadata")
+                cur.execute("select version from _albion.metadata")
             else:
                 # old albion version, we upgrade the data
                 for statement in (
@@ -305,21 +304,19 @@ class Project(object):
                     )
                 )
 
-            cur.execute("select name, fields_definition from albion.layers")
-            tables = [{'NAME': r[0], 'FIELDS_DEFINITION': r[1]} for r in cur.fetchall()]
-            for table in tables:
-                for statement in (
-                    open(os.path.join(os.path.dirname(__file__), "albion_table.sql"))
-                    .read()
-                    .split("\n;\n")[:-1]
-                ):
-                    table['SRID'] = str(srid)
-                    cur.execute(
-                        string.Template(statement).substitute(table)
-                    )
             con.commit()
 
+            cur.execute("select name, fields_definition from albion.layer")
+            tables = [{'NAME': r[0], 'FIELDS_DEFINITION': r[1]} for r in cur.fetchall()]
+
+        for table in tables:
+            table['SRID'] = str(srid)
+            self.add_table(table, view_only=True)
+
+        self.vacuum()
+
     def export_sections(self, graph):
+        # TODO
         assert(False)
         pass
 
@@ -563,6 +560,7 @@ class Project(object):
 
     def next_subsection(self, section):
         with self.connect() as con:
+            print("select section from distance")
             cur = con.cursor()
             cur.execute(
                 """
@@ -577,6 +575,7 @@ class Project(object):
             if not res:
                 return
             group = res[0] or 0
+            print("select geom for next")
             cur.execute(
                 """
                 select geom from albion.section_geom
@@ -586,12 +585,14 @@ class Project(object):
                 limit 1 """.format( group=group, section=section)
             )
             res = cur.fetchone()
+            print("update section")
             if res:
                 sql = """
                     update albion.section set geom=st_multi('{}'::geometry) where id='{}'
                     """.format(res[0], section)
                 cur.execute(sql)
                 con.commit()
+            print("done")
 
     def previous_subsection(self, section):
         with self.connect() as con:
@@ -867,6 +868,7 @@ class Project(object):
     def import_(name, filename):
         import_db(filename, name)
         project = Project(name)
+        project.update()
         project.create_sections()
         return project
 

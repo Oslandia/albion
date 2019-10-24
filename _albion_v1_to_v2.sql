@@ -30,6 +30,9 @@ from (VALUES
 join information_schema.tables on table_schema = '_albion' and table_name = t.name
 ;
 
+alter table if exists _albion.chemical add column id varchar primary key default _albion.unique_id()::varchar 
+;
+
 -- merge collar and hole tables
 alter table _albion.hole alter column id set default _albion.unique_id()::varchar
 ;
@@ -89,3 +92,13 @@ alter table _albion.end_node add constraint end_node_hole_id_fkey foreign key(ho
 
 drop table _albion.collar
 ;
+
+-- adds named_section
+create table _albion.named_section(
+    id varchar primary key default _albion.unique_id()::varchar,
+    geom geometry('LINESTRING', $SRID) not null,
+    cut geometry('MULTILINESTRING', $SRID) not null,
+    section varchar not null references _albion.section(id) on delete cascade on update cascade
+)
+;
+

@@ -4,7 +4,7 @@ from builtins import str
 from qgis.core import *
 from qgis.gui import *
 
-from qgis.PyQt.QtCore import QObject, Qt, QFileInfo, QUrl
+from qgis.PyQt.QtCore import QObject, Qt, QUrl
 from qgis.PyQt.QtWidgets import QComboBox, QShortcut, QToolBar, QMenu, QFileDialog, QInputDialog, QLineEdit, QMessageBox, QProgressBar, QApplication, QDockWidget
 from qgis.PyQt.QtGui import QKeySequence, QIcon, QDesktopServices
 
@@ -336,10 +336,15 @@ class Plugin(QObject):
 
     def __next_subsection(self):
         self.project.next_subsection(self.__current_section.currentText())
+        print("refresh")
         self.__refresh_layers("section")
+        print("section")
         self.__viewer3d.widget().scene.update("section")
+        print("volume section")
         self.__viewer3d.widget().scene.update("volume_section")
+        print("3D update")
         self.__viewer3d.widget().update()
+        print("done done")
 
     def __previous_subsection(self):
         self.project.previous_subsection(self.__current_section.currentText())
@@ -476,7 +481,7 @@ class Plugin(QObject):
                 != QMessageBox(
                     QMessageBox.Information,
                     "Delete existing DB",
-                    "Database {} exits, to you want to delete it ?".format(
+                    "Database {} exits, do you want to delete it ?".format(
                         project_name
                     ),
                     QMessageBox.Yes | QMessageBox.No,
@@ -777,7 +782,7 @@ class Plugin(QObject):
 
         project = Project.import_(dbname, dump)
 
-        QgsProject.instance().read(QFileInfo(prj))
+        QgsProject.instance().read(prj)
 
     def __export_project(self):
         if self.project is None:
