@@ -9,6 +9,26 @@ create schema albion
 -- UTILITY FUNCTIONS
 -------------------------------------------------------------------------------
 
+create or replace function albion.triangle_aspect_ratio(geom geometry)
+returns float
+language plpgsql
+as
+$$
+    declare
+        a float;
+        b float;
+        c float;
+        s float;
+    begin
+        a := st_distance(st_pointn(st_exteriorring(geom), 1), st_pointn(st_exteriorring(geom), 2));
+        b := st_distance(st_pointn(st_exteriorring(geom), 2), st_pointn(st_exteriorring(geom), 3));
+        c := st_distance(st_pointn(st_exteriorring(geom), 3), st_pointn(st_exteriorring(geom), 1));
+        s := (a+b+c)/2;
+        return a*b*c/(8*(s-a)*(s-b)*(s-c));
+        
+    end;
+$$
+;
 
 create or replace function albion.hole_geom(hole_id_ varchar)
 returns geometry
@@ -217,7 +237,28 @@ select distinct on (a.id) a.id, a.geom from albion.collar as a, albion.collar as
 where a.id != b.id and st_dwithin(a.geom, b.geom, m.close_collar_distance)
 ;
 
-create view albion.cell as select id, a, b, c, geom::geometry('POLYGON', $SRID) from _albion.cell
+create view albion.cell as select id, a, b, c, geom::geometry('POLYGON', $SRID), albion.triangle_aspect_ratio(geom) as aspect_ratio from _albion.cell
+;
+
+create or replace function albion.cell_after_fct()
+returns trigger
+language plpgsql
+as
+$$
+    begin
+        refresh materialized view albion.all_edge;
+        return null;
+    end;
+$$
+;
+
+-- this trigger should work on the view instead of the table, but for unknown reason it doesn't, so we put it on the table
+drop trigger if exists cell_after_trig ON _albion.cell 
+;
+
+create trigger cell_after_trig
+    after delete on _albion.cell
+       for each statement execute procedure albion.cell_after_fct()
 ;
 
 create or replace function albion.tesselate(polygon_ geometry, lines_ geometry, points_ geometry)
@@ -1378,7 +1419,7 @@ edge as (
 ),
 poly as (
     select 
-        ('SRID=32632; POLYGON(('||
+        ('SRID=$SRID; POLYGON(('||
                     st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||','||
                     st_x(st_endpoint(ns.geom))   ||' '||st_y(st_endpoint(ns.geom))  ||','||
                     st_x(st_endpoint(ne.geom))   ||' '||st_y(st_endpoint(ne.geom))  ||','||
@@ -1390,7 +1431,7 @@ poly as (
     join node as ne on ne.node_id=e.end_ and ne.section_id=e.section_id
 ),
 term as (
-    select ('SRID=32632; POLYGON(('||
+    select ('SRID=$SRID; POLYGON(('||
                     st_x(st_startpoint(t.node_geom)) ||' '||st_y(st_startpoint(t.node_geom))||','||
                     st_x(st_endpoint(t.node_geom))   ||' '||st_y(st_endpoint(t.node_geom))  ||','||
                     st_x(st_endpoint(t.geom))   ||' '||st_y(st_endpoint(t.geom))  ||','||
@@ -1400,7 +1441,7 @@ term as (
         t.graph_id, t.section_id
         from albion.end_node_section as t
 )
-select row_number() over() as id, st_multi(st_union(geom))::geometry('MULTIPOLYGON', 32632) as geom, graph_id, section_id
+select row_number() over() as id, st_multi(st_union(geom))::geometry('MULTIPOLYGON', $SRID) as geom, graph_id, section_id
 from (select * from poly union all select * from term where st_isvalid(geom)) as t
 group by graph_id, section_id
 ;
@@ -1656,7 +1697,6 @@ $$
     end;
 $$
 ;
-
 
 
 -- TODO

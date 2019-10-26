@@ -711,60 +711,50 @@ class Project(object):
             )
             open(filename, "w").write(cur.fetchone()[0])
 
-    def export_elementary_volume_obj(self, graph_id, cell_id, outdir, closed):
+    def export_elementary_volume_obj(self, graph_id, cell_ids, outdir, closed_only=False):
         with self.connect() as con:
-            closed_sql = ""
-            if not closed:
-                closed_sql = "not"
-
             cur = con.cursor()
             cur.execute(
                 """
-                select albion.to_obj(geom) from albion.dynamic_volume
-                where cell_id='{}' and graph_id='{}'
-                and {} albion.is_closed_volume(geom)
+                select cell_id, row_number() over(partition by cell_id order by closed desc), obj, closed 
+                from (
+                    select cell_id, albion.to_obj(triangulation) as obj, albion.is_closed_volume(triangulation) as closed 
+                    from albion.volume
+                    where cell_id in ({}) and graph_id='{}'
+                    ) as t
                 """.format(
-                    cell_id, graph_id, closed_sql
+                    ','.join(["'{}'".format(c) for c in cell_ids]), graph_id
                 )
             )
-
-            status = "opened"
-            if closed:
-                status = "closed"
-
-            i = 0
-            for obj in cur.fetchall():
-                filename = '{}_{}_{}_{}.obj'.format(cell_id, graph_id, status, i)
-                i += 1
+            for cell_id, i, obj, closed in cur.fetchall():
+                if closed_only and not closed:
+                    continue
+                filename = '{}_{}_{}_{}.obj'.format(cell_id, graph_id, "closed" if closed else "opened", i)
                 path = os.path.join(outdir, filename)
                 open(path, "w").write(obj[0])
+            
 
-    def export_elementary_volume_dxf(self, graph_id, cell_id, outdir, closed):
+    def export_elementary_volume_dxf(self, graph_id, cell_ids, outdir, closed_only=False):
         with self.connect() as con:
-            closed_sql = ""
-            if not closed:
-                closed_sql = "not"
-
             cur = con.cursor()
             cur.execute(
                 """
-                select geom from albion.dynamic_volume
-                where cell_id='{}' and graph_id='{}'
-                and {} albion.is_closed_volume(geom)
+                select cell_id, row_number() over(partition by cell_id order by closed desc), geom, closed 
+                from (
+                    select cell_id, triangulation as geom, albion.is_closed_volume(triangulation) as closed 
+                    from albion.volume
+                    where cell_id in ({}) and graph_id='{}'
+                    ) as t
                 """.format(
-                    cell_id, graph_id, closed_sql
+                    ','.join(["'{}'".format(c) for c in cell_ids]), graph_id
                 )
             )
 
-            status = "opened"
-            if closed:
-                status = "closed"
-
-            i = 0
-            for wkb_geom in cur.fetchall():
-                geom = wkb.loads(bytes.fromhex(wkb_geom[0]))
-
-                filename = '{}_{}_{}_{}.dxf'.format(cell_id, graph_id, status, i)
+            for cell_id, i, wkb_geom, closed in cur.fetchall():
+                geom = wkb.loads(bytes.fromhex(wkb_geom))
+                if closed_only and not closed:
+                    continue
+                filename = '{}_{}_{}_{}.dxf'.format(cell_id, graph_id, "closed" if closed else "opened", i)
                 path = os.path.join(outdir, filename)
                 drawing = dxf.drawing(path)
 
@@ -774,8 +764,6 @@ class Project(object):
                         dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1)
                     )
                 drawing.save()
-
-                i += 1
 
     def errors_obj(self, graph_id, filename):
         with self.connect() as con:

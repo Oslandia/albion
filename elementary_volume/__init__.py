@@ -164,7 +164,7 @@ def linemerge(lines):
     return merged
 
 def has_proper_2d_topology(line):
-    SIN_MIN_ANGLE = 5.*PI/180
+    SIN_MIN_ANGLE = .01*PI/180
     l = line
     if len(l) <=2 :
         return False
@@ -198,7 +198,7 @@ def offset_coords(offsets, coords):
 def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, srid_=32632):
 
     #TODO add REL_DISTANCE and HEIGHT as parameters
-    DEBUG = False
+    DEBUG = True
     PRECI = 6
     REL_DISTANCE = .3
     HEIGHT = 1.
@@ -479,6 +479,7 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
 
             if DEBUG:
                 open("/tmp/linework_%s.vtk"%(face), 'w').write(to_vtk(MultiLineString([LineString(e) for e in merged]).wkb_hex))
+            face_triangles = []
             for m in merged:
                 if has_proper_2d_topology(m):
                     node_map = {(round(x[0], PRECI), round(x[1], PRECI)): x for x in m}
@@ -491,6 +492,10 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                             if face == 'bottom' else \
                             Polygon([node_map[tri[2]], node_map[tri[1]], node_map[tri[0]]])
                         result.append(q)
+                        face_triangles.append(q)
+            if DEBUG:
+                open("/tmp/face_{}.obj".format(face), 'w').write(to_obj(MultiPolygon(face_triangles).wkb_hex))
+
 
     # adds isolated nodes terminations
     for n, l in list(ends.items()):

@@ -9,8 +9,6 @@ if __name__ == "__main__":
     import tempfile
     import zipfile
 
-
-
     project_name = "tutorial_test"
     
     if Project.exists(project_name):
@@ -30,10 +28,15 @@ if __name__ == "__main__":
 
     with project.connect() as con:
         cur = con.cursor()
+        cur.execute("delete from albion.cell where aspect_ratio > 10")
+        con.commit()
+
+    with project.connect() as con:
+        cur = con.cursor()
         cur.execute("select name from albion.layer")
         layers = [r[0] for r in cur.fetchall()]
+        print(layers)
 
-    print(layers)
     #for l in layers:
     #    project.refresh_section_geom(l)
     
@@ -50,21 +53,20 @@ if __name__ == "__main__":
         con.commit()
 
     project.accept_possible_edge('330')
+    project.create_terminations('330')
     project.create_volumes('330')
 
     # test that all volumes are closed and positive
     with project.connect() as con:
         cur = con.cursor()
         cur.execute("""
-            select cell_id from albion.volume where not albion.is_closed_volume(triangulation) limit 3
+            select cell_id from albion.volume where not albion.is_closed_volume(triangulation)
             """
             )
-        print("unclosed volume for cells", cur.fetchall())
-        cur.execute("""
-            select count(1) from albion.volume where not albion.is_closed_volume(triangulation)
-            """
-            )
-        assert(cur.fetchone()[0]==0)
+        unclosed = cur.fetchall()
+        if len(unclosed):
+            print("unclosed volume for cells", unclosed)
+        assert(len(unclosed) == 0)
         cur.execute("""
             select count(1) from albion.volume where albion.volume_of_geom(triangulation) <= 0
             """
@@ -82,7 +84,17 @@ if __name__ == "__main__":
         con.commit()
 
     project.accept_possible_edge('min1000')
+    project.create_terminations('min1000')
     project.create_volumes('min1000')
+
+    with project.connect() as con:
+        cur = con.cursor()
+        cur.execute("select id from albion.cell")
+        os.mkdir('/tmp/min1000')
+        cells = [r for r, in cur.fetchall()]
+        for i, cell_id in enumerate(cells):
+            print(i/len(cells))
+            project.export_elementary_volume_obj('min1000', cell_id, '/tmp/min1000', False)
 
     
 

@@ -206,3 +206,14 @@ create table _albion.named_section(
 )
 ;
 
+create table _albion.vertical_face(
+    id varchar primary key default _albion.unique_id()::varchar,
+    graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
+    left_hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
+    right_hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
+    triangulation geometry('MULTIPOLYGONZ', $SRID) not null
+);
+
+
+
+
