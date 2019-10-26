@@ -48,8 +48,9 @@ class ExportElementaryVolume(QDialog, FORM_CLASS):
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         QApplication.processEvents()
         cell_ids = [feature["id"]
-            for feature in self.cell_layer.getFeatures(QgsFeatureRequest(fid)):
-            for fid in fids]
+            for fid in fids 
+            for feature in self.cell_layer.getFeatures(QgsFeatureRequest(fid))
+            ]
 
         outdir = self.mOutputDir.text()
 
