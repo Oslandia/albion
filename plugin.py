@@ -685,9 +685,12 @@ class Plugin(QObject):
 
     def __refresh_selected_layers_sections(self):
         assert(self.project)
-        for l in iface.layerTreeView().selectedLayers(): 
+        for l in self.__iface.layerTreeView().selectedLayers(): 
             uri = QgsDataSourceUri(l.dataProvider().dataSourceUri())
-            self.project.refresh_section_geom(uri.table())
+            table = uri.table()
+            if table.endswith('_section'):
+                table = table[:-8]
+            self.project.refresh_section_geom(table)
 
     def __compute_mineralization(self):
         MineralizationDialog(self.project).exec_()

@@ -1030,7 +1030,7 @@ join _albion.section as s on s.geom && hs.geom and st_intersects(s.geom, st_star
 ;
 
 
-create or replace function albion.elementary_volumes(cell_id_ varchar, graph_id_ varchar, geom_ geometry, holes_ varchar[], starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry[], end_ids_ varchar[], end_geoms_ geometry[])
+create or replace function albion.elementary_volumes(cell_id_ varchar, graph_id_ varchar, geom_ geometry, holes_ varchar[], starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry[], end_ids_ varchar[], end_geoms_ geometry[], end_node_relative_distance real, end_node_thickness real)
 returns setof geometry
 language plpython3u immutable
 as
@@ -1049,7 +1049,7 @@ open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
     ' '.join(end_geoms_)+'\n'
 )
 $INCLUDE_ELEMENTARY_VOLUME
-for v in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, $SRID):
+for v in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, $SRID, end_node_relative_distance, end_node_thickness):
     yield v
 $$
 ;
@@ -1348,7 +1348,7 @@ from nrml
 
 
 create or replace view albion.dynamic_end_node as
-select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_geom(n.geom, st_startpoint(h.geom), m.end_node_relative_distance, end_node_thickness, nrml.nx::real, nrml.ny::real, nrml.nz::real)::geometry('LINESTRINGZ', $SRID) as geom, h.id as hole_id
+select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_geom(n.geom, st_startpoint(h.geom), m.end_node_relative_distance, m.end_node_thickness, nrml.nx::real, nrml.ny::real, nrml.nz::real)::geometry('LINESTRINGZ', $SRID) as geom, h.id as hole_id
 from albion.half_edge as he
 join _albion.node as n on n.id=he.node_id
 join _albion.hole as h on h.id=he.other
@@ -1495,8 +1495,8 @@ join lateral (
     and en.graph_id=g.id
 ) as en on true
 )
-select cell_id, graph_id, albion.elementary_volumes(cell_id, graph_id, st_force3d(geom), holes, starts, ends, hole_ids, node_ids, node_geoms, end_ids, end_geoms)::geometry('MULTIPOLYGONZ', $SRID) as geom, starts, ends, holes, hole_ids, node_ids, end_ids, end_geoms
-from res
+select cell_id, graph_id, albion.elementary_volumes(cell_id, graph_id, st_force3d(geom), holes, starts, ends, hole_ids, node_ids, node_geoms, end_ids, end_geoms, m.end_node_relative_distance, m.end_node_thickness)::geometry('MULTIPOLYGONZ', $SRID) as geom, starts, ends, holes, hole_ids, node_ids, end_ids, end_geoms
+from res, albion.metadata m
 ;
 
 

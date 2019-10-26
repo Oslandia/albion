@@ -916,7 +916,7 @@ class Project(object):
     def refresh_section_geom(self, table):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("select count(1) from albion.layer where id='{}'".format(table))
+            cur.execute("select count(1) from albion.layer where name='{}'".format(table))
             if cur.fetchone()[0]:
                 cur.execute("refresh materialized view albion.{}_section_geom_cache".format(table))
                 con.commit()

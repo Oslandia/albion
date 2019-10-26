@@ -87,14 +87,6 @@ if __name__ == "__main__":
     project.create_terminations('min1000')
     project.create_volumes('min1000')
 
-    with project.connect() as con:
-        cur = con.cursor()
-        cur.execute("select id from albion.cell")
-        os.mkdir('/tmp/min1000')
-        cells = [r for r, in cur.fetchall()]
-        for i, cell_id in enumerate(cells):
-            print(i/len(cells))
-            project.export_elementary_volume_obj('min1000', cell_id, '/tmp/min1000', False)
 
     
 
