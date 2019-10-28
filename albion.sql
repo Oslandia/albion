@@ -1029,9 +1029,15 @@ join _albion.section as s on s.geom && hs.geom and st_intersects(s.geom, st_star
                              s.geom && he.geom and st_intersects(s.geom, st_startpoint(he.geom))
 ;
 
+create type albion.volume_row as (
+    geom geometry('MULTIPOLYGONZ', $SRID), 
+    face1 geometry('MULTIPOLYGONZ', $SRID),
+    face2 geometry('MULTIPOLYGONZ', $SRID),
+    face3 geometry('MULTIPOLYGONZ', $SRID))
+;
 
-create or replace function albion.elementary_volumes(cell_id_ varchar, graph_id_ varchar, geom_ geometry, holes_ varchar[], starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry[], end_ids_ varchar[], end_geoms_ geometry[], end_node_relative_distance real, end_node_thickness real)
-returns setof geometry
+create or replace function albion.elementary_volumes(cell_id_ varchar, graph_id_ varchar, geom_ geometry, holes_ varchar[], starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry[], end_ids_ varchar[], end_geoms_ geometry[], end_holes_ varchar[], end_node_relative_distance real, end_node_thickness real)
+returns setof albion.volume_row
 language plpython3u immutable
 as
 $$
@@ -1049,8 +1055,8 @@ open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
     ' '.join(end_geoms_)+'\n'
 )
 $INCLUDE_ELEMENTARY_VOLUME
-for v in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, $SRID, end_node_relative_distance, end_node_thickness):
-    yield v
+for g, f1, f2, f3 in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, end_holes_, $SRID, end_node_relative_distance, end_node_thickness):
+    yield g, f1, f2, f3
 $$
 ;
 
@@ -1466,7 +1472,7 @@ where not st_isempty(geom)
 create or replace view albion.dynamic_volume as
 with res as (
 select
-c.id as cell_id, g.id as graph_id, ed.starts, ed.ends, nd.hole_ids as hole_ids, nd.ids as node_ids, nd.geoms as node_geoms, en.ids as end_ids, en.geoms as end_geoms, c.geom, ARRAY[ha.id, hb.id, hc.id] as holes
+c.id as cell_id, g.id as graph_id, ed.starts, ed.ends, nd.hole_ids as hole_ids, nd.ids as node_ids, nd.geoms as node_geoms, en.ids as end_ids, en.geoms as end_geoms, c.geom, ARRAY[ha.id, hb.id, hc.id] as holes, en.end_holes
 from  _albion.graph as g
 join _albion.cell as c on true
 join _albion.hole as ha on ha.id = c.a
@@ -1487,7 +1493,7 @@ join lateral (
     and e.graph_id=g.id
 ) as ed on true
 join lateral (
-    select coalesce(array_agg(en.node_id), '{}'::varchar[]) as ids, coalesce(array_agg(en.geom), '{}'::geometry[]) as geoms
+    select coalesce(array_agg(en.node_id), '{}'::varchar[]) as ids, coalesce(array_agg(en.geom), '{}'::geometry[]) as geoms, coalesce(array_agg(en.hole_id), '{}'::varchar[]) as end_holes
     from _albion.end_node as en
     join _albion.node as n on n.id=en.node_id
     where en.hole_id in (c.a, c.b, c.c)
@@ -1495,8 +1501,14 @@ join lateral (
     and en.graph_id=g.id
 ) as en on true
 )
-select cell_id, graph_id, albion.elementary_volumes(cell_id, graph_id, st_force3d(geom), holes, starts, ends, hole_ids, node_ids, node_geoms, end_ids, end_geoms, m.end_node_relative_distance, m.end_node_thickness)::geometry('MULTIPOLYGONZ', $SRID) as geom, starts, ends, holes, hole_ids, node_ids, end_ids, end_geoms
+select cell_id, graph_id, 
+    t.geom::geometry('MULTIPOLYGONZ', $SRID), 
+    t.face1::geometry('MULTIPOLYGONZ', $SRID), 
+    t.face2::geometry('MULTIPOLYGONZ', $SRID),
+    t.face3::geometry('MULTIPOLYGONZ', $SRID), 
+    starts, ends, holes, hole_ids, node_ids, end_ids, end_geoms
 from res, albion.metadata m
+join  lateral albion.elementary_volumes(cell_id, graph_id, st_force3d(geom), holes, starts, ends, hole_ids, node_ids, node_geoms, end_ids, end_geoms, end_holes, m.end_node_relative_distance, m.end_node_thickness) as t on true
 ;
 
 
@@ -1584,23 +1596,60 @@ $$
 --;
 
 
-create or replace view albion.volume_section as
-with touching_cell as (
-    select c.id, st_intersection(s.geom, c.geom) as geom, v.triangulation, s.id as section_id, v.graph_id
+--create or replace view albion.volume_section as
+--with touching_cell as (
+--    select c.id, st_intersection(s.geom, c.geom) as geom, v.triangulation, s.id as section_id, v.graph_id
+--    from _albion.section as s
+--    join _albion.cell as c on c.geom && s.geom 
+--    and st_intersects(c.geom, s.geom) 
+--    and st_length(st_intersection(s.geom, c.geom)) > 0
+--    join _albion.volume as v on v.cell_id = c.id
+--),
+--tri as (
+--    select (st_dump(albion.triangle_intersection(c1.triangulation, c2.triangulation))).geom as geom, c1.section_id, c1.graph_id
+--    from touching_cell as c1
+--    join touching_cell as c2 on c2.id > c1.id and st_length(st_intersection(c1.geom, c2.geom)) >0 and c1.section_id = c2.section_id and c1.graph_id = c2.graph_id
+--)
+--select row_number() over() as id, st_collect(geom)::geometry('MULTIPOLYGONZ', $SRID) as geom, section_id, graph_id
+--from tri
+--group by section_id, graph_id
+--;
+
+
+create or replace view albion.edge_face as
+select t.n[1] as start_, t.n[2] as end_, face1 as geom, graph_id
+from _albion.volume v
+join _albion.cell c on c.id = v.cell_id
+join lateral (select array_agg(x order by x) as n from (values (a), (b), (c)) as v(x)) as t on true
+union all
+select t.n[2] as start_, t.n[3] as end_, face2 as geom, graph_id
+from _albion.volume v
+join _albion.cell c on c.id = v.cell_id
+join lateral (select array_agg(x order by x) as n from (values (a), (b), (c)) as v(x)) as t on true
+union all
+select t.n[1] as start_, t.n[3] as end_, face3 as geom, graph_id
+from _albion.volume v
+join _albion.cell c on c.id = v.cell_id
+join lateral (select array_agg(x order by x) as n from (values (a), (b), (c)) as v(x)) as t on true
+;
+
+create view albion.section_edge as
+with hole_idx as (
+    select s.id as section_id, h.id as hole_id
     from _albion.section as s
-    join _albion.cell as c on c.geom && s.geom 
-    and st_intersects(c.geom, s.geom) 
-    and st_length(st_intersection(s.geom, c.geom)) > 0
-    join _albion.volume as v on v.cell_id = c.id
-),
-tri as (
-    select (st_dump(albion.triangle_intersection(c1.triangulation, c2.triangulation))).geom as geom, c1.section_id, c1.graph_id
-    from touching_cell as c1
-    join touching_cell as c2 on c2.id > c1.id and st_length(st_intersection(c1.geom, c2.geom)) >0 and c1.section_id = c2.section_id and c1.graph_id = c2.graph_id
+    join _albion.hole as h on s.geom && h.geom and st_intersects(s.geom, st_startpoint(h.geom))
 )
-select row_number() over() as id, st_collect(geom)::geometry('MULTIPOLYGONZ', $SRID) as geom, section_id, graph_id
-from tri
-group by section_id, graph_id
+select e.start_, e.end_, hs.section_id
+from albion.all_edge as e
+join hole_idx as hs on hs.hole_id = e.start_
+join hole_idx as he on he.hole_id = e.end_ and he.section_id = hs.section_id
+;
+
+create or replace view albion.volume_section as
+select se.section_id, ef.graph_id, st_collectionhomogenize(st_collect(ef.geom))::geometry('MULTIPOLYGONZ', 32632) as geom
+from albion.section_edge as se
+join albion.edge_face as ef on ef.start_ = se.start_ and ef.end_ = se.end_ and not st_isempty(ef.geom)
+group by se.section_id, ef.graph_id
 ;
 
 

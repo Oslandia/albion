@@ -93,6 +93,15 @@ alter table _albion.end_node add constraint end_node_hole_id_fkey foreign key(ho
 drop table _albion.collar
 ;
 
+alter table _albion.volume add column face1 geometry('MULTIPOLYGONZ', $SRID)
+;
+
+alter table _albion.volume add column face2 geometry('MULTIPOLYGONZ', $SRID)
+;
+
+alter table _albion.volume add column face3 geometry('MULTIPOLYGONZ', $SRID)
+;
+
 -- adds named_section
 create table _albion.named_section(
     id varchar primary key default _albion.unique_id()::varchar,

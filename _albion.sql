@@ -162,8 +162,12 @@ create table _albion.volume(
     id varchar primary key default _albion.unique_id()::varchar,
     graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
     cell_id varchar not null references _albion.cell(id) on delete cascade on update cascade,
-    triangulation geometry('MULTIPOLYGONZ', $SRID) not null
-);
+    triangulation geometry('MULTIPOLYGONZ', $SRID) not null,
+    face1 geometry('MULTIPOLYGONZ', $SRID),
+    face2 geometry('MULTIPOLYGONZ', $SRID),
+    face3 geometry('MULTIPOLYGONZ', $SRID)
+)
+;
 
 create index volume_graph_id_idx on _albion.volume(graph_id)
 ;

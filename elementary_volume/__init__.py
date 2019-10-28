@@ -195,16 +195,18 @@ def offset_coords(offsets, coords):
     return [offsets[c] if c in offsets else c for c in coords]
 
 
-def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, srid_=32632, end_node_relative_distance=0.3, end_node_thickness=1):
+def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, end_holes_, srid_=32632, end_node_relative_distance=0.3, end_node_thickness=1):
 
-    DEBUG = True
+    DEBUG = False
     PRECI = 6
     debug_files = []
 
     nodes = {id_: wkb.loads(bytes.fromhex(geom)) for id_, geom in zip(node_ids_, nodes_)}
     ends = defaultdict(list)
-    for id_, geom in zip(end_ids_, end_geoms_):
+    end_holes = defaultdict(list)
+    for id_, geom, hole_id in zip(end_ids_, end_geoms_, end_holes_):
         ends[id_].append(wkb.loads(bytes.fromhex(geom)))
+        end_holes[id_].append(hole_id)
     holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
     edges = [(s, e) for s, e in zip(starts_, ends_)]
     assert(len(edges) == len(set(edges)))
@@ -247,8 +249,6 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
             triangle_edges.add(tri[0:1]+tri[2:3])
             triangle_nodes.update(tri)
 
-    result = []
-    termination = []
 
 
     # compute face offset direction for termination corners
@@ -278,6 +278,9 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
 
     face_idx = -1
     lines = []
+    faces = defaultdict(list)
+    result = []
+    termination = []
     for hl, hr in ((sorted_holes[0], sorted_holes[1]), 
                    (sorted_holes[1], sorted_holes[2]),
                    (sorted_holes[0], sorted_holes[2])):
@@ -403,6 +406,7 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     term_tri.append(q)
 
         result += domain_tri
+        faces[(hl, hr)] += domain_tri
 
         top_lines = [l for l in face_lines if l.side==Line.TOP]
         bottom_lines = [l for l in face_lines if l.side==Line.BOTTOM]
@@ -414,6 +418,8 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     to_vtk(MultiLineString([LineString([k, v]) for k, v in list(offsets.items())]).wkb_hex))
 
         # create terminations
+        terms = []
+        no_offest_terms = []
         edges = set()
         for t in term_tri:
             for s, e in zip(t.exterior.coords[:-1], t.exterior.coords[1:]):
@@ -429,17 +435,20 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     break
             if share:
                 continue
-            termination.append(t)
-            termination.append(Polygon(offset_coords(offsets, t.exterior.coords[::-1])))
+            terms.append(t)
+            no_offest_terms.append(t)
+            terms.append(Polygon(offset_coords(offsets, t.exterior.coords[::-1])))
             for s in zip(t.exterior.coords[:-1], t.exterior.coords[1:]):
                 if s in edges:
                     if (is_segment(s, top_lines) or is_segment(s, bottom_lines) or s in end_lines)\
                             and s[0] in offsets and s[1] in offsets:
-                        termination.append(Polygon([offsets[s[0]], s[1], s[0]]))
-                        termination.append(Polygon([offsets[s[0]], offsets[s[1]], s[1]]))
+                        terms.append(Polygon([offsets[s[0]], s[1], s[0]]))
+                        terms.append(Polygon([offsets[s[0]], offsets[s[1]], s[1]]))
                     if (s[1], s[0]) in end_lines:
-                        termination.append(Polygon([s[1], s[0], offsets[s[1]]]))
-                        termination.append(Polygon([s[0], offsets[s[0]], offsets[s[1]]]))
+                        terms.append(Polygon([s[1], s[0], offsets[s[1]]]))
+                        terms.append(Polygon([s[0], offsets[s[0]], offsets[s[1]]]))
+        termination += terms
+        faces[(hl, hr)] += no_offest_terms
 
     if DEBUG:
         open("/tmp/faces.obj", 'w').write(to_obj(MultiPolygon(result).wkb_hex))
@@ -510,8 +519,21 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     Polygon([l[0].coords[0], l[0].coords[1], l[1].coords[0]]),
                     Polygon([l[0].coords[1], l[1].coords[1], l[1].coords[0]])
                     ]
+            faces[tuple(sorted((holes[n], end_holes[n][0])))] += [
+                    Polygon([node.coords[0], node.coords[1], l[0].coords[0]]),
+                    Polygon([node.coords[1], l[0].coords[1], l[0].coords[0]]),
+                    ]
+            faces[tuple(sorted((holes[n], end_holes[n][1])))] += [
+                    Polygon([l[1].coords[0], node.coords[1], node.coords[0]]),
+                    Polygon([l[1].coords[0], l[1].coords[1], node.coords[1]]),
+                    ]
 
     result += termination
+
+    if DEBUG:
+        for hp, tri in faces.items():
+            open("/tmp/face_{}_{}.obj".format(hp[0], hp[1]), 'w').write(to_obj(MultiPolygon([t for t in tri]).wkb_hex))
+
 
     # decompose volume in connected components
     edges = {}
@@ -539,7 +561,22 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         connected.append(pop_connected(n, graph))
 
     for c in connected:
-        res = MultiPolygon([result[i] for i in c])
+        face1 = []
+        face2 = []
+        face3 = []
+        triangles = [result[i] for i in c]
+        res = MultiPolygon(triangles)
+
+        for f in faces[(sorted_holes[0], sorted_holes[1])]:
+            if f in triangles:
+                face1.append(f)
+        for f in faces[(sorted_holes[1], sorted_holes[2])]:
+            if f in triangles:
+                face2.append(f)
+        for f in faces[(sorted_holes[0], sorted_holes[2])]:
+            if f in triangles:
+                face3.append(f)
+        
         if DEBUG:
             open("/tmp/volume_tr.obj", 'w').write(to_obj(res.wkb_hex))
             # check volume is closed
@@ -571,8 +608,17 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         
         res = translate(res, translation[0], translation[1], translation[2])
         geos.lgeos.GEOSSetSRID(res._geom, srid_)
+
+        face1 = translate(MultiPolygon(face1), translation[0], translation[1], translation[2])
+        geos.lgeos.GEOSSetSRID(face1._geom, srid_)
+
+        face2 = translate(MultiPolygon(face2), translation[0], translation[1], translation[2])
+        geos.lgeos.GEOSSetSRID(face2._geom, srid_)
+
+        face3 = translate(MultiPolygon(face3), translation[0], translation[1], translation[2])
+        geos.lgeos.GEOSSetSRID(face3._geom, srid_)
             
-        yield res.wkb_hex
+        yield res.wkb_hex, face1.wkb_hex, face2.wkb_hex, face3.wkb_hex
 
     for f in debug_files:
         os.remove(f)

@@ -816,8 +816,8 @@ class Project(object):
             )
             cur.execute(
                 """
-                insert into albion.volume(graph_id, cell_id, triangulation)
-                select graph_id, cell_id, geom
+                insert into _albion.volume(graph_id, cell_id, triangulation, face1, face2, face3)
+                select graph_id, cell_id, geom, face1, face2, face3
                 from albion.dynamic_volume
                 where graph_id='{}'
                 and geom is not null --not st_isempty(geom)
