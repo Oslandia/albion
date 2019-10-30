@@ -246,7 +246,6 @@ class Project(object):
                         string.Template(statement).substitute(table)
                     )
             if values is not None:
-                print(table)
                 cur.executemany("""
                     insert into albion.{NAME}(hole_id, from_, to_, {FIELDS})
                     values (%s, %s, %s, {FORMAT})
@@ -257,12 +256,9 @@ class Project(object):
             con.commit()
         self.vacuum()
 
-        # TODO add a list of tables in _albion to be able to restore them on update
-
 
     def update(self):
         "reload schema albion without changing data"
-
 
         with self.connect() as con:
             cur = con.cursor()
@@ -386,6 +382,8 @@ class Project(object):
             return self.__has_volume()
         elif name == "has_group_cell":
             return self.__has_group_cell()
+        elif name == "has_graph":
+            return self.__has_graph()
         elif name == "has_radiometry":
             return self.__has_radiometry()
         elif name == "has_cell":
@@ -401,37 +399,43 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.cell")
-            return cur.fetchone()[0] > 1
+            return cur.fetchone()[0] > 0
 
     def __has_hole(self):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.hole where geom is not null")
-            return cur.fetchone()[0] > 1
+            return cur.fetchone()[0] > 0
 
     def __has_volume(self):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.volume")
-            return cur.fetchone()[0] > 1
+            return cur.fetchone()[0] > 0
 
     def __has_section(self):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.named_section")
-            return cur.fetchone()[0] > 1
+            return cur.fetchone()[0] > 0
 
     def __has_group_cell(self):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.group_cell")
-            return cur.fetchone()[0] > 1
+            return cur.fetchone()[0] > 0
+
+    def __has_graph(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.graph")
+            return cur.fetchone()[0] > 0
 
     def __has_radiometry(self):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.radiometry")
-            return cur.fetchone()[0] > 1
+            return cur.fetchone()[0] > 0
 
 
 

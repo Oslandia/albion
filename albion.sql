@@ -904,7 +904,7 @@ $$
             if new.start_ > new.end_ then
                 select new.start_, new.end_ into new.end_, new.start_;
             end if;
-            -- @todo check that edge is in all_edge
+            -- check that edge is in all_edge
             select count(1)
             from albion.all_edge as ae
             join _albion.hole as hs on hs.id=ae.start_

@@ -19,7 +19,7 @@ from .mineralization import MineralizationDialog
 from .axis_layer import AxisLayer, AxisLayerType
 from .viewer_3d.viewer_3d import Viewer3d
 from .viewer_3d.viewer_controls import ViewerControls
-from .log_strati import BoreHoleWindow
+#from .log_strati import BoreHoleWindow
 
 from .export_elementary_volume import ExportElementaryVolume
 
@@ -84,9 +84,9 @@ class Plugin(QObject):
         self.__toolbar = QToolBar("Albion")
         self.__iface.addToolBar(self.__toolbar)
 
-        self.__toolbar.addAction(
-            icon("log_strati.svg"), "stratigraphic log"
-        ).triggered.connect(self.__log_strati_clicked)
+        #self.__toolbar.addAction(
+        #    icon("log_strati.svg"), "stratigraphic log"
+        #).triggered.connect(self.__log_strati_clicked)
 
         self.__toolbar.addWidget(self.__current_graph)
         self.__current_graph.currentIndexChanged[str].connect(
@@ -242,15 +242,16 @@ class Plugin(QObject):
         )
 
         self.__add_menu_entry(
-            "Delete Graph", self.__delete_graph, self.project is not None
+            "Delete Graph", self.__delete_graph, self.project is not None and self.project.has_graph
         )
 
         self.__add_menu_entry(
-            "Add selection to graph nodes", self.__add_selection_to_graph_node, self.project is not None
+            "Add selection to graph nodes", self.__add_selection_to_graph_node, self.project is not None and self.project.has_graph
+
         )
 
         self.__add_menu_entry(
-            "Accept graph possible edges", self.__accept_possible_edge, self.project is not None
+            "Accept graph possible edges", self.__accept_possible_edge, self.project is not None and self.project.has_graph
         )
         
         self.__add_menu_entry(
@@ -446,7 +447,6 @@ class Plugin(QObject):
 
     def __new_project(self):
 
-        # @todo open dialog to configure project name and srid
         fil, __ = QFileDialog.getSaveFileName(
             None,
             u"New project name (no space, plain ascii)",
@@ -648,13 +648,26 @@ class Plugin(QObject):
     def __add_selection_to_graph_node(self):
         assert(self.project)
         #TODO ADD DIALOG TO REMIND USER THE CURRENT GRAPH
-
         if (
             self.__iface.activeLayer()
             and self.__iface.activeLayer().selectedFeatures()
         ):
             selection = self.__iface.activeLayer().selectedFeatures()
             graph = self.__current_graph.currentText()
+            if (
+                QMessageBox.Yes
+                != QMessageBox(
+                    QMessageBox.Information,
+                    "Adding selected edges",
+                    "Do you want to add {} selected edges to {} ?".format(
+                        len(selection),
+                        graph
+                    ),
+                    QMessageBox.Yes | QMessageBox.No,
+                ).exec_()
+            ):
+                return
+
             self.project.add_to_graph_node(graph, selection)
 
         self.__refresh_layers()
@@ -678,7 +691,7 @@ class Plugin(QObject):
     def __create_cells(self):
         assert(self.project)
         self.project.triangulate()
-        self.__refresh_layers("cell")
+        self.__refresh_layers()
 
     def __create_sections(self):
         assert(self.project)
@@ -859,35 +872,35 @@ class Plugin(QObject):
                 os.path.split(QgsProject.instance().fileName())[1],
             )
 
-    def __log_strati_clicked(self):
-        # @todo switch behavior when in section view -> ortho
-        self.__click_tool = QgsMapToolEmitPoint(self.__iface.mapCanvas())
-        self.__iface.mapCanvas().setMapTool(self.__click_tool)
-        self.__click_tool.canvasClicked.connect(self.__map_log_clicked)
+    #def __log_strati_clicked(self):
+    #    # @todo switch behavior when in section view -> ortho
+    #    self.__click_tool = QgsMapToolEmitPoint(self.__iface.mapCanvas())
+    #    self.__iface.mapCanvas().setMapTool(self.__click_tool)
+    #    self.__click_tool.canvasClicked.connect(self.__map_log_clicked)
 
-    def __map_log_clicked(self, point, button):
-        self.__click_tool.setParent(None)
-        self.__click_tool = None
+    #def __map_log_clicked(self, point, button):
+    #    self.__click_tool.setParent(None)
+    #    self.__click_tool = None
 
-        if self.project is None:
-            self.__log_strati and self.__log_strati.setParent(None)
-            self.__log_strati = None
-            return
+    #    if self.project is None:
+    #        self.__log_strati and self.__log_strati.setParent(None)
+    #        self.__log_strati = None
+    #        return
 
-        if self.__log_strati is None:
-            self.__log_strati = QDockWidget("Stratigraphic Log")
-            self.__log_strati.setWidget(BoreHoleWindow(self.project))
-            self.__iface.addDockWidget(Qt.LeftDockWidgetArea, self.__log_strati)
-            self.__iface.mainWindow().tabifyDockWidget(
-                self.__iface.mainWindow().findChild(QDockWidget, "Layers"),
-                self.__log_strati,
-            )
+    #    if self.__log_strati is None:
+    #        self.__log_strati = QDockWidget("Stratigraphic Log")
+    #        self.__log_strati.setWidget(BoreHoleWindow(self.project))
+    #        self.__iface.addDockWidget(Qt.LeftDockWidgetArea, self.__log_strati)
+    #        self.__iface.mainWindow().tabifyDockWidget(
+    #            self.__iface.mainWindow().findChild(QDockWidget, "Layers"),
+    #            self.__log_strati,
+    #        )
 
-        res = self.project.closest_hole_id(point.x(), point.y())
-        if res:
-            self.__log_strati.widget().scene.set_current_id(res)
-            self.__log_strati.show()
-            self.__log_strati.raise_()
+    #    res = self.project.closest_hole_id(point.x(), point.y())
+    #    if res:
+    #        self.__log_strati.widget().scene.set_current_id(res)
+    #        self.__log_strati.show()
+    #        self.__log_strati.raise_()
 
     def __line_from_selection(self):
         if (
