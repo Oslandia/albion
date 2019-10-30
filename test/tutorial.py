@@ -8,6 +8,7 @@ if __name__ == "__main__":
     import time
     import tempfile
     import zipfile
+    from osgeo import ogr
 
     project_name = "tutorial_test"
     
@@ -24,6 +25,21 @@ if __name__ == "__main__":
     project.create_section_view_0_90(4)
     project.compute_mineralization(1000, 1, 1)
 
+    # import named section from file
+    with project.connect() as con:
+        driver = ogr.GetDriverByName('GPKG')
+        dataSource = driver.Open(os.path.join(os.path.dirname(__file__), 'tutorial_named_section.gpkg'), 0)
+        data = [(feature.GetField('section'), feature.GetGeometryRef().ExportToWkb().hex())
+            for feature in dataSource.GetLayer()]
+        cur = con.cursor()
+        cur.execute("delete from albion.named_section")
+        cur.executemany("""
+            insert into albion.named_section(section, geom)
+            values (%s, st_setsrid(%s::geometry, 32632))
+            """, data)
+        con.commit()
+
+    
     project.triangulate()
 
     with project.connect() as con:
@@ -86,6 +102,9 @@ if __name__ == "__main__":
     project.accept_possible_edge('min1000')
     project.create_terminations('min1000')
     project.create_volumes('min1000')
+
+    project.export_sections_obj('min1000', '/tmp/min1000_section.obj')
+    project.export_sections_obj('330', '/tmp/330_section.obj')
 
 
     

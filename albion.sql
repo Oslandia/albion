@@ -1052,7 +1052,8 @@ open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
     ' '.join(node_ids_)+'\n'+
     ' '.join(nodes_)+'\n'+
     ' '.join(end_ids_)+'\n'+
-    ' '.join(end_geoms_)+'\n'
+    ' '.join(end_geoms_)+'\n'+
+    ' '.join(end_holes_)+'\n'
 )
 $INCLUDE_ELEMENTARY_VOLUME
 for g, f1, f2, f3 in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, end_holes_, $SRID, end_node_relative_distance, end_node_thickness):

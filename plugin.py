@@ -177,14 +177,15 @@ class Plugin(QObject):
         self.__add_menu_entry(
             "&Import holes",
             None, #self.__import_holes,
-            self.project is not None,
+            self.project is not None and False,
             "Import hole data from directory"
         )
 
         self.__add_menu_entry(
             "Export holes",
-            None, #self.__export_holes,
-            self.project is not None
+            self.__export_holes,
+            self.project is not None and self.project.has_hole,
+            "Export hole trace in .vtk or .dxf format",
         )
 
         self.__add_menu_entry(
@@ -735,7 +736,51 @@ class Plugin(QObject):
 
     def __export_sections(self):
         assert(self.project)
-        self.project.export_sections(self.__current_graph.currentText())
+
+        fil, __ = QFileDialog.getSaveFileName(
+            None,
+            u"Export named sections for current graph",
+            QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+            "File formats (*.dxf *.obj)",
+        )
+        if not fil:
+            return
+
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil))
+
+        if fil[-4:] == ".obj":
+            self.project.export_sections_obj(self.__current_graph.currentText(), fil)
+        elif fil[-4:] == ".dxf":
+            self.project.export_sections_dxf(self.__current_graph.currentText(), fil)
+        else:
+            self.__iface.messageBar().pushWarning(
+                "Albion", "unsupported extension for section export"
+            )
+
+
+    def __export_holes(self):
+        assert(self.project)
+
+        fil, __ = QFileDialog.getSaveFileName(
+            None,
+            u"Export holes",
+            QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+            "File formats (*.dxf *.vtk)",
+        )
+        if not fil:
+            return
+
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil))
+
+        if fil[-4:] == ".vtk":
+            self.project.export_holes_vtk(fil)
+        elif fil[-4:] == ".dxf":
+            self.project.export_holes_dxf(fil)
+        else:
+            self.__iface.messageBar().pushWarning(
+                "Albion", "unsupported extension for hole export"
+            )
+
 
     def __import_project(self):
         fil, __ = QFileDialog.getOpenFileName(

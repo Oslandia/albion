@@ -315,10 +315,60 @@ class Project(object):
 
         self.vacuum()
 
-    def export_sections(self, graph):
-        # TODO
-        assert(False)
-        pass
+    def export_sections_obj(self, graph, filename):
+        
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                with hole_idx as (
+                    select s.id as section_id, h.id as hole_id
+                    from _albion.named_section as s
+                    join _albion.hole as h on s.geom && h.geom and st_intersects(s.geom, st_startpoint(h.geom))
+                )
+                select albion.to_obj(st_collectionhomogenize(st_collect(ef.geom)))
+                from albion.all_edge as e
+                join hole_idx as hs on hs.hole_id = e.start_
+                join hole_idx as he on he.hole_id = e.end_ and he.section_id = hs.section_id
+                join albion.edge_face as ef on ef.start_ = e.start_ and ef.end_ = e.end_ and not st_isempty(ef.geom)
+                where ef.graph_id='{}'
+                """.format(
+                    graph
+                )
+            )
+            open(filename, "w").write(cur.fetchone()[0])
+
+    def export_sections_dxf(self, graph, filename):
+        
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                with hole_idx as (
+                    select s.id as section_id, h.id as hole_id
+                    from _albion.named_section as s
+                    join _albion.hole as h on s.geom && h.geom and st_intersects(s.geom, st_startpoint(h.geom))
+                )
+                select st_collectionhomogenize(st_collect(ef.geom))
+                from albion.all_edge as e
+                join hole_idx as hs on hs.hole_id = e.start_
+                join hole_idx as he on he.hole_id = e.end_ and he.section_id = hs.section_id
+                join albion.edge_face as ef on ef.start_ = e.start_ and ef.end_ = e.end_ and not st_isempty(ef.geom)
+                where ef.graph_id='{}'
+                """.format(
+                    graph
+                )
+            )
+
+            drawing = dxf.drawing(filename)
+            m = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
+            for p in m:
+                r = p.exterior.coords
+                drawing.add(
+                    dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1)
+                )
+            drawing.save()
+
 
     def __srid(self):
         with self.connect() as con:
@@ -356,7 +406,7 @@ class Project(object):
     def __has_hole(self):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("select count(1) from albion.hole")
+            cur.execute("select count(1) from albion.hole where geom is not null")
             return cur.fetchone()[0] > 1
 
     def __has_volume(self):
@@ -368,7 +418,7 @@ class Project(object):
     def __has_section(self):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("select count(1) from albion.section_geom")
+            cur.execute("select count(1) from albion.named_section")
             return cur.fetchone()[0] > 1
 
     def __has_group_cell(self):
@@ -801,6 +851,35 @@ class Project(object):
                 r = p.exterior.coords
                 drawing.add(
                     dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1)
+                )
+            drawing.save()
+
+    def export_holes_vtk(self, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                select albion.to_vtk(st_collect(geom))
+                from albion.hole
+                """
+            )
+            open(filename, "w").write(cur.fetchone()[0])
+
+    def export_holes_dxf(self, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                select st_collect(geom)
+                from albion.hole
+                """
+            )
+            drawing = dxf.drawing(filename)
+            m = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
+            for l in m:
+                r = l.coords
+                drawing.add(
+                    dxf.polyline(list(l.coords))
                 )
             drawing.save()
 

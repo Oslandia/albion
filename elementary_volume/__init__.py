@@ -209,7 +209,10 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         end_holes[id_].append(hole_id)
     holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
     edges = [(s, e) for s, e in zip(starts_, ends_)]
-    assert(len(edges) == len(set(edges)))
+    #assert(len(edges) == len(set(edges)))
+    #assert(len(holes_) == 3)
+    #assert(set(hole_ids_).intersection(set(holes_)) == set(hole_ids_))
+    #assert(set(end_holes_).intersection(set(holes_)) == set(end_holes_))
 
 
     # translate everything close to origin to avoid numerical issues
@@ -447,12 +450,13 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     if (s[1], s[0]) in end_lines:
                         terms.append(Polygon([s[1], s[0], offsets[s[1]]]))
                         terms.append(Polygon([s[0], offsets[s[0]], offsets[s[1]]]))
+                        #faces[(hl, hr)] += terms[-2:]
         termination += terms
-        faces[(hl, hr)] += no_offest_terms
+        #faces[(hl, hr)] += no_offest_terms
 
     if DEBUG:
         open("/tmp/faces.obj", 'w').write(to_obj(MultiPolygon(result).wkb_hex))
-        open("/tmp/term.obj", 'w').write(to_obj(MultiPolygon(termination).wkb_hex))
+        open("/tmp/termination.obj", 'w').write(to_obj(MultiPolygon(termination).wkb_hex))
 
     if len(result):
         
@@ -519,6 +523,7 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     Polygon([l[0].coords[0], l[0].coords[1], l[1].coords[0]]),
                     Polygon([l[0].coords[1], l[1].coords[1], l[1].coords[0]])
                     ]
+            assert(len(end_holes[n])==2)
             faces[tuple(sorted((holes[n], end_holes[n][0])))] += [
                     Polygon([node.coords[0], node.coords[1], l[0].coords[0]]),
                     Polygon([node.coords[1], l[0].coords[1], l[0].coords[0]]),
