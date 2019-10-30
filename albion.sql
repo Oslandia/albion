@@ -1618,17 +1618,17 @@ $$
 
 
 create or replace view albion.edge_face as
-select t.n[1] as start_, t.n[2] as end_, face1 as geom, graph_id
+select t.n[1] as start_, t.n[2] as end_, face1 as geom, graph_id, cell_id
 from _albion.volume v
 join _albion.cell c on c.id = v.cell_id
 join lateral (select array_agg(x order by x) as n from (values (a), (b), (c)) as v(x)) as t on true
 union all
-select t.n[2] as start_, t.n[3] as end_, face2 as geom, graph_id
+select t.n[2] as start_, t.n[3] as end_, face2 as geom, graph_id, cell_id
 from _albion.volume v
 join _albion.cell c on c.id = v.cell_id
 join lateral (select array_agg(x order by x) as n from (values (a), (b), (c)) as v(x)) as t on true
 union all
-select t.n[1] as start_, t.n[3] as end_, face3 as geom, graph_id
+select t.n[1] as start_, t.n[3] as end_, face3 as geom, graph_id, cell_id
 from _albion.volume v
 join _albion.cell c on c.id = v.cell_id
 join lateral (select array_agg(x order by x) as n from (values (a), (b), (c)) as v(x)) as t on true

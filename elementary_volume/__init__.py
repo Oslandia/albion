@@ -226,7 +226,6 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         for i in range(len(ends[id_])):
             ends[id_][i] = translate(ends[id_][i],  -translation[0], -translation[1], -translation[2])
 
-
     graph = defaultdict(set) # undirected (edge in both directions)
     for e in edges:
         graph[e[0]].add(e[1])
@@ -422,7 +421,6 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
 
         # create terminations
         terms = []
-        no_offest_terms = []
         edges = set()
         for t in term_tri:
             for s, e in zip(t.exterior.coords[:-1], t.exterior.coords[1:]):
@@ -439,7 +437,7 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
             if share:
                 continue
             terms.append(t)
-            no_offest_terms.append(t)
+            faces[(hl, hr)] += [t]
             terms.append(Polygon(offset_coords(offsets, t.exterior.coords[::-1])))
             for s in zip(t.exterior.coords[:-1], t.exterior.coords[1:]):
                 if s in edges:
@@ -452,7 +450,6 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                         terms.append(Polygon([s[0], offsets[s[0]], offsets[s[1]]]))
                         #faces[(hl, hr)] += terms[-2:]
         termination += terms
-        #faces[(hl, hr)] += no_offest_terms
 
     if DEBUG:
         open("/tmp/faces.obj", 'w').write(to_obj(MultiPolygon(result).wkb_hex))
@@ -512,7 +509,11 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         if len(l) == 2:
             node = nodes[n]
             A, B, C = array(node.coords[0]), array(l[0].coords[0]), array(l[1].coords[0])
-            l = l if dot(cross(B-A, C-A), array((0.,0.,1.))) > 0 else list(reversed(l))
+            k1, k2 = tuple(sorted((holes[n], end_holes[n][0]))), tuple(sorted((holes[n], end_holes[n][1])))
+            l = l 
+            if dot(cross(B-A, C-A), array((0.,0.,1.))) <= 0:
+                l = list(reversed(l))
+                k1, k2 = k2, k1
             termination += [
                     Polygon([node.coords[0], l[0].coords[0], l[1].coords[0]]),
                     Polygon([l[1].coords[-1], l[0].coords[-1], node.coords[-1]]),
@@ -524,11 +525,11 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     Polygon([l[0].coords[1], l[1].coords[1], l[1].coords[0]])
                     ]
             assert(len(end_holes[n])==2)
-            faces[tuple(sorted((holes[n], end_holes[n][0])))] += [
+            faces[k1] += [
                     Polygon([node.coords[0], node.coords[1], l[0].coords[0]]),
                     Polygon([node.coords[1], l[0].coords[1], l[0].coords[0]]),
                     ]
-            faces[tuple(sorted((holes[n], end_holes[n][1])))] += [
+            faces[k2] += [
                     Polygon([l[1].coords[0], node.coords[1], node.coords[0]]),
                     Polygon([l[1].coords[0], l[1].coords[1], node.coords[1]]),
                     ]
@@ -565,13 +566,15 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         n = next(iter(list(graph.keys())))
         connected.append(pop_connected(n, graph))
 
+    i=0
     for c in connected:
+        i+=1
         face1 = []
         face2 = []
         face3 = []
         triangles = [result[i] for i in c]
         res = MultiPolygon(triangles)
-
+        
         for f in faces[(sorted_holes[0], sorted_holes[1])]:
             if f in triangles:
                 face1.append(f)
@@ -583,6 +586,9 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                 face3.append(f)
         
         if DEBUG:
+            open("/tmp/face1_tr_%d.obj"%(i), 'w').write(to_obj(face1.wkb_hex))
+            open("/tmp/face2_tr_%d.obj"%(i), 'w').write(to_obj(face2.wkb_hex))
+            open("/tmp/face3_tr_%d.obj"%(i), 'w').write(to_obj(face3.wkb_hex))
             open("/tmp/volume_tr.obj", 'w').write(to_obj(res.wkb_hex))
             # check volume is closed
             edges = set()
