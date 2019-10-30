@@ -283,9 +283,10 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
     faces = defaultdict(list)
     result = []
     termination = []
-    for hl, hr in ((sorted_holes[0], sorted_holes[1]), 
-                   (sorted_holes[1], sorted_holes[2]),
-                   (sorted_holes[0], sorted_holes[2])):
+    for hl, hr, other_hole in (
+                (sorted_holes[0], sorted_holes[1], sorted_holes[2]), 
+                (sorted_holes[1], sorted_holes[2], sorted_holes[0]),
+                (sorted_holes[0], sorted_holes[2], sorted_holes[1])):
         face_idx += 1
         direct_orientation = (hl, hr) == (holes_[0], holes_[1]) or (hl, hr) == (holes_[1], holes_[2]) or (hl, hr) == (holes_[2], holes_[0])
 
@@ -412,7 +413,7 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
 
         top_lines = [l for l in face_lines if l.side==Line.TOP]
         bottom_lines = [l for l in face_lines if l.side==Line.BOTTOM]
-        end_lines = [tuple(nodes[n].coords) for n in list(ends.keys())]
+        end_lines = {tuple(nodes[n].coords): holes[n] for n in list(ends.keys())}
         if DEBUG:
             open('/tmp/top_lines_face_{}.vtk'.format(face_idx), 'w').write(to_vtk(MultiLineString([l.points for l in top_lines]).wkb_hex))
             open('/tmp/bottom_lines_face_{}.vtk'.format(face_idx), 'w').write(to_vtk(MultiLineString([l.points for l in bottom_lines]).wkb_hex))
@@ -448,7 +449,7 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     if (s[1], s[0]) in end_lines:
                         terms.append(Polygon([s[1], s[0], offsets[s[1]]]))
                         terms.append(Polygon([s[0], offsets[s[0]], offsets[s[1]]]))
-                        #faces[(hl, hr)] += terms[-2:]
+                        faces[tuple(sorted((end_lines[(s[1], s[0])], other_hole)))] += terms[-2:]
         termination += terms
 
     if DEBUG:

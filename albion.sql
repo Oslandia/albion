@@ -993,6 +993,7 @@ $$
             where s.id=new.start_ and e.id=new.end_ into new_geom;
 
             -- TODO test if edge is possible
+            
         end if;
 
         if tg_op = 'INSERT' then
@@ -1041,20 +1042,20 @@ returns setof albion.volume_row
 language plpython3u immutable
 as
 $$
-open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
-    cell_id_+'\n'+
-    graph_id_+'\n'+
-    geom_+'\n'+
-    ' '.join(holes_)+'\n'+
-    ' '.join(starts_)+'\n'+
-    ' '.join(ends_)+'\n'+
-    ' '.join(hole_ids_)+'\n'+
-    ' '.join(node_ids_)+'\n'+
-    ' '.join(nodes_)+'\n'+
-    ' '.join(end_ids_)+'\n'+
-    ' '.join(end_geoms_)+'\n'+
-    ' '.join(end_holes_)+'\n'
-)
+#open('/tmp/debug_input_%s.txt'%(cell_id_), 'w').write(
+#    cell_id_+'\n'+
+#    graph_id_+'\n'+
+#    geom_+'\n'+
+#    ' '.join(holes_)+'\n'+
+#    ' '.join(starts_)+'\n'+
+#    ' '.join(ends_)+'\n'+
+#    ' '.join(hole_ids_)+'\n'+
+#    ' '.join(node_ids_)+'\n'+
+#    ' '.join(nodes_)+'\n'+
+#    ' '.join(end_ids_)+'\n'+
+#    ' '.join(end_geoms_)+'\n'+
+#    ' '.join(end_holes_)+'\n'
+#)
 $INCLUDE_ELEMENTARY_VOLUME
 for g, f1, f2, f3 in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, end_holes_, $SRID, end_node_relative_distance, end_node_thickness):
     yield g, f1, f2, f3
@@ -1618,17 +1619,17 @@ $$
 
 
 create or replace view albion.edge_face as
-select t.n[1] as start_, t.n[2] as end_, face1 as geom, graph_id, cell_id
+select t.n[1] as start_, t.n[2] as end_, face1 as geom, graph_id, cell_id, 'face1' as face
 from _albion.volume v
 join _albion.cell c on c.id = v.cell_id
 join lateral (select array_agg(x order by x) as n from (values (a), (b), (c)) as v(x)) as t on true
 union all
-select t.n[2] as start_, t.n[3] as end_, face2 as geom, graph_id, cell_id
+select t.n[2] as start_, t.n[3] as end_, face2 as geom, graph_id, cell_id, 'face2' as face
 from _albion.volume v
 join _albion.cell c on c.id = v.cell_id
 join lateral (select array_agg(x order by x) as n from (values (a), (b), (c)) as v(x)) as t on true
 union all
-select t.n[1] as start_, t.n[3] as end_, face3 as geom, graph_id, cell_id
+select t.n[1] as start_, t.n[3] as end_, face3 as geom, graph_id, cell_id, 'face3' as face
 from _albion.volume v
 join _albion.cell c on c.id = v.cell_id
 join lateral (select array_agg(x order by x) as n from (values (a), (b), (c)) as v(x)) as t on true
