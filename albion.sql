@@ -992,7 +992,14 @@ $$
             from _albion.node as s, _albion.node as e
             where s.id=new.start_ and e.id=new.end_ into new_geom;
 
-            -- TODO test if edge is possible
+            -- test if edge is possible
+            if not exists (select 1
+                            from albion.all_edge as ae
+                            join _albion.node as ns on ae.start_ = ns.hole_id
+                            join _albion.node as ne on ae.end_ = ne.hole_id
+                            where ns.id = new.start_ and ne.id = new.end_) then
+                raise 'impossible edge';
+            end if;
             
         end if;
 
