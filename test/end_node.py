@@ -12,8 +12,7 @@ INSERT INTO albion.collar(id, geom, depth_) VALUES
 ;
 SELECT albion.triangulate()
 ;
-REFRESH MATERIALIZED VIEW albion.all_edge
-;
+
 INSERT INTO albion.graph(id) VALUES
     ('graph1')
 ;
