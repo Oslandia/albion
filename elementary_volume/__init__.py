@@ -629,8 +629,10 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
 
         face3 = translate(MultiPolygon(face3), translation[0], translation[1], translation[2])
         geos.lgeos.GEOSSetSRID(face3._geom, srid_)
-            
-        yield res.wkb_hex, face1.wkb_hex, face2.wkb_hex, face3.wkb_hex
+        
+        empty_mp = "SRID={} ;MULTIPOLYGONZ EMPTY".format(srid_)
+        yield (res.wkb_hex if not res.is_empty else empty_mp, face1.wkb_hex if not face1.is_empty else empty_mp, 
+            face2.wkb_hex if not face2.is_empty else empty_mp, face3.wkb_hex if not face3.is_empty else empty_mp)
 
     for f in debug_files:
         os.remove(f)
