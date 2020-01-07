@@ -493,6 +493,9 @@ class Plugin(QObject):
                 Project.delete(project_name)
                 self.__iface.messageBar().pushInfo("Albion:", "creating project...")
                 Project.create(project_name, srid)
+        else:
+            self.__iface.messageBar().pushInfo("Albion:", "creating project...")
+            Project.create(project_name, srid)
 
         if os.path.exists(fil):
             os.remove(fil)
@@ -705,6 +708,7 @@ class Plugin(QObject):
             if table.endswith('_section'):
                 table = table[:-8]
             self.project.refresh_section_geom(table)
+            self.__refresh_layers(table+'_section')
 
     def __compute_mineralization(self):
         MineralizationDialog(self.project).exec_()
