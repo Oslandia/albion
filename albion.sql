@@ -801,8 +801,8 @@ $$
         ito_ -= OC+IC-1
         if ifrom_ >= 0 and ito_ > 0 and c:
             accu = numpy.sum(AVP[ifrom_:ito_])
-            grade = accu/(ito_ - ifrom_)
             oc = (ito_ - ifrom_)*measure_thickness
+            grade = accu/oc
             result.append((cut, ifrom_*measure_thickness + first_from_, ito_*measure_thickness + first_from_, oc, accu, grade))
 
     return result
