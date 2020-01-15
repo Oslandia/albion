@@ -668,6 +668,19 @@ class Plugin(QObject):
 
     def __create_cells(self):
         assert(self.project)
+        
+        if self.project.has_cell:
+            if (
+                QMessageBox.Yes
+                != QMessageBox(
+                    QMessageBox.Information,
+                    "Creating cells",
+                    "Do you want to replace project cells (your graphs will become invalid) ?",
+                    QMessageBox.Yes | QMessageBox.No,
+                ).exec_()
+            ):
+                return
+
         self.project.triangulate()
         self.__refresh_layers()
 
