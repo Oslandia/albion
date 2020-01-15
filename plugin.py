@@ -16,7 +16,6 @@ import tempfile
 from .project import ProgressBar, Project, find_in_dir
 from .mineralization import MineralizationDialog
 
-from .axis_layer import AxisLayer, AxisLayerType
 from .viewer_3d.viewer_3d import Viewer3d
 from .viewer_3d.viewer_controls import ViewerControls
 #from .log_strati import BoreHoleWindow
@@ -28,13 +27,6 @@ import numpy
 import math
 
 import atexit
-
-AXIS_LAYER_TYPE = AxisLayerType()
-QgsApplication.pluginLayerRegistry().addPluginLayerType(AXIS_LAYER_TYPE)
-atexit.register(
-    QgsApplication.pluginLayerRegistry().removePluginLayerType, AxisLayer.LAYER_TYPE
-)
-
 
 def resource(name):
     """Return name with prepended `res` directory
@@ -58,7 +50,6 @@ class Plugin(QObject):
         self.__current_graph = QComboBox()
         self.__current_graph.setMinimumWidth(150)
         self.__toolbar = None
-        self.__axis_layer = None
         self.__menu = None
         self.__log_strati = None
 
@@ -290,10 +281,6 @@ class Plugin(QObject):
             self.project is not None and bool(self.__current_graph.currentText()) and self.project.has_section and self.project.has_volume,
             "Export triangulated section in .obj or .dxf format",
         )
-
-        self.__menu.addSeparator()
-
-        self.__add_menu_entry("Toggle axis", self.__toggle_axis)
 
         self.__menu.addSeparator()
 
@@ -678,18 +665,6 @@ class Plugin(QObject):
     def __accept_possible_edge(self):
         assert(self.project)
         self.project.accept_possible_edge(self.__current_graph.currentText())
-
-    def __toggle_axis(self):
-        if self.__axis_layer:
-            pass
-            QgsProject.instance().removeMapLayer(self.__axis_layer.id())
-            self.__axis_layer = None
-        else:
-            self.__axis_layer = AxisLayer(
-                self.__iface.mapCanvas().mapSettings().destinationCrs()
-            )
-            QgsProject.instance().addMapLayer(self.__axis_layer)
-        self.__refresh_layers()
 
     def __create_cells(self):
         assert(self.project)
