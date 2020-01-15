@@ -165,7 +165,7 @@ create trigger collar_instead_trig
        for each row execute procedure albion.collar_instead_fct()
 ;
 
-create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_node_relative_thickness, correlation_distance, correlation_angle, parent_correlation_angle, version from _albion.metadata
+create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_node_relative_thickness, correlation_distance, correlation_angle, parent_correlation_angle from _albion.metadata
 ;
 
 create view albion.layer as select name, fields_definition from _albion.layer
@@ -643,7 +643,7 @@ join _albion.hole as h on s.geom && h.geom and st_intersects(st_startpoint(h.geo
 
 create view albion.node_section as
 select row_number() over() as id, n.id as node_id, h.id as hole_id, n.from_, n.to_, n.graph_id, s.id as section_id,
-    (albion.to_section(n.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom
+    (albion.to_section(n.geom, s.anchor, s.scale))::geometry('LINESTRING', $SRID) as geom, n.parent
 from _albion.section as s
 join _albion.hole as h on s.geom && h.geom and st_intersects(st_startpoint(h.geom), s.geom)
 join _albion.node as n on n.hole_id = h.id
