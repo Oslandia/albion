@@ -165,7 +165,7 @@ create trigger collar_instead_trig
        for each row execute procedure albion.collar_instead_fct()
 ;
 
-create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_node_thickness, correlation_distance, correlation_angle, parent_correlation_angle, version from _albion.metadata
+create view albion.metadata as select id, srid, close_collar_distance, snap_distance, precision, interpolation, end_node_relative_distance, end_node_relative_thickness, correlation_distance, correlation_angle, parent_correlation_angle, version from _albion.metadata
 ;
 
 create view albion.layer as select name, fields_definition from _albion.layer
@@ -1044,7 +1044,7 @@ create type albion.volume_row as (
     face3 geometry('MULTIPOLYGONZ', $SRID))
 ;
 
-create or replace function albion.elementary_volumes(cell_id_ varchar, graph_id_ varchar, geom_ geometry, holes_ varchar[], starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry[], end_ids_ varchar[], end_geoms_ geometry[], end_holes_ varchar[], end_node_relative_distance real, end_node_thickness real)
+create or replace function albion.elementary_volumes(cell_id_ varchar, graph_id_ varchar, geom_ geometry, holes_ varchar[], starts_ varchar[], ends_ varchar[], hole_ids_ varchar[], node_ids_ varchar[], nodes_ geometry[], end_ids_ varchar[], end_geoms_ geometry[], end_holes_ varchar[], end_node_relative_distance real, end_node_relative_thickness real)
 returns setof albion.volume_row
 language plpython3u immutable
 as
@@ -1064,7 +1064,7 @@ $$
 #    ' '.join(end_holes_)+'\n'
 #)
 $INCLUDE_ELEMENTARY_VOLUME
-for g, f1, f2, f3 in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, end_holes_, $SRID, end_node_relative_distance, end_node_thickness):
+for g, f1, f2, f3 in elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, end_holes_, $SRID, end_node_relative_distance, end_node_relative_thickness):
     yield g, f1, f2, f3
 $$
 ;
@@ -1310,7 +1310,7 @@ join _albion.hole as hs on hs.id=ns.hole_id
 join _albion.hole as he on he.id=ne.hole_id
 ;
 
-create or replace function albion.end_node_geom(node_geom_ geometry, collar_geom_ geometry, rel_distance real default .3, thickness real default 1, nx real default null, ny real default null, nz real default null)
+create or replace function albion.end_node_geom(node_geom_ geometry, collar_geom_ geometry, rel_distance real default .3, rel_thickness real default .3, nx real default null, ny real default null, nz real default null)
 returns geometry
 language plpython3u
 as
@@ -1327,6 +1327,7 @@ $$
     collar_geom = wkb.loads(bytes.fromhex(collar_geom_))
 
     node_coords = array(node_geom.coords)
+    thickness = rel_thickness*abs(node_coords[0][2] - node_coords[1][2])
     center = .5*(node_coords[0] + node_coords[1])
     dir = array(collar_geom.coords[0]) - center
     dir[2] = 0
@@ -1363,7 +1364,7 @@ from nrml
 
 
 create or replace view albion.dynamic_end_node as
-select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_geom(n.geom, st_startpoint(h.geom), m.end_node_relative_distance, m.end_node_thickness, nrml.nx::real, nrml.ny::real, nrml.nz::real)::geometry('LINESTRINGZ', $SRID) as geom, h.id as hole_id
+select row_number() over() as id, he.graph_id, n.id as node_id, albion.end_node_geom(n.geom, st_startpoint(h.geom), m.end_node_relative_distance, m.end_node_relative_thickness, nrml.nx::real, nrml.ny::real, nrml.nz::real)::geometry('LINESTRINGZ', $SRID) as geom, h.id as hole_id
 from albion.half_edge as he
 join _albion.node as n on n.id=he.node_id
 join _albion.hole as h on h.id=he.other
@@ -1517,7 +1518,7 @@ select cell_id, graph_id,
     t.face3::geometry('MULTIPOLYGONZ', $SRID), 
     starts, ends, holes, hole_ids, node_ids, end_ids, end_geoms
 from res, albion.metadata m
-join  lateral albion.elementary_volumes(cell_id, graph_id, st_force3d(geom), holes, starts, ends, hole_ids, node_ids, node_geoms, end_ids, end_geoms, end_holes, m.end_node_relative_distance, m.end_node_thickness) as t on true
+join  lateral albion.elementary_volumes(cell_id, graph_id, st_force3d(geom), holes, starts, ends, hole_ids, node_ids, node_geoms, end_ids, end_geoms, end_holes, m.end_node_relative_distance, m.end_node_relative_thickness) as t on true
 ;
 
 

@@ -195,7 +195,7 @@ def offset_coords(offsets, coords):
     return [offsets[c] if c in offsets else c for c in coords]
 
 
-def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, end_holes_, srid_=32632, end_node_relative_distance=0.3, end_node_thickness=1):
+def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, end_holes_, srid_=32632, end_node_relative_distance=0.3, end_node_relative_thickness=.3):
 
     DEBUG = False
     PRECI = 6
@@ -266,6 +266,8 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
             A, B, C = array(nodes[n].coords[0][:2]), array(nodes[p[0]].coords[0][:2]),array(nodes[p[1]].coords[0][:2])
             c = average(array(nodes[n].coords), (0,))
             u = .5*(normalized(B-A)+normalized(C-A))*end_node_relative_distance*.5*(norm(B-A)+norm(C-A))
+            thickness = abs(nodes[n].coords[0][2] - nodes[n].coords[-1][2])
+            end_node_thickness = end_node_relative_thickness*thickness
             offsets[nodes[n].coords[0]] = tuple(c+array((u[0], u[1], +.5*end_node_thickness)))
             offsets[nodes[n].coords[-1]] = tuple(c+array((u[0], u[1], -.5*end_node_thickness)))
 

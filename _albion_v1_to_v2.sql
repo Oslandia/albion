@@ -5,9 +5,9 @@ alter table _albion.metadata drop column end_distance
 ;
 alter table _albion.metadata add column end_node_relative_distance real default .3
 ;
-alter table _albion.metadata add column end_node_thickness real default 1
-;
 alter table _albion.metadata add column version varchar default '2.0'
+;
+alter table _albion.metadata add column end_node_relative_thickness real default .3
 ;
 
 -- add layer table

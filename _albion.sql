@@ -36,7 +36,7 @@ create table _albion.metadata(
     correlation_angle real default 5.0,
     parent_correlation_angle real default 1.0,
     end_node_relative_distance real default .3,
-    end_node_thickness real default 1,
+    end_node_relative_thickness real default .3,
     version varchar)
 ;
 
