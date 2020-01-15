@@ -887,6 +887,35 @@ class Project(object):
                 )
             drawing.save()
 
+    def export_layer_vtk(self, table, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                select albion.to_vtk(st_collect(albion.hole_piece(from_, to_, hole_id)))
+                from albion.{}
+                """.format(table)
+            )
+            open(filename, "w").write(cur.fetchone()[0])
+
+    def export_layer_dxf(self, table, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                select st_collect(albion.hole_piece(from_, to_, hole_id))
+                from albion.{}
+                """.format(table)
+            )
+            drawing = dxf.drawing(filename)
+            m = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
+            for l in m:
+                r = l.coords
+                drawing.add(
+                    dxf.polyline(list(l.coords))
+                )
+            drawing.save()
+
     def create_volumes(self, graph_id):
         with self.connect() as con:
             cur = con.cursor()

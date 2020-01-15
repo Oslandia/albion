@@ -188,7 +188,7 @@ class Plugin(QObject):
 
         self.__add_menu_entry(
             "Export layer",
-            None, #self.__export_layer,
+            self.__export_layer,
             self.project is not None
         )
 
@@ -769,10 +769,41 @@ class Plugin(QObject):
         elif fil[-4:] == ".dxf":
             self.project.export_holes_dxf(fil)
         else:
-            self.__iface.messageBar().pushWarning(
-                "Albion", "unsupported extension for hole export"
-            )
+            self.__iface.messageBar().pushWarning("Albion", "unsupported extension for hole export")
 
+    def __export_layer(self):
+        assert(self.project)
+
+        table = None
+        for l in self.__iface.layerTreeView().selectedLayers(): 
+            uri = QgsDataSourceUri(l.dataProvider().dataSourceUri())
+            table = uri.table()
+            if table.endswith('_section'):
+                table = table[:-8]
+                break
+
+        if table is None:
+            self.__iface.messageBar().pushWarning("Albion", "you must select a layer")
+            return
+
+        fil, __ = QFileDialog.getSaveFileName(
+            None,
+            u"Export layer",
+            QgsProject.instance().readEntry("albion", "last_dir", "")[0],
+            "File formats (*.dxf *.vtk)",
+        )
+        if not fil:
+            return
+
+        QgsProject.instance().writeEntry("albion", "last_dir", os.path.dirname(fil))
+
+
+        if fil.endswith('.vtk'):
+            self.project.export_layer_vtk(table, fil)
+        elif fil.endswith('.dxf'):
+            self.project.export_layer_dxf(table, fil)
+        else:
+            self.__iface.messageBar().pushWarning("Albion", "unsupported extension for hole export")
 
     def __import_project(self):
         fil, __ = QFileDialog.getOpenFileName(
