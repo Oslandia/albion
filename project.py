@@ -700,7 +700,7 @@ class Project(object):
             cur = con.cursor()
             cur.execute(
                 """
-                insert into albion.group default values returning id
+                insert into albion.group(id) values ((select coalesce(max(id)+1, 1) from albion.group)) returning id
                 """
             )
             group, = cur.fetchone()
