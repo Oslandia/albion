@@ -963,6 +963,8 @@ and cs.section_id=s.id
 and ce.section_id=s.id
 ;
 
+alter view albion.edge_section alter column id set default _albion.unique_id();
+
 create or replace function albion.edge_section_instead_fct()
 returns trigger
 language plpgsql
