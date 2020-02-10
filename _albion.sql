@@ -32,49 +32,39 @@ create table _albion.metadata(
     snap_distance real not null default 1,
     precision real default .01,
     interpolation interpolation_method default 'balanced_tangential',
-    end_distance real default 25,
-    end_angle real default 5.0,
     correlation_distance real default 200,
     correlation_angle real default 5.0,
-    parent_correlation_angle real default 1.0)
+    parent_correlation_angle real default 1.0,
+    end_node_relative_distance real default .3,
+    end_node_relative_thickness real default .3,
+    version varchar)
 ;
 
-insert into _albion.metadata(srid) select $SRID
+insert into _albion.metadata(srid, version) select $SRID, '2.0'
 ;
 
-create table _albion.collar(
-    id varchar primary key default _albion.unique_id()::varchar,
-    x double precision,
-    y double precision,
-    z real,
-    date_ varchar,
-    geom geometry('POINTZ', $SRID),
-    comments varchar)
-;
-
-create index collar_geom_idx on _albion.collar using gist(geom)
+create table _albion.layer(
+    name varchar primary key,
+    fields_definition text not null)
 ;
 
 create table _albion.hole(
-    id varchar primary key,
-    collar_id varchar unique not null references _albion.collar(id) on delete cascade on update cascade,
-    depth_ real,
+    id varchar primary key default _albion.unique_id()::varchar,
+    date_ varchar,
+    depth_ real not null,
+        check(depth_ > 0),
+    x double precision not null,
+    y double precision not null,
+    z double precision not null,
+    comments varchar,
     geom geometry('LINESTRINGZ', $SRID))
+;
+
+alter table _albion.hole add constraint hole_geom_length_chk check (geom is null or abs(st_3dlength(geom) - depth_) <= 1e-3)
 ;
 
 create index hole_geom_idx on _albion.hole using gist(geom)
 ;
-
-create index hole_collar_id_idx on _albion.hole(collar_id)
-;
-
-
-alter table _albion.hole alter column id set default _albion.unique_id()::varchar
-;
-
--------------------------------------------------------------------------------
--- MEASURES
--------------------------------------------------------------------------------
 
 create table _albion.deviation(
     hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
@@ -83,147 +73,13 @@ create table _albion.deviation(
     azimuth real)
 ;
 
-create index deviation_hole_id_idx on _albion.deviation(hole_id)
-;
-
-create table _albion.radiometry(
-    id varchar primary key,
-    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
-    from_ real,
-    to_ real,
-    gamma real,
-    geom geometry('LINESTRINGZ', $SRID))
-;
-
-create index radiometry_geom_idx on _albion.radiometry using gist(geom)
-;
-
-create index radiometry_hole_id_idx on _albion.radiometry(hole_id)
-;
-
-alter table _albion.radiometry alter column id set default _albion.unique_id()::varchar
-;
-
-create table _albion.resistivity(
-    id varchar primary key,
-    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
-    from_ real,
-    to_ real,
-    rho real,
-    geom geometry('LINESTRINGZ', $SRID))
-;
-
-create index resistivity_geom_idx on _albion.resistivity using gist(geom)
-;
-
-create index resistivity_hole_id_idx on _albion.resistivity(hole_id)
-;
-
-alter table _albion.resistivity alter column id set default _albion.unique_id()::varchar
-;
-
-
-create table _albion.formation(
-    id varchar primary key,
-    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
-    from_ real,
-    to_ real,
-    code integer,
-    comments varchar,
-    geom geometry('LINESTRINGZ', $SRID))
-;
-
-create index formation_geom_idx on _albion.formation using gist(geom)
-;
-
-create index  formation_hole_id_idx on _albion.formation(hole_id)
-;
-
-alter table _albion.formation alter column id set default _albion.unique_id()::varchar
-;
-
-create table _albion.lithology(
-    id varchar primary key,
-    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
-    from_ real,
-    to_ real,
-    code integer,
-    comments varchar,
-    geom geometry('LINESTRINGZ', $SRID))
-;
-
-create index lithology_geom_idx on _albion.lithology using gist(geom)
-;
-
-create index  lithology_hole_id_idx on _albion.lithology(hole_id)
-;
-
-alter table _albion.lithology alter column id set default _albion.unique_id()::varchar
-;
-
-create table _albion.facies(
-    id varchar primary key,
-    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
-    from_ real,
-    to_ real,
-    code integer,
-    comments varchar,
-    geom geometry('LINESTRINGZ', $SRID))
-;
-
-create index facies_geom_idx on _albion.facies using gist(geom)
-;
-
-create index facies_hole_id_idx on _albion.facies(hole_id)
-;
-
-alter table _albion.facies alter column id set default _albion.unique_id()::varchar
-;
-
-create table _albion.chemical(
-    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
-    from_ real,
-    to_ real,
-    num_sample varchar,
-    element varchar,
-    thickness real,
-    gt real,  -- thickness * grade
-    grade real,
-    equi real,
-    comments varchar)
-;
-
-create index chemical_hole_id_idx on _albion.chemical(hole_id)
-;
-
-create table _albion.mineralization(
-    id varchar primary key,
-    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
-    level_ real,
-    from_ real,
-    to_ real,
-    oc real,
-    accu real,
-    grade real,
-    comments varchar,
-    geom geometry('LINESTRINGZ', $SRID))
-;
-
-create index mineralization_geom_idx on _albion.mineralization using gist(geom)
-;
-
-create index mineralization_hole_id_idx on _albion.mineralization(hole_id)
-;
-
-alter table _albion.mineralization alter column id set default _albion.unique_id()::varchar
-;
 
 -------------------------------------------------------------------------------
 -- GRAPH
 -------------------------------------------------------------------------------
 
 create table _albion.node(
-    id varchar primary key,
+    id varchar primary key default _albion.unique_id()::varchar,
     graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
         unique(id, graph_id),
     hole_id varchar references _albion.hole(id) on delete cascade,
@@ -243,11 +99,8 @@ create index node_graph_id_idx on _albion.node(graph_id)
 create index node_hole_id_idx on _albion.node(hole_id)
 ;
 
-alter table _albion.node alter column id set default _albion.unique_id()::varchar
-;
-
 create table _albion.edge(
-    id varchar primary key,
+    id varchar primary key default _albion.unique_id()::varchar,
     start_ varchar not null ,
         foreign key (graph_id, start_) references _albion.node(graph_id, id) on delete cascade on update cascade,
     end_ varchar not null,
@@ -271,14 +124,11 @@ create index edge_start__idx on _albion.edge(start_)
 create index edge_end__idx on _albion.edge(end_)
 ;
 
-alter table _albion.edge alter column id set default _albion.unique_id()::varchar
-;
-
 create table _albion.cell(
-    id varchar primary key,
-    a varchar not null references _albion.collar(id) on delete cascade on update cascade,
-    b varchar not null references _albion.collar(id) on delete cascade on update cascade,
-    c varchar not null references _albion.collar(id) on delete cascade on update cascade,
+    id varchar primary key default _albion.unique_id()::varchar,
+    a varchar not null references _albion.hole(id) on delete cascade on update cascade,
+    b varchar not null references _albion.hole(id) on delete cascade on update cascade,
+    c varchar not null references _albion.hole(id) on delete cascade on update cascade,
     geom geometry('POLYGON', $SRID) not null check(st_isvalid(geom) and st_numpoints(geom)=4)
 )
 ;
@@ -295,40 +145,34 @@ create index volume_cell_b_idx on _albion.cell(b)
 create index volume_cell_c_idx on _albion.cell(c)
 ;
 
-alter table _albion.cell alter column id set default _albion.unique_id()::varchar
-;
-
 create table _albion.group(
     id integer primary key
 )
 ;
 
 create table _albion.section(
-    id varchar primary key,
+    id varchar primary key default _albion.unique_id()::varchar,
     anchor geometry('LINESTRING', $SRID) not null check(st_numpoints(anchor)=2),
-    geom geometry('LINESTRING', $SRID) not null,
-    scale real not null default 1,
-    group_id integer references _albion.group(id) on delete set null on update cascade
+    geom geometry('MULTILINESTRING', $SRID),
+    scale real not null default 1
 )
 ;
 
-alter table _albion.section alter column id set default _albion.unique_id()::varchar
-;
-
 create table _albion.volume(
-    id varchar primary key,
+    id varchar primary key default _albion.unique_id()::varchar,
     graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
     cell_id varchar not null references _albion.cell(id) on delete cascade on update cascade,
-    triangulation geometry('MULTIPOLYGONZ', $SRID) not null
-);
+    triangulation geometry('MULTIPOLYGONZ', $SRID) not null,
+    face1 geometry('MULTIPOLYGONZ', $SRID),
+    face2 geometry('MULTIPOLYGONZ', $SRID),
+    face3 geometry('MULTIPOLYGONZ', $SRID)
+)
+;
 
 create index volume_graph_id_idx on _albion.volume(graph_id)
 ;
 
 create index volume_cell_id_idx on _albion.volume(cell_id)
-;
-
-alter table _albion.volume alter column id set default _albion.unique_id()::varchar
 ;
 
 create table _albion.group_cell(
@@ -347,10 +191,10 @@ create index group_cell_groupe_id_idx on _albion.group_cell(group_id)
 
 
 create table _albion.end_node(
-    id varchar primary key,
+    id varchar primary key default _albion.unique_id()::varchar,
     geom geometry('LINESTRINGZ', $SRID) not null check (st_numpoints(geom)=2),
     node_id varchar not null references _albion.node(id) on delete cascade on update cascade,
-    collar_id varchar not null references _albion.collar(id) on delete cascade on update cascade,
+    hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
     graph_id varchar references _albion.graph(id) on delete cascade
 )
 ;
@@ -358,35 +202,22 @@ create table _albion.end_node(
 create index end_node_geom_idx on _albion.end_node using gist(geom)
 ;
 
-alter table _albion.end_node alter column id set default _albion.unique_id()::varchar
+create table _albion.named_section(
+    id varchar primary key default _albion.unique_id()::varchar,
+    geom geometry('LINESTRING', $SRID) not null,
+    cut geometry('MULTILINESTRING', $SRID) not null,
+    section varchar not null references _albion.section(id) on delete cascade on update cascade
+)
 ;
 
---create table _albion.end_edge(
---    id varchar primary key,
---    start_ varchar not null ,
---        foreign key (graph_id, start_) references _albion.end_node(graph_id, id) on delete cascade on update cascade,
---    end_ varchar not null,
---    foreign key (graph_id, end_) references _albion.end_node(graph_id, id) on delete cascade on update cascade,
---        unique (start_, end_),
---        check (start_ < end_),
---    graph_id varchar references _albion.graph(id) on delete cascade,
---    geom geometry('LINESTRINGZ', $SRID) not null check (st_isvalid(geom))
---)
---;
---
---create index end_edge_geom_idx on _albion.end_edge using gist(geom)
---;
---
---create index end_edge_graph_id_idx on _albion.end_edge(graph_id)
---;
---
---create index end_edge_start__idx on _albion.end_edge(start_)
---;
---
---create index end_edge_end__idx on _albion.end_edge(end_)
---;
---
---alter table _albion.end_edge alter column id set default _albion.unique_id()::varchar
---;
+create table _albion.vertical_face(
+    id varchar primary key default _albion.unique_id()::varchar,
+    graph_id varchar not null references _albion.graph(id) on delete cascade on update cascade,
+    left_hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
+    right_hole_id varchar not null references _albion.hole(id) on delete cascade on update cascade,
+    triangulation geometry('MULTIPOLYGONZ', $SRID) not null
+);
+
+
 
 

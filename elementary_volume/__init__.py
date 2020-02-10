@@ -1,4 +1,9 @@
 # coding = utf-8
+from builtins import next
+from builtins import str
+from builtins import zip
+from builtins import range
+from builtins import object
 import os
 import random
 from itertools import combinations
@@ -159,7 +164,7 @@ def linemerge(lines):
     return merged
 
 def has_proper_2d_topology(line):
-    SIN_MIN_ANGLE = 5.*PI/180
+    SIN_MIN_ANGLE = .01*PI/180
     l = line
     if len(l) <=2 :
         return False
@@ -190,21 +195,36 @@ def offset_coords(offsets, coords):
     return [offsets[c] if c in offsets else c for c in coords]
 
 
-def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, srid_=32632):
+def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end_ids_, end_geoms_, end_holes_, srid_=32632, end_node_relative_distance=0.3, end_node_relative_thickness=.3):
 
     DEBUG = False
-    PRECI = 9
-    REL_DISTANCE = .3
-    HEIGHT = 1.
+    PRECI = 6
     debug_files = []
 
     nodes = {id_: wkb.loads(bytes.fromhex(geom)) for id_, geom in zip(node_ids_, nodes_)}
     ends = defaultdict(list)
-    for id_, geom in zip(end_ids_, end_geoms_):
+    end_holes = defaultdict(list)
+    for id_, geom, hole_id in zip(end_ids_, end_geoms_, end_holes_):
         ends[id_].append(wkb.loads(bytes.fromhex(geom)))
+        end_holes[id_].append(hole_id)
     holes = {n: h for n, h in zip(node_ids_, hole_ids_)}
     edges = [(s, e) for s, e in zip(starts_, ends_)]
-    assert(len(edges) == len(set(edges)))
+    #assert(len(edges) == len(set(edges)))
+    #assert(len(holes_) == 3)
+    #assert(set(hole_ids_).intersection(set(holes_)) == set(hole_ids_))
+    #assert(set(end_holes_).intersection(set(holes_)) == set(end_holes_))
+
+
+    # translate everything close to origin to avoid numerical issues
+    translation = None
+    for id_ in nodes.keys():
+        if translation is None:
+            translation = nodes[id_].coords[0]
+        nodes[id_] = translate(nodes[id_], -translation[0], -translation[1], -translation[2])
+
+    for id_ in ends.keys():
+        for i in range(len(ends[id_])):
+            ends[id_][i] = translate(ends[id_][i],  -translation[0], -translation[1], -translation[2])
 
     graph = defaultdict(set) # undirected (edge in both directions)
     for e in edges:
@@ -231,8 +251,6 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
             triangle_edges.add(tri[0:1]+tri[2:3])
             triangle_nodes.update(tri)
 
-    result = []
-    termination = []
 
 
     # compute face offset direction for termination corners
@@ -240,21 +258,23 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
     # and that have at leat 2 incident edges that are not in the same
     # face (i.e. different holes)
     unused_nodes = set(nodes.keys()).difference(triangle_nodes)
-    offsets = {nodes[n].coords[0]: ends[n][0].coords[0] for n, l in ends.items() if len(l)==1}
-    offsets.update({nodes[n].coords[-1]: ends[n][0].coords[-1] for n, l in ends.items() if len(l)==1})
+    offsets = {nodes[n].coords[0]: ends[n][0].coords[0] for n, l in list(ends.items()) if len(l)==1}
+    offsets.update({nodes[n].coords[-1]: ends[n][0].coords[-1] for n, l in list(ends.items()) if len(l)==1})
     for n in unused_nodes:
         p = pair_of_non_coplanar_neighbors(n, graph, holes)
         if p:
             A, B, C = array(nodes[n].coords[0][:2]), array(nodes[p[0]].coords[0][:2]),array(nodes[p[1]].coords[0][:2])
             c = average(array(nodes[n].coords), (0,))
-            u = .5*(normalized(B-A)+normalized(C-A))*REL_DISTANCE*.5*(norm(B-A)+norm(C-A))
-            offsets[nodes[n].coords[0]] = tuple(c+array((u[0], u[1], +.5*HEIGHT)))
-            offsets[nodes[n].coords[-1]] = tuple(c+array((u[0], u[1], -.5*HEIGHT)))
+            u = .5*(normalized(B-A)+normalized(C-A))*end_node_relative_distance*.5*(norm(B-A)+norm(C-A))
+            thickness = abs(nodes[n].coords[0][2] - nodes[n].coords[-1][2])
+            end_node_thickness = end_node_relative_thickness*thickness
+            offsets[nodes[n].coords[0]] = tuple(c+array((u[0], u[1], +.5*end_node_thickness)))
+            offsets[nodes[n].coords[-1]] = tuple(c+array((u[0], u[1], -.5*end_node_thickness)))
 
 
     if DEBUG:
         open('/tmp/offsets.vtk', 'w').write(
-                to_vtk(MultiLineString([n for l in ends.values() for n in l]).wkb_hex))
+                to_vtk(MultiLineString([n for l in list(ends.values()) for n in l]).wkb_hex))
 
     sorted_holes = sorted(holes_)
     # face origin is the lowest bottom of the node in the first hole
@@ -262,14 +282,18 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
 
     face_idx = -1
     lines = []
-    for hl, hr in ((sorted_holes[0], sorted_holes[1]), 
-                   (sorted_holes[1], sorted_holes[2]),
-                   (sorted_holes[0], sorted_holes[2])):
+    faces = defaultdict(list)
+    result = []
+    termination = []
+    for hl, hr, other_hole in (
+                (sorted_holes[0], sorted_holes[1], sorted_holes[2]), 
+                (sorted_holes[1], sorted_holes[2], sorted_holes[0]),
+                (sorted_holes[0], sorted_holes[2], sorted_holes[1])):
         face_idx += 1
         direct_orientation = (hl, hr) == (holes_[0], holes_[1]) or (hl, hr) == (holes_[1], holes_[2]) or (hl, hr) == (holes_[2], holes_[0])
 
         face_edges = list(set([(s, e) if holes[s] == hl else (e, s) 
-            for s in graph.keys() for e in graph[s] if holes[s] in (hl, hr) and holes[e] in (hl, hr)]))
+            for s in list(graph.keys()) for e in graph[s] if holes[s] in (hl, hr) and holes[e] in (hl, hr)]))
 
         if not len(face_edges):
             continue
@@ -280,15 +304,16 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
             face_lines.append(Line([nodes[e[0]].coords[1], nodes[e[1]].coords[1]], Line.BOTTOM))
 
         # split lines 
-        for i, j in combinations(range(len(face_lines)), 2):
+        for i, j in combinations(list(range(len(face_lines))), 2):
             assert(face_lines[i].side != Line.VERTICAL and face_lines[j].side != Line.VERTICAL)
             p = sym_split(face_lines[i].points, face_lines[j].points)
             if p and p not in offsets:
                 if face_lines[i].points[0] in offsets and face_lines[i].points[-1] in offsets\
                         and face_lines[j].points[0] in offsets and face_lines[j].points[-1] in offsets:
-                    offsets[p] = sym_split(
+                    splt = sym_split(
                             offset_coords(offsets, [face_lines[i].points[0], face_lines[i].points[-1]]),
                             offset_coords(offsets, [face_lines[j].points[0], face_lines[j].points[-1]]))
+                    offsets[p] = splt if splt else p
                 else:
                     offsets[p] = p
 
@@ -302,7 +327,7 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                 else:
                     offsets[p] = p
 
-        for k, n in nodes.items():
+        for k, n in list(nodes.items()):
             if holes[k] in (hl, hr):
                 face_lines.append(Line([n.coords[0], n.coords[1]], Line.VERTICAL))
         
@@ -340,7 +365,8 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
             bug = 0
             for i, li in enumerate(linework):
                 if li.length <= 0:
-                    print('zero length line', i, li.wkt)
+                    # fix_print_with_import
+                    print(('zero length line', i, li.wkt))
                     bug = True
                     break
                 found = False
@@ -348,7 +374,8 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     if i!=j and (not (lj.coords[0] != li.coords[0] or lj.coords[1] != li.coords[1]) \
                             or not (lj.coords[0] != li.coords[1] or lj.coords[1] != li.coords[0])):
                                 open("/tmp/dup_line_{}_face_{}.vtk".format(bug, face_idx), 'w').write(to_vtk(MultiLineString([LineString(linework_sav[j])]).wkb_hex))
-                                print('duplicate line', li.wkt, lj.wkt)
+                                # fix_print_with_import
+                                print(('duplicate line', li.wkt, lj.wkt))
                                 bug += 1
                     if i!=j and li.coords[1] == lj.coords[0] or  li.coords[1] == lj.coords[1]:
                         found = True
@@ -356,7 +383,8 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     print(MultiLineString(linework).wkt)
                     bug += 1
             if bug:
-                print('open', MultiLineString(linework).wkt)
+                # fix_print_with_import
+                print(('open', MultiLineString(linework).wkt))
                 assert(False)
             
 
@@ -383,17 +411,19 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     term_tri.append(q)
 
         result += domain_tri
+        faces[(hl, hr)] += domain_tri
 
         top_lines = [l for l in face_lines if l.side==Line.TOP]
         bottom_lines = [l for l in face_lines if l.side==Line.BOTTOM]
-        end_lines = [tuple(nodes[n].coords) for n in ends.keys()]
+        end_lines = {tuple(nodes[n].coords): holes[n] for n in list(ends.keys())}
         if DEBUG:
             open('/tmp/top_lines_face_{}.vtk'.format(face_idx), 'w').write(to_vtk(MultiLineString([l.points for l in top_lines]).wkb_hex))
             open('/tmp/bottom_lines_face_{}.vtk'.format(face_idx), 'w').write(to_vtk(MultiLineString([l.points for l in bottom_lines]).wkb_hex))
             open('/tmp/offsets_bis.vtk', 'w').write(
-                    to_vtk(MultiLineString([LineString([k, v]) for k, v in offsets.items()]).wkb_hex))
+                    to_vtk(MultiLineString([LineString([k, v]) for k, v in list(offsets.items())]).wkb_hex))
 
         # create terminations
+        terms = []
         edges = set()
         for t in term_tri:
             for s, e in zip(t.exterior.coords[:-1], t.exterior.coords[1:]):
@@ -409,21 +439,24 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     break
             if share:
                 continue
-            termination.append(t)
-            termination.append(Polygon(offset_coords(offsets, t.exterior.coords[::-1])))
+            terms.append(t)
+            faces[(hl, hr)] += [t]
+            terms.append(Polygon(offset_coords(offsets, t.exterior.coords[::-1])))
             for s in zip(t.exterior.coords[:-1], t.exterior.coords[1:]):
                 if s in edges:
                     if (is_segment(s, top_lines) or is_segment(s, bottom_lines) or s in end_lines)\
                             and s[0] in offsets and s[1] in offsets:
-                        termination.append(Polygon([offsets[s[0]], s[1], s[0]]))
-                        termination.append(Polygon([offsets[s[0]], offsets[s[1]], s[1]]))
+                        terms.append(Polygon([offsets[s[0]], s[1], s[0]]))
+                        terms.append(Polygon([offsets[s[0]], offsets[s[1]], s[1]]))
                     if (s[1], s[0]) in end_lines:
-                        termination.append(Polygon([s[1], s[0], offsets[s[1]]]))
-                        termination.append(Polygon([s[0], offsets[s[0]], offsets[s[1]]]))
+                        terms.append(Polygon([s[1], s[0], offsets[s[1]]]))
+                        terms.append(Polygon([s[0], offsets[s[0]], offsets[s[1]]]))
+                        faces[tuple(sorted((end_lines[(s[1], s[0])], other_hole)))] += terms[-2:]
+        termination += terms
 
     if DEBUG:
         open("/tmp/faces.obj", 'w').write(to_obj(MultiPolygon(result).wkb_hex))
-        open("/tmp/term.obj", 'w').write(to_obj(MultiPolygon(termination).wkb_hex))
+        open("/tmp/termination.obj", 'w').write(to_obj(MultiPolygon(termination).wkb_hex))
 
     if len(result):
         
@@ -456,6 +489,7 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
 
             if DEBUG:
                 open("/tmp/linework_%s.vtk"%(face), 'w').write(to_vtk(MultiLineString([LineString(e) for e in merged]).wkb_hex))
+            face_triangles = []
             for m in merged:
                 if has_proper_2d_topology(m):
                     node_map = {(round(x[0], PRECI), round(x[1], PRECI)): x for x in m}
@@ -468,13 +502,21 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                             if face == 'bottom' else \
                             Polygon([node_map[tri[2]], node_map[tri[1]], node_map[tri[0]]])
                         result.append(q)
+                        face_triangles.append(q)
+            if DEBUG:
+                open("/tmp/face_{}.obj".format(face), 'w').write(to_obj(MultiPolygon(face_triangles).wkb_hex))
+
 
     # adds isolated nodes terminations
-    for n, l in ends.items():
+    for n, l in list(ends.items()):
         if len(l) == 2:
             node = nodes[n]
             A, B, C = array(node.coords[0]), array(l[0].coords[0]), array(l[1].coords[0])
-            l = l if dot(cross(B-A, C-A), array((0.,0.,1.))) > 0 else list(reversed(l))
+            k1, k2 = tuple(sorted((holes[n], end_holes[n][0]))), tuple(sorted((holes[n], end_holes[n][1])))
+            l = l 
+            if dot(cross(B-A, C-A), array((0.,0.,1.))) <= 0:
+                l = list(reversed(l))
+                k1, k2 = k2, k1
             termination += [
                     Polygon([node.coords[0], l[0].coords[0], l[1].coords[0]]),
                     Polygon([l[1].coords[-1], l[0].coords[-1], node.coords[-1]]),
@@ -485,8 +527,22 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     Polygon([l[0].coords[0], l[0].coords[1], l[1].coords[0]]),
                     Polygon([l[0].coords[1], l[1].coords[1], l[1].coords[0]])
                     ]
+            assert(len(end_holes[n])==2)
+            faces[k1] += [
+                    Polygon([node.coords[0], node.coords[1], l[0].coords[0]]),
+                    Polygon([node.coords[1], l[0].coords[1], l[0].coords[0]]),
+                    ]
+            faces[k2] += [
+                    Polygon([l[1].coords[0], node.coords[1], node.coords[0]]),
+                    Polygon([l[1].coords[0], l[1].coords[1], node.coords[1]]),
+                    ]
 
     result += termination
+
+    if DEBUG:
+        for hp, tri in faces.items():
+            open("/tmp/face_{}_{}.obj".format(hp[0], hp[1]), 'w').write(to_obj(MultiPolygon([t for t in tri]).wkb_hex))
+
 
     # decompose volume in connected components
     edges = {}
@@ -510,13 +566,75 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
 
     connected = []
     while len(graph):
-        n = next(iter(graph.keys()))
+        n = next(iter(list(graph.keys())))
         connected.append(pop_connected(n, graph))
 
+    i=0
     for c in connected:
-        r = MultiPolygon([result[i] for i in c])
-        geos.lgeos.GEOSSetSRID(r._geom, srid_)
-        yield r.wkb_hex
+        i+=1
+        face1 = []
+        face2 = []
+        face3 = []
+        triangles = [result[i] for i in c]
+        res = MultiPolygon(triangles)
+        
+        for f in faces[(sorted_holes[0], sorted_holes[1])]:
+            if f in triangles:
+                face1.append(f)
+        for f in faces[(sorted_holes[1], sorted_holes[2])]:
+            if f in triangles:
+                face2.append(f)
+        for f in faces[(sorted_holes[0], sorted_holes[2])]:
+            if f in triangles:
+                face3.append(f)
+        
+        if DEBUG:
+            open("/tmp/face1_tr_%d.obj"%(i), 'w').write(to_obj(face1.wkb_hex))
+            open("/tmp/face2_tr_%d.obj"%(i), 'w').write(to_obj(face2.wkb_hex))
+            open("/tmp/face3_tr_%d.obj"%(i), 'w').write(to_obj(face3.wkb_hex))
+            open("/tmp/volume_tr.obj", 'w').write(to_obj(res.wkb_hex))
+            # check volume is closed
+            edges = set()
+            for p in res:
+                for s, e in zip(p.exterior.coords[:-1], p.exterior.coords[1:]):
+                    if (e, s) in edges:
+                        edges.remove((e, s))
+                    else:
+                        edges.add((s, e))
+            if len(edges):
+                print("volume is not closed", edges)
+                open("/tmp/unconnected_edge.vtk", 'w').write(to_vtk(MultiLineString([LineString(e) for e in edges]).wkb_hex))
+
+
+            # check volume is positive
+            volume = 0
+            for p in res:
+                r = p.exterior.coords
+                v210 = r[2][0]*r[1][1]*r[0][2];
+                v120 = r[1][0]*r[2][1]*r[0][2];
+                v201 = r[2][0]*r[0][1]*r[1][2];
+                v021 = r[0][0]*r[2][1]*r[1][2];
+                v102 = r[1][0]*r[0][1]*r[2][2];
+                v012 = r[0][0]*r[1][1]*r[2][2];
+                volume += (1./6.)*(-v210 + v120 + v201 - v021 - v102 + v012)
+            if volume <= 0 :
+                print("volume is", volume)
+        
+        res = translate(res, translation[0], translation[1], translation[2])
+        geos.lgeos.GEOSSetSRID(res._geom, srid_)
+
+        face1 = translate(MultiPolygon(face1), translation[0], translation[1], translation[2])
+        geos.lgeos.GEOSSetSRID(face1._geom, srid_)
+
+        face2 = translate(MultiPolygon(face2), translation[0], translation[1], translation[2])
+        geos.lgeos.GEOSSetSRID(face2._geom, srid_)
+
+        face3 = translate(MultiPolygon(face3), translation[0], translation[1], translation[2])
+        geos.lgeos.GEOSSetSRID(face3._geom, srid_)
+        
+        empty_mp = "SRID={} ;MULTIPOLYGONZ EMPTY".format(srid_)
+        yield (res.wkb_hex if not res.is_empty else empty_mp, face1.wkb_hex if not face1.is_empty else empty_mp, 
+            face2.wkb_hex if not face2.is_empty else empty_mp, face3.wkb_hex if not face3.is_empty else empty_mp)
 
     for f in debug_files:
         os.remove(f)

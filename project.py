@@ -1,11 +1,14 @@
 # coding = utf-8
 
+from builtins import str
+from builtins import object
 from pglite import cluster_params
 import psycopg2
 import os
 import sys
 import atexit
 import binascii
+import string
 from shapely import wkb
 from dxfwrite import DXFEngine as dxf
 
@@ -23,16 +26,67 @@ from builtins import bytes
 
 from qgis.core import QgsMessageLog
 
+import time
+from psycopg2.extras import LoggingConnection, LoggingCursor
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+# MyLoggingCursor simply sets self.timestamp at start of each query
+class MyLoggingCursor(LoggingCursor):
+    def execute(self, query, vars=None):
+        self.timestamp = time.time()
+        return super(MyLoggingCursor, self).execute(query, vars)
+
+    def callproc(self, procname, vars=None):
+        self.timestamp = time.time()
+        return super(MyLoggingCursor, self).callproc(procname, vars)
+
+# MyLogging Connection:
+#   a) calls MyLoggingCursor rather than the default
+#   b) adds resulting execution (+ transport) time via filter()
+class MyLoggingConnection(LoggingConnection):
+    def filter(self, msg, curs):
+        return "{} {} ms".format(msg, int((time.time() - curs.timestamp) * 1000))
+
+    def cursor(self, *args, **kwargs):
+        kwargs.setdefault('cursor_factory', MyLoggingCursor)
+        return LoggingConnection.cursor(self, *args, **kwargs)
+
+
 if not check_cluster():
     init_cluster()
 start_cluster()
-# atexit.register(stop_cluster)
+
+#atexit.register(stop_cluster)
+TABLES = [
+    {'NAME': 'radiometry',
+     'FIELDS_DEFINITION': 'gamma real',
+     },
+    {'NAME': 'resistivity',
+     'FIELDS_DEFINITION': 'rho real',
+     },
+    {'NAME': 'formation',
+     'FIELDS_DEFINITION': 'code integer, comments varchar',
+     },
+    {'NAME': 'lithology',
+     'FIELDS_DEFINITION': 'code integer, comments varchar',
+     },
+    {'NAME': 'facies',
+     'FIELDS_DEFINITION': 'code integer, comments varchar',
+     },
+    {'NAME': 'chemical',
+     'FIELDS_DEFINITION': 'num_sample varchar, element varchar, thickness real, gt real, grade real, equi real, comments varchar',
+     },
+    {'NAME': 'mineralization',
+     'FIELDS_DEFINITION': 'level_ real, oc real, accu real, grade real, comments varchar',
+     }]
 
 
 def find_in_dir(dir_, name):
     for filename in os.listdir(dir_):
         if filename.find(name) != -1:
-            return os.path.join(dir_, filename)
+            return os.path.abspath(os.path.join(dir_, filename))
     return ""
 
 
@@ -69,14 +123,16 @@ class Project(object):
         self.__conn_info = "dbname={} {}".format(project_name, cluster_params())
 
     def connect(self):
-        return psycopg2.connect(self.__conn_info)
+        con = psycopg2.connect(self.__conn_info)#, connection_factory=MyLoggingConnection)
+        #con.initialize(logger)
+        return con
 
     def vacuum(self):
         with self.connect() as con:
-            old_isolation_level = con.isolation_level
             con.set_isolation_level(0)
             cur = con.cursor()
             cur.execute("vacuum analyze")
+            con.commit()
 
     @staticmethod
     def exists(project_name):
@@ -155,15 +211,79 @@ class Project(object):
                         )
                     )
             con.commit()
+
+        for table in TABLES:
+            table['SRID'] = srid
+            project.add_table(table)
+
         return project
+
+
+    def add_table(self, table, values=None, view_only=False):
+        """ 
+        table: a dict with keys
+            NAME: the name of the table to create
+            FIELDS_DEFINITION: the sql definition (name type) of the "additional" fields (i.e. excludes hole_id, from_ and to_)
+            SRID: the project's SRID
+        values: list of tuples (hole_id, from_, to_, ...)
+        """
+
+        fields = [f.split()[0].strip() for f in table['FIELDS_DEFINITION'].split(',')]
+        table['FIELDS'] = ', '.join(fields)
+        table['T_FIELDS'] = ', '.join(['t.{}'.format(f.replace(' ', '')) for f in fields])
+        table['FORMAT'] = ','.join([' %s' for v in fields])
+        table['NEW_FIELDS'] = ','.join(['new.{}'.format(v) for v in fields])
+        table['SET_FIELDS'] = ','.join(['{}=new.{}'.format(v,v) for v in fields])
+        with self.connect() as con:
+            cur = con.cursor()
+            for file_ in (("albion_table.sql",) if view_only else ("_albion_table.sql", "albion_table.sql")):
+                for statement in (
+                    open(os.path.join(os.path.dirname(__file__), file_))
+                    .read()
+                    .split("\n;\n")[:-1]
+                ):
+                    cur.execute(
+                        string.Template(statement).substitute(table)
+                    )
+            if values is not None:
+                cur.executemany("""
+                    insert into albion.{NAME}(hole_id, from_, to_, {FIELDS})
+                    values (%s, %s, %s, {FORMAT})
+                """.format(**table), values)
+                cur.execute("""
+                    refresh materialized view albion.{NAME}_section_geom_cache
+                    """.format(**table))
+            con.commit()
+        self.vacuum()
+
 
     def update(self):
         "reload schema albion without changing data"
+
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select srid from albion.metadata")
             srid, = cur.fetchone()
             cur.execute("drop schema if exists albion cascade")
+
+            # test if version number is in metadata
+            cur.execute("""
+                select column_name                                                       
+                from information_schema.columns where table_name = 'metadata'
+                and column_name='version'
+                """);
+            if cur.fetchone():
+                # here goes future upgrades
+                cur.execute("select version from _albion.metadata")
+            else:
+                # old albion version, we upgrade the data
+                for statement in (
+                    open(os.path.join(os.path.dirname(__file__), "_albion_v1_to_v2.sql"))
+                    .read()
+                    .split("\n;\n")[:-1]
+                ):
+                    cur.execute(statement.replace("$SRID", str(srid)))
+
             include_elementary_volume = open(
                 os.path.join(
                     os.path.dirname(__file__), "elementary_volume", "__init__.py"
@@ -179,23 +299,99 @@ class Project(object):
                         "$INCLUDE_ELEMENTARY_VOLUME", include_elementary_volume
                     )
                 )
+
             con.commit()
 
+            cur.execute("select name, fields_definition from albion.layer")
+            tables = [{'NAME': r[0], 'FIELDS_DEFINITION': r[1]} for r in cur.fetchall()]
+
+        for table in tables:
+            table['SRID'] = str(srid)
+            self.add_table(table, view_only=True)
+
+        self.vacuum()
+
+    def export_sections_obj(self, graph, filename):
+        
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                with hole_idx as (
+                    select s.id as section_id, h.id as hole_id
+                    from _albion.named_section as s
+                    join _albion.hole as h on s.geom && h.geom and st_intersects(s.geom, st_startpoint(h.geom))
+                )
+                select albion.to_obj(st_collectionhomogenize(st_collect(ef.geom)))
+                from albion.all_edge as e
+                join hole_idx as hs on hs.hole_id = e.start_
+                join hole_idx as he on he.hole_id = e.end_ and he.section_id = hs.section_id
+                join albion.edge_face as ef on ef.start_ = e.start_ and ef.end_ = e.end_ and not st_isempty(ef.geom)
+                where ef.graph_id='{}'
+                """.format(
+                    graph
+                )
+            )
+            open(filename, "w").write(cur.fetchone()[0])
+
+    def export_sections_dxf(self, graph, filename):
+        
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                with hole_idx as (
+                    select s.id as section_id, h.id as hole_id
+                    from _albion.named_section as s
+                    join _albion.hole as h on s.geom && h.geom and st_intersects(s.geom, st_startpoint(h.geom))
+                )
+                select st_collectionhomogenize(st_collect(ef.geom))
+                from albion.all_edge as e
+                join hole_idx as hs on hs.hole_id = e.start_
+                join hole_idx as he on he.hole_id = e.end_ and he.section_id = hs.section_id
+                join albion.edge_face as ef on ef.start_ = e.start_ and ef.end_ = e.end_ and not st_isempty(ef.geom)
+                where ef.graph_id='{}'
+                """.format(
+                    graph
+                )
+            )
+
+            drawing = dxf.drawing(filename)
+            m = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
+            for p in m:
+                r = p.exterior.coords
+                drawing.add(
+                    dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1)
+                )
+            drawing.save()
+
+
+    def __srid(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select srid from albion.metadata")
+            srid, = cur.fetchone()
+        return srid
+
     def __getattr__(self, name):
-        if name == "has_collar":
-            return self.__has_collar()
-        elif name == "has_hole":
+        if name == "has_hole":
             return self.__has_hole()
         elif name == "has_section":
             return self.__has_section()
+        elif name == "has_volume":
+            return self.__has_volume()
         elif name == "has_group_cell":
             return self.__has_group_cell()
+        elif name == "has_graph":
+            return self.__has_graph()
         elif name == "has_radiometry":
             return self.__has_radiometry()
         elif name == "has_cell":
             return self.__has_cell()
         elif name == "name":
             return self.__name
+        elif name == "srid":
+            return self.__srid()
         else:
             raise AttributeError(name)
 
@@ -203,46 +399,56 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.cell")
-            return cur.fetchone()[0] > 1
-
-    def __has_collar(self):
-        with self.connect() as con:
-            cur = con.cursor()
-            cur.execute("select count(1) from albion.collar")
-            return cur.fetchone()[0] > 1
+            return cur.fetchone()[0] > 0
 
     def __has_hole(self):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("select count(1) from albion.hole")
-            return cur.fetchone()[0] > 1
+            cur.execute("select count(1) from albion.hole where geom is not null")
+            return cur.fetchone()[0] > 0
+
+    def __has_volume(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.volume")
+            return cur.fetchone()[0] > 0
 
     def __has_section(self):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("select count(1) from albion.section_geom")
-            return cur.fetchone()[0] > 1
+            cur.execute("select count(1) from albion.named_section")
+            return cur.fetchone()[0] > 0
 
     def __has_group_cell(self):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.group_cell")
-            return cur.fetchone()[0] > 1
+            return cur.fetchone()[0] > 0
+
+    def __has_graph(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.graph")
+            return cur.fetchone()[0] > 0
 
     def __has_radiometry(self):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.radiometry")
-            return cur.fetchone()[0] > 1
+            return cur.fetchone()[0] > 0
+
+
 
     def import_data(self, dir_, progress=None):
+
         progress = progress if progress is not None else DummyProgress()
         with self.connect() as con:
             cur = con.cursor()
 
+
             cur.execute(
                 """
-                copy _albion.collar(id, x, y, z, date_, comments) from '{}' delimiter ';' csv header
+                copy _albion.hole(id, x, y, z, depth_, date_, comments) from '{}' delimiter ';' csv header
                 """.format(
                     find_in_dir(dir_, "collar")
                 )
@@ -252,28 +458,22 @@ class Project(object):
 
             cur.execute(
                 """
-                update _albion.collar set geom=format('SRID=%s;POINTZ(%s %s %s)',m. srid, x, y, z)::geometry
-                from albion.metadata as m
-                """
-            )
-
-            cur.execute(
-                """
-                insert into _albion.hole(id, collar_id) select id, id from _albion.collar;
-                """
-            )
-
-            progress.setPercent(10)
-
-            cur.execute(
-                """
                 copy _albion.deviation(hole_id, from_, dip, azimuth) from '{}' delimiter ';' csv header
                 """.format(
                     find_in_dir(dir_, "devia")
                 )
             )
 
+            progress.setPercent(10)
+
+            cur.execute(
+                """
+                update _albion.hole set geom = albion.hole_geom(id)
+                """
+            )
+
             progress.setPercent(15)
+
 
             if find_in_dir(dir_, "avp"):
                 cur.execute(
@@ -330,90 +530,19 @@ class Project(object):
 
             progress.setPercent(40)
 
-            cur.execute(
-                """
-                with dep as (
-                    select hole_id, max(to_) as mx
-                        from (
-                            select hole_id, max(to_) as to_ from _albion.radiometry group by hole_id
-                            union all
-                            select hole_id, max(to_) as to_ from _albion.resistivity group by hole_id
-                            union all
-                            select hole_id, max(to_) as to_ from _albion.formation group by hole_id
-                            union all
-                            select hole_id, max(to_) as to_ from _albion.lithology group by hole_id
-                            union all
-                            select hole_id, max(to_) as to_ from _albion.facies group by hole_id
-                            union all
-                            select hole_id, max(from_) as to_ from _albion.deviation group by hole_id
-                            ) as t
-                    group by hole_id
-                )
-                update _albion.hole as h set depth_=d.mx
-                from dep as d where h.id=d.hole_id
-                """
-            )
-
-            progress.setPercent(50)
-
-            cur.execute("update albion.hole set geom=albion.hole_geom(id)")
-
-            progress.setPercent(55)
-
-            cur.execute(
-                "update albion.lithology set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            progress.setPercent(60)
-
-            cur.execute(
-                "update albion.formation set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            progress.setPercent(65)
-
-            cur.execute(
-                "update albion.radiometry set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            progress.setPercent(70)
-
-            cur.execute(
-                "update albion.resistivity set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            progress.setPercent(75)
-
-            cur.execute(
-                "update albion.facies set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            if find_in_dir(dir_, "mineralization"):
-                cur.execute(
-                    """
-                    copy _albion.mineralization(hole_id, level_, from_, to_, oc, accu, grade) from '{}' delimiter ';' csv header
-                    """.format(
-                        find_in_dir(dir_, "mineralization")
-                    )
-                )
-
-            cur.execute(
-                "update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)"
-            )
-
-            progress.setPercent(80)
-
             if find_in_dir(dir_, "chemical"):
                 cur.execute(
                     """
                     copy _albion.chemical(hole_id, from_, to_, num_sample,
-                        element, thickness, gt, grade, equi, comments
-                    )
+                        element, thickness, gt, grade, equi, comments)
                     from '{}' delimiter ';' csv header
                     """.format(
                         find_in_dir(dir_, "chemical")
                     )
                 )
+
+            progress.setPercent(45)
+
 
             progress.setPercent(100)
 
@@ -425,24 +554,6 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select albion.triangulate()")
-            con.commit()
-
-    def refresh_all_edge(self):
-        with self.connect() as con:
-            cur = con.cursor()
-            cur.execute("refresh materialized view albion.all_edge")
-            con.commit()
-
-    def refresh_radiometry(self):
-        with self.connect() as con:
-            cur = con.cursor()
-            cur.execute("refresh materialized view albion.radiometry_section")
-            con.commit()
-
-    def refresh_resistivity(self):
-        with self.connect() as con:
-            cur = con.cursor()
-            cur.execute("refresh materialized view albion.resistivity_section")
             con.commit()
 
     def create_sections(self):
@@ -474,7 +585,7 @@ class Project(object):
                 cur.execute("insert into albion.graph(id) values ('{}');".format(graph))
             con.commit()
 
-    def delete_graph(self):
+    def delete_graph(self, graph):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("delete from albion.graph cascade where id='{}';".format(graph))
@@ -486,38 +597,8 @@ class Project(object):
             cur = con.cursor()
             cur.execute(
                 """
-                select group_id from albion.section where id='{}'
-                """.format(
-                    section
-                )
-            )
-            group, = cur.fetchone()
-            group = group or 0
-            cur.execute(
-                """
-                select group_id, geom from albion.section_geom
-                where section_id='{section}'
-                and group_id < {group}
-                order by group_id desc
-                limit 1
-                """.format(
-                    group=group, section=section
-                )
-            )
-            res = cur.fetchone()
-            if res:
-                sql = """
-                    update albion.section set group_id={}, geom='{}'::geometry where id='{}'
-                    """.format(
-                    res[0], res[1], section
-                )
-            else:
-                sql = """
-                    update albion.section set group_id=null, geom=albion.first_section(anchor) where id='{}'
-                    """.format(
-                    section
-                )
-            cur.execute(sql)
+                update albion.section set geom=coalesce(albion.previous_section(%s), geom) where id=%s
+                """, (section, section))
             con.commit()
 
     def next_section(self, section):
@@ -527,53 +608,99 @@ class Project(object):
             cur = con.cursor()
             cur.execute(
                 """
-                select group_id from albion.section where id='{}'
-                """.format(
-                    section
-                )
-            )
-            group, = cur.fetchone()
-            group = group or 0
+                update albion.section set geom=coalesce(albion.next_section(%s), geom) where id=%s
+                """, (section, section))
+            con.commit()
+
+    def next_subsection(self, section):
+        with self.connect() as con:
+            print("select section from distance")
+            cur = con.cursor()
             cur.execute(
                 """
-                select group_id, geom from albion.section_geom
+                    select sg.group_id 
+                    from albion.section_geom sg 
+                    join albion.section s on s.id=sg.section_id 
+                    where s.id='{section}' 
+                    order by st_distance(s.geom, sg.geom), st_HausdorffDistance(s.geom, sg.geom) asc 
+                    limit 1
+                """.format(section=section))
+            res = cur.fetchone()
+            if not res:
+                return
+            group = res[0] or 0
+            print("select geom for next")
+            cur.execute(
+                """
+                select geom from albion.section_geom
                 where section_id='{section}'
                 and group_id > {group}
                 order by group_id asc
-                limit 1
-                """.format(
-                    group=group, section=section
-                )
+                limit 1 """.format( group=group, section=section)
             )
             res = cur.fetchone()
+            print("update section")
             if res:
                 sql = """
-                    update albion.section set group_id={}, geom='{}'::geometry where id='{}'
-                    """.format(
-                    res[0], res[1], section
-                )
+                    update albion.section set geom=st_multi('{}'::geometry) where id='{}'
+                    """.format(res[0], section)
                 cur.execute(sql)
                 con.commit()
+            print("done")
 
-    def next_group_ids(self):
+    def previous_subsection(self, section):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute(
                 """
-                select cell_id from albion.next_group where section_id='{}'
-                """.format(
-                    self.__current_section.currentText()
-                )
-            )
-            return [cell_id for cell_id, in cur.fetchall()]
+                    select sg.group_id 
+                    from albion.section_geom sg 
+                    join albion.section s on s.id=sg.section_id 
+                    where s.id='{section}' 
+                    order by st_distance(s.geom, sg.geom), st_HausdorffDistance(s.geom, sg.geom) asc 
+                    limit 1
+                """.format(section=section))
+            res = cur.fetchone()
+            if not res:
+                return
+            group = res[0] or 0
+            cur.execute(
+                """
+                select geom from albion.section_geom
+                where section_id='{section}'
+                and group_id < {group}
+                order by group_id desc
+                limit 1
+                """.format(group=group, section=section))
+            res = cur.fetchone()
+            if res:
+                sql = """
+                    update albion.section set geom=st_multi('{}'::geometry) where id='{}'
+                    """.format(res[0], section)
+                cur.execute(sql)
+                con.commit()
 
+
+
+#    def next_group_ids(self):
+#        with self.connect() as con:
+#            cur = con.cursor()
+#            cur.execute(
+#                """
+#                select cell_id from albion.next_group where section_id='{}'
+#                """.format(
+#                    self.__current_section.currentText()
+#                )
+#            )
+#            return [cell_id for cell_id, in cur.fetchall()]
+#
     def create_group(self, section, ids):
         with self.connect() as con:
             # add group
             cur = con.cursor()
             cur.execute(
                 """
-                insert into albion.group default values returning id
+                insert into albion.group(id) values ((select coalesce(max(id)+1, 1) from albion.group)) returning id
                 """
             )
             group, = cur.fetchone()
@@ -618,13 +745,9 @@ class Project(object):
                     oc=oc, ci=ci, cutoff=cutoff
                 )
             )
-            cur.execute(
-                """
-                update albion.mineralization set geom=albion.hole_piece(from_, to_, hole_id)
-                where geom is null
-                """
-            )
+            cur.execute("refresh materialized view albion.mineralization_section_geom_cache")
             con.commit()
+        
 
     def export_obj(self, graph_id, filename):
         with self.connect() as con:
@@ -642,60 +765,50 @@ class Project(object):
             )
             open(filename, "w").write(cur.fetchone()[0])
 
-    def export_elementary_volume_obj(self, graph_id, cell_id, outdir, closed):
+    def export_elementary_volume_obj(self, graph_id, cell_ids, outdir, closed_only=False):
         with self.connect() as con:
-            closed_sql = ""
-            if not closed:
-                closed_sql = "not"
-
             cur = con.cursor()
             cur.execute(
                 """
-                select albion.to_obj(geom) from albion.dynamic_volume
-                where cell_id='{}' and graph_id='{}'
-                and {} albion.is_closed_volume(geom)
+                select cell_id, row_number() over(partition by cell_id order by closed desc), obj, closed 
+                from (
+                    select cell_id, albion.to_obj(triangulation) as obj, albion.is_closed_volume(triangulation) as closed 
+                    from albion.volume
+                    where cell_id in ({}) and graph_id='{}'
+                    ) as t
                 """.format(
-                    cell_id, graph_id, closed_sql
+                    ','.join(["'{}'".format(c) for c in cell_ids]), graph_id
                 )
             )
-
-            status = "opened"
-            if closed:
-                status = "closed"
-
-            i = 0
-            for obj in cur.fetchall():
-                filename = '{}_{}_{}_{}.obj'.format(cell_id, graph_id, status, i)
-                i += 1
+            for cell_id, i, obj, closed in cur.fetchall():
+                if closed_only and not closed:
+                    continue
+                filename = '{}_{}_{}_{}.obj'.format(cell_id, graph_id, "closed" if closed else "opened", i)
                 path = os.path.join(outdir, filename)
                 open(path, "w").write(obj[0])
+            
 
-    def export_elementary_volume_dxf(self, graph_id, cell_id, outdir, closed):
+    def export_elementary_volume_dxf(self, graph_id, cell_ids, outdir, closed_only=False):
         with self.connect() as con:
-            closed_sql = ""
-            if not closed:
-                closed_sql = "not"
-
             cur = con.cursor()
             cur.execute(
                 """
-                select geom from albion.dynamic_volume
-                where cell_id='{}' and graph_id='{}'
-                and {} albion.is_closed_volume(geom)
+                select cell_id, row_number() over(partition by cell_id order by closed desc), geom, closed 
+                from (
+                    select cell_id, triangulation as geom, albion.is_closed_volume(triangulation) as closed 
+                    from albion.volume
+                    where cell_id in ({}) and graph_id='{}'
+                    ) as t
                 """.format(
-                    cell_id, graph_id, closed_sql
+                    ','.join(["'{}'".format(c) for c in cell_ids]), graph_id
                 )
             )
 
-            status = "opened"
-            if closed:
-                status = "closed"
-
-            i = 0
-            for wkb_geom in cur.fetchall():
-                geom = wkb.loads(bytes.fromhex(wkb_geom[0]))
-
-                filename = '{}_{}_{}_{}.dxf'.format(cell_id, graph_id, status, i)
+            for cell_id, i, wkb_geom, closed in cur.fetchall():
+                geom = wkb.loads(bytes.fromhex(wkb_geom))
+                if closed_only and not closed:
+                    continue
+                filename = '{}_{}_{}_{}.dxf'.format(cell_id, graph_id, "closed" if closed else "opened", i)
                 path = os.path.join(outdir, filename)
                 drawing = dxf.drawing(path)
 
@@ -705,8 +818,6 @@ class Project(object):
                         dxf.face3d([tuple(r[0]), tuple(r[1]), tuple(r[2])], flags=1)
                     )
                 drawing.save()
-
-                i += 1
 
     def errors_obj(self, graph_id, filename):
         with self.connect() as con:
@@ -747,6 +858,64 @@ class Project(object):
                 )
             drawing.save()
 
+    def export_holes_vtk(self, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                select albion.to_vtk(st_collect(geom))
+                from albion.hole
+                """
+            )
+            open(filename, "w").write(cur.fetchone()[0])
+
+    def export_holes_dxf(self, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                select st_collect(geom)
+                from albion.hole
+                """
+            )
+            drawing = dxf.drawing(filename)
+            m = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
+            for l in m:
+                r = l.coords
+                drawing.add(
+                    dxf.polyline(list(l.coords))
+                )
+            drawing.save()
+
+    def export_layer_vtk(self, table, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                select albion.to_vtk(st_collect(albion.hole_piece(from_, to_, hole_id)))
+                from albion.{}
+                """.format(table)
+            )
+            open(filename, "w").write(cur.fetchone()[0])
+
+    def export_layer_dxf(self, table, filename):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                select st_collect(albion.hole_piece(from_, to_, hole_id))
+                from albion.{}
+                """.format(table)
+            )
+            drawing = dxf.drawing(filename)
+            m = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
+            for l in m:
+                r = l.coords
+                drawing.add(
+                    dxf.polyline(list(l.coords))
+                )
+            drawing.save()
+
     def create_volumes(self, graph_id):
         with self.connect() as con:
             cur = con.cursor()
@@ -759,8 +928,8 @@ class Project(object):
             )
             cur.execute(
                 """
-                insert into albion.volume(graph_id, cell_id, triangulation)
-                select graph_id, cell_id, geom
+                insert into _albion.volume(graph_id, cell_id, triangulation, face1, face2, face3)
+                select graph_id, cell_id, geom, face1, face2, face3
                 from albion.dynamic_volume
                 where graph_id='{}'
                 and geom is not null --not st_isempty(geom)
@@ -782,8 +951,8 @@ class Project(object):
             )
             cur.execute(
                 """
-                insert into albion.end_node(geom, node_id, collar_id, graph_id)
-                select geom, node_id, collar_id, graph_id
+                insert into albion.end_node(geom, node_id, hole_id, graph_id)
+                select geom, node_id, hole_id, graph_id
                 from albion.dynamic_end_node
                 where graph_id='{}'
                 """.format(
@@ -799,6 +968,7 @@ class Project(object):
     def import_(name, filename):
         import_db(filename, name)
         project = Project(name)
+        project.update()
         project.create_sections()
         return project
 
@@ -851,9 +1021,17 @@ class Project(object):
                 )
             )
 
-            cur.execute("refresh materialized view albion.radiometry_section")
-            cur.execute("refresh materialized view albion.resistivity_section")
+            #cur.execute("refresh materialized view albion.radiometry_section")
+            #cur.execute("refresh materialized view albion.resistivity_section")
             con.commit()
+
+    def refresh_section_geom(self, table):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from albion.layer where name='{}'".format(table))
+            if cur.fetchone()[0]:
+                cur.execute("refresh materialized view albion.{}_section_geom_cache".format(table))
+                con.commit()
 
     def closest_hole_id(self, x, y):
         with self.connect() as con:
@@ -873,7 +1051,7 @@ class Project(object):
             if not res:
                 cur.execute(
                     """
-                    select hole_id from albion.current_hole_section
+                    select hole_id from albion.hole_section
                     where st_dwithin(geom, 'SRID={srid} ;POINT({x} {y})'::geometry, 25)
                     order by st_distance('SRID={srid} ;POINT({x} {y})'::geometry, geom)
                     limit 1""".format(
@@ -884,6 +1062,21 @@ class Project(object):
 
             return res[0] if res else None
 
+    def add_named_section(self, section_id, geom):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select srid from albion.metadata")
+            srid, = cur.fetchone()
+            cur.execute(
+                """
+                insert into albion.named_section(geom, section) 
+                values (ST_SetSRID('{wkb_hex}'::geometry, {srid}), '{section_id}')
+                """.format(
+                    srid=srid, wkb_hex=geom.wkb_hex, section_id=section_id
+                )
+            )
+            con.commit()
+
     def set_section_geom(self, section_id, geom):
         with self.connect() as con:
             cur = con.cursor()
@@ -891,9 +1084,31 @@ class Project(object):
             srid, = cur.fetchone()
             cur.execute(
                 """
-                update albion.section set geom=ST_SetSRID('{wkb_hex}'::geometry, {srid}) where id='{id_}'
+                update albion.section set geom=st_multi(ST_SetSRID('{wkb_hex}'::geometry, {srid})) where id='{id_}'
                 """.format(
-                    srid=srid, wkb_hex=binascii.hexlify(geom.wkb), id_=section_id
+                    srid=srid, wkb_hex=geom.wkb_hex, id_=section_id
                 )
             )
             con.commit()
+
+    def add_to_graph_node(self, graph, features):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.executemany(
+                """
+                insert into albion.node(from_, to_, hole_id, graph_id) values(%s, %s, %s, %s)
+                """,
+                [(f['from_'], f['to_'], f['hole_id'], graph) for f in features])
+            
+    def accept_possible_edge(self, graph):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                insert into albion.edge(start_, end_, graph_id, geom)
+                select start_, end_, graph_id, geom from albion.possible_edge
+                where graph_id=%s
+                """,
+                (graph,))
+
+

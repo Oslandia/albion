@@ -1,7 +1,8 @@
 # -*- coding: UTF-8 -*-
 
-from PyQt4.QtCore import Qt
-from PyQt4.QtGui import QVector3D
+from builtins import object
+from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtGui import QVector3D
 
 class Camera(object):
     "a simple camera"

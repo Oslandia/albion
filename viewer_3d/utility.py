@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 
+from builtins import str
 import sys
 import re
 import numpy

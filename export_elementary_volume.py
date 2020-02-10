@@ -1,8 +1,9 @@
 import os
 
-from PyQt4 import uic
-from PyQt4.QtCore import Qt
-from PyQt4.QtGui import QDialog, QFileDialog, QApplication, QCursor
+from qgis.PyQt import uic
+from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QApplication
+from qgis.PyQt.QtGui import QCursor
 
 from qgis.core import QgsFeatureRequest
 
@@ -46,36 +47,20 @@ class ExportElementaryVolume(QDialog, FORM_CLASS):
 
         QApplication.setOverrideCursor(QCursor(Qt.WaitCursor))
         QApplication.processEvents()
-        for fid in fids:
-            request = QgsFeatureRequest(fid)
+        cell_ids = [feature["id"]
+            for fid in fids 
+            for feature in self.cell_layer.getFeatures(QgsFeatureRequest(fid))
+            ]
 
-            ft = None
-            for feature in self.cell_layer.getFeatures(request):
-                ft = feature
+        outdir = self.mOutputDir.text()
 
-            if not ft:
-                return
-
-            cell = ft["id"]
-            outdir = self.mOutputDir.text()
-
-            if self.mFormat.currentText() == "OBJ":
-                self.project.export_elementary_volume_obj(
-                    self.graph, cell, outdir, True
-                )
-            else:  # DXF
-                self.project.export_elementary_volume_dxf(
-                    self.graph, cell, outdir, True
-                )
-
-            if not closed_only:
-                if self.mFormat.currentText() == "OBJ":
-                    self.project.export_elementary_volume_obj(
-                        self.graph, cell, outdir, False
-                    )
-                else:  # DXF
-                    self.project.export_elementary_volume_dxf(
-                        self.graph, cell, outdir, False
-                    )
+        if self.mFormat.currentText() == "OBJ":
+            self.project.export_elementary_volume_obj(
+                self.graph, cell_ids, outdir, closed_only
+            )
+        else:  # DXF
+            self.project.export_elementary_volume_dxf(
+                self.graph, cell_ids, outdir, closed_only
+            )
 
         QApplication.restoreOverrideCursor()

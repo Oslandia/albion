@@ -1,11 +1,13 @@
 # -*- coding: UTF-8 -*-
 
+from builtins import zip
+from builtins import range
 import numpy
 from OpenGL.GL import *
 from OpenGL.GL import shaders
 
-from PyQt4.QtGui import *
-from PyQt4.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtCore import *
 
 from .utility import computeNormals
 from shapely import wkb
@@ -51,6 +53,7 @@ class Scene(QObject):
                 "edge":None,
                 "section":None,
                 "volume":None,
+                "volume_section":None,
                 "error":None,
                 "end": None,
                 "inconsistency":None}
@@ -59,6 +62,7 @@ class Scene(QObject):
                 "edge":None,
                 "section":None,
                 "volume":None,
+                "volume_section":None,
                 "error":None,
                 "end":None}
 
@@ -72,6 +76,7 @@ class Scene(QObject):
                 "end":None}
         self.nrml = {
                 "volume":None,
+                "volume_section":None,
                 "error":None}
 
         self.__labels = []
@@ -133,14 +138,6 @@ class Scene(QObject):
                     gl_FragColor.rgb = mix(vec3(0.0), Idiff.xyz, edgeFactor());
                     gl_FragColor.a = 1. - uTransparency;
 
-                    //if(any(lessThan(vBC, vec3(0.02)))){
-                    //    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-                    //}
-                    //else{
-                    //    gl_FragColor = Idiff;
-                    //}
-                    //gl_FragColor = vec4(vBC.xyz, 1);//Idiff;
-                    //gl_FragColor = Idiff;
                 }
                 """, GL_FRAGMENT_SHADER)
 
@@ -237,7 +234,6 @@ class Scene(QObject):
                         glDrawElementsui(GL_LINES, a)
                         glEnable(GL_DEPTH_TEST)
         
-        
         # render volume
         if self.__param["transparency"] > 0.:
             glDisable(GL_DEPTH_TEST)
@@ -290,6 +286,36 @@ class Scene(QObject):
 
         if self.__useProgram:
             glUseProgram(0)
+
+        layer='volume_section'
+        if self.__param[layer]:
+            if self.__param[layer] != self.__old_param[layer]:
+                self.update(layer)
+            if self.vtx[layer] is not None and len(self.vtx[layer]):
+                glEnable(GL_COLOR_MATERIAL)
+                glDisable(GL_TEXTURE_2D)
+                glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,  [7., 4., 4., 1.])
+                glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,  [7., 4., 4., 1.])
+                glColor4f(.7, .4, .4, 1.)
+                glVertexPointerf(self.vtx[layer])
+                glDisableClientState(GL_COLOR_ARRAY)
+                glDisable(GL_CULL_FACE)
+                glPolygonMode(GL_FRONT_AND_BACK,  GL_FILL)
+                glNormalPointerf(self.nrml[layer])
+                glDrawElementsui(GL_TRIANGLES, self.idx[layer])
+                #if not self.__useProgram:
+                #    glDisable(GL_LIGHTING)
+                #    glDisableClientState(GL_COLOR_ARRAY)
+                #    glColor4f(.1, .1, .1, 1.)
+                #    glLineWidth(2)
+                #    glEnable(GL_CULL_FACE)
+                #    glPolygonMode(GL_FRONT,GL_LINE)
+                #    glDrawElementsui(GL_TRIANGLES, self.idx[layer])
+                #    glPolygonMode(GL_FRONT,GL_FILL)
+                #    glDisable(GL_CULL_FACE)
+                #    glEnableClientState(GL_COLOR_ARRAY)
+                #    glEnable(GL_LIGHTING)
+                glDisable(GL_COLOR_MATERIAL)
 
         # current section, highlight nodes
         glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION,  [1., 1., 0., 1.])
@@ -450,8 +476,7 @@ class Scene(QObject):
                 cur.execute("""
                     select coalesce(st_collect(n.geom), 'GEOMETRYCOLLECTION EMPTY'::geometry)
                     from albion.section as s
-                    join albion.collar as c on st_intersects(s.geom, c.geom)
-                    join albion.hole as h on h.collar_id=c.id
+                    join albion.hole as h on s.geom && h.geom and st_intersects(s.geom, st_startpoint(h.geom))
                     join albion.node as n on n.hole_id=h.id
                     where n.graph_id='{}'
                     """.format(self.__param["graph_id"])
@@ -513,6 +538,21 @@ class Scene(QObject):
                 self.idx[layer] = numpy.require(numpy.arange(len(self.vtx[layer])).reshape((-1,3)), numpy.int32, 'C')
                 self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
 
+            elif layer=='volume_section':
+                cur.execute("""
+                    select st_collectionhomogenize(coalesce(st_collect(geom), 'GEOMETRYCOLLECTION EMPTY'::geometry))
+                    from albion.volume_section
+                    where graph_id='{}'
+                    """.format(self.__param["graph_id"]))
+                geom = wkb.loads(bytes.fromhex(cur.fetchone()[0]))
+                self.vtx[layer] = numpy.require(numpy.array([tri.exterior.coords[:-1] for tri in geom]).reshape((-1,3)), numpy.float32, 'C')
+                if len(self.vtx[layer]):
+                    self.vtx[layer] += self.__offset
+                    self.vtx[layer][:,2] *= self.__param["z_scale"]
+                self.idx[layer] = numpy.require(numpy.arange(len(self.vtx[layer])).reshape((-1,3)), numpy.int32, 'C')
+                self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
+
+
             elif layer=='error':
                 cur.execute("""
                     select st_collectionhomogenize(coalesce(st_collect(triangulation), 'GEOMETRYCOLLECTION EMPTY'::geometry))
@@ -531,7 +571,7 @@ class Scene(QObject):
             self.__old_param[layer] = self.__param[layer]
 
     def setGraph(self, graph_id):
-        for layer in ['node', 'edge', 'volume', 'section', 'error', 'end']:
+        for layer in ['node', 'edge', 'volume', 'volume_section', 'section', 'error', 'end']:
             if self.__param[layer] != self.__old_param[layer]:
                 self.update(layer)
         self.__old_param["graph_id"] = graph_id
@@ -540,10 +580,10 @@ class Scene(QObject):
     def setZscale(self, scale):
         factor = float(scale)/self.__old_param["z_scale"]
 
-        for layer in ['node', 'edge', 'volume', 'section', 'error', 'end']:
+        for layer in ['node', 'edge', 'volume', 'volume_section', 'section', 'error', 'end']:
             if self.vtx[layer] is not None:
                 self.vtx[layer][:,2] *= factor
-                if layer in ['volume', 'error']:
+                if layer in ['volume', 'volume_section', 'error']:
                     self.nrml[layer] = computeNormals(self.vtx[layer], self.idx[layer])
 
         for scatter in self.__labels:
