@@ -443,7 +443,7 @@ class Plugin(QObject):
         if not fil:
             return
         fil = fil if len(fil) > 4 and fil[-4:] == ".qgs" else fil + ".qgs"
-        fil = fil.replace(" ", "_")
+        # fil = fil.replace(" ", "_")
         if len(fil) != len(fil.encode()):
             self.__iface.messageBar().pushError(
                 "Albion:", "project name may only contain asci character (no accent)"
