@@ -1,81 +1,17 @@
 # Build 3D geological model from wells information
 
-This plugin provides tools to create 3D geological models in QGIS.
+This plugin provides tools to **create 3D geological models in QGIS**, from borehole information.
 
-**Note**
-  - The created layers are memory layers, the data are not saved, you should use the "save as" qgis function if you plan to store the layer as a shapefile or spatialite layer, you can also cpy/paste the layer feature in a postgis layer that has the right structure. This is intended to maximize flexibility of the source data format.
+![Albion2](img/albion_logo.png)
 
-## Quick dev install
+It uses an innovative method of modeling stratigraphic layers in the form of a graph to facilitate volumetric reconstruction, and requires few user intervention. It allows geologists to perform underground modeling in 6 times less time than with previously used tools. A video [shows how it may be used](https://vimeo.com/326854657).  
 
+[Here is a quick install doc](quick_dev_install.md).
 
-You have to install the following dependencies:
+Some screenshots of the main interface, including 3D rendering : 
 
-  - OpenGL for Python (python-opengl)
-  - QtOpenGL for Python (python-qt5-gl)
-  - shapely
-  - sphinx (python-sphinx)
-  - gitpython
-  - pytest, hypothesis and mock (for running tests only)
+![Albion1](img/Albion1.png)
 
-Clone the repo in a `albion` directory. Add the directory containing `albion` to your PYTHONPATH environment variable.
+![Albion2](img/Albion2.png)
 
-```sh
-export PYTHONPATH=$PWD/..
-```
-
-Install plugin:
-```sh
-python -m albion.package -i
-```
-
-Run tests:
-```sh
-pytest
-```
-
-To generate a zip package without the documentation directory:
-
-````sh
-python -m albion.package -n
-```
-
-
-## Process
-
-- Create project (no caps, no space, no accents in project name)
-- Import data directory
-- Create the grid (e.g. open an existing shapefile, select all features with Ctrl+a then copy/paste in the grid layer that has been switched to edition mode)
-- Create a graph
-- Set graph nodes (e.g. open formation attribute table, select feature by code, copy/paste into node layer and set the graph_id field of pasted features, use field calculator for that)
-- Launch Auto Graph from the Albion menu
-- Check graph, you can extend sections to interpolated either section by section of globaly with the Albion menu entry
-
-
-## Interface
-
-- Albion Menu:
-    - new project (create db and load layers)
-    - --
-    - import data
-    - compute mineralization (adds table and layer)
-    - --
-    - new graph (create table and views and new layers)
-    - clean graph
-    - --
-    - export project (`pg_dump`)
-    - import project (`pg_restore`)
-
-- Albion Toolbar:
-    - toggle section/top
-    - current graph
-    - grid line from points
-    - select current section (either on top view, or orthogonal in section view)
-    - previous section
-    - next section
-    - end distance
-    - auto-connect
-    - auto-wall and ceil
-
-notes on 3D:
-- togle visibility
-- dynamic update on changes
+![Albion3](img/Albion3.png)
