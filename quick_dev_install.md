@@ -4,10 +4,10 @@
 
 You have to install the following dependencies:
 
-- OpenGL for Python (python-opengl)
-- QtOpenGL for Python (python-qt5-gl)
+- OpenGL for Python (python3-opengl)
+- QtOpenGL for Python (python3-qt5-gl)
 - shapely
-- sphinx (python-sphinx)
+- sphinx (python3-sphinx)
 - gitpython
 - pytest, hypothesis and mock (for running tests only)
 
@@ -34,7 +34,7 @@ pytest
 To generate a zip package without the documentation directory :
 
 ```sh
-python -m albion.package -n
+python3 -m albion.package -n
 ```
 
 ## Process
