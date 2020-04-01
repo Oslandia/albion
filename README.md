@@ -1,6 +1,24 @@
 # Build 3D geological model from wells information
 
-This plugin provides tools to **create 3D geological models in QGIS**, from borehole information.
+## What is Albion ?
+
+This [QGIS](http://qgis.org) plugin provides tools to **create 3D geological models in QGIS**, from borehole information.
+
+[![Albion : cross-section edition](https://i.vimeocdn.com/video/692568277_600x340.jpg
+)](https://vimeo.com/263119265)
+
+Features :
+- Edition of Cross-sections (see video above)
+- 3D Volume reconstruction from cross-sections
+- 3D Volume edition
+- 2D Visualization
+  - All geological 2D layers
+  - Additional GIS data ( orthophotos/satellite, maps, geological maps..)
+  - Boreholes
+  - Cross sections
+- 3D visualization
+  - Boreholes
+  - Volume
 
 ![Albion2](img/albion_logo.png)
 
