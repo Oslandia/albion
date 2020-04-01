@@ -1,3 +1,4 @@
+from __future__ import print_function
 # coding = utf-8
 
 if __name__ == "__main__":
@@ -42,7 +43,8 @@ if __name__ == "__main__":
             ) as t
             """)
         for rec in cur.fetchall():
-            print rec
+            # fix_print_with_import
+            print(rec)
 
     #con = project.connect()
     #cur = con.cursor()

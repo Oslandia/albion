@@ -1,12 +1,13 @@
 [general]
 name=Albion
-qgisMinimumVersion=2.14
+qgisMinimumVersion=3.2
 description=Build 3D geological model from wells information
-version=3.0.0
+version=2.2.0
 author=Oslandia
 email=infos@oslandia.com
 experimental=False
 deprecated=False
+icon=res/albion_logo_icon_no_contour.svg
 about=Original idea by Emmanuel Duguey.
 	Plugin development funded by Orano Mining
 repository=https://github.com/Oslandia/albion.git

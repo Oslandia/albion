@@ -1,10 +1,12 @@
 # coding=utf-8
 
-from qgis.core import QgsDataSourceURI
+from builtins import str
+from builtins import range
 
-from PyQt4 import uic
-from PyQt4.QtGui import QGraphicsScene, QImage, QPixmap, QMainWindow, QBrush, QColor, QWheelEvent, QPen
-from PyQt4.QtCore import Qt, QObject
+from qgis.PyQt import uic
+from qgis.PyQt.QtWidgets import QGraphicsScene, QMainWindow
+from qgis.PyQt.QtGui import QImage, QPixmap, QBrush, QColor, QPen
+from qgis.PyQt.QtCore import Qt, QObject
 
 from shapely import wkb
 import os
@@ -227,8 +229,8 @@ class BoreHoleWindow(QMainWindow):
 
 if __name__=='__main__':
     import sys
-    from PyQt4.QtCore import QSettings
-    from PyQt4.QtGui import QApplication
+    from qgis.PyQt.QtCore import QSettings
+    from qgis.PyQt.QtWidgets import QApplication
 
     QApplication.setOrganizationName("QGIS")
     QApplication.setOrganizationDomain("qgis.org")

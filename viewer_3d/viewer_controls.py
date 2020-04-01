@@ -1,10 +1,7 @@
 # coding=UTF-8
 import os
-#from qgis.core import *
-#from qgis.gui import *
-from PyQt4.QtCore import *
-from PyQt4.QtGui import *
-from PyQt4 import uic
+from qgis.PyQt.QtWidgets import QWidget, QMenu
+from qgis.PyQt import uic
 from functools import partial
 
 class ViewerControls(QWidget):
@@ -24,6 +21,7 @@ class ViewerControls(QWidget):
                 ('edges', self.__viewer.toggle_edges, True),
                 ('ends', self.__viewer.toggle_ends, True),
                 ('volumes', self.__viewer.toggle_volumes, False),
+                ('volumes sections', self.__viewer.toggle_volumes_section, True),
                 ('errors', self.__viewer.toggle_errors, False),
                 ]:
             a = menu.addAction(l)
