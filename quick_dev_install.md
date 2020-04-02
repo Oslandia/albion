@@ -10,6 +10,7 @@ You have to install the following dependencies:
 - sphinx (python3-sphinx)
 - gitpython
 - py-dxfwrite
+- fourmy
 - pytest, hypothesis and mock (for running tests only)
 - postgis >= 3.0
 - postgresql with contrib extensions (hstore, hstore_plpython3)
