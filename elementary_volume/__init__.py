@@ -20,7 +20,7 @@ from shapely import geos
 from shapely.affinity import translate
 geos.WKBWriter.defaults['include_srid'] = True
 
-from fourmy import tessellate
+from pysfcgal import sfcgal
 
 def to_vtk(multiline):
     if multiline is None:
@@ -400,8 +400,9 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         for p in polygons:
             p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
             assert(p.exterior.is_ccw)
-            for t in tessellate(p):
-                tri = t.exterior.coords
+	    t_sfcgal = sfcgal.shape(p.asShape).tessellate()
+	    for t in t_sfcgal.geoms:
+		tri = t.coords
                 q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]]) \
                     if direct_orientation else \
                     Polygon([node_map[tri[2]], node_map[tri[1]], node_map[tri[0]]])
@@ -496,8 +497,9 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     p = Polygon([(round(x[0], PRECI), round(x[1], PRECI)) for x in m])
                     p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
                     assert(p.exterior.is_ccw)
-                    for t in tessellate(p):
-                        tri = t.exterior.coords
+                    t_sfcgal = sfcgal.shape(p.asShape).tessellate()
+                    for t in t_sfcgal.geoms:
+                        tri = t.coords
                         q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]]) \
                             if face == 'bottom' else \
                             Polygon([node_map[tri[2]], node_map[tri[1]], node_map[tri[0]]])
