@@ -261,25 +261,30 @@ create trigger cell_after_trig
        for each statement execute procedure albion.cell_after_fct()
 ;
 
-create or replace function albion.tesselate(polygon_ geometry, lines_ geometry, points_ geometry)
-returns geometry
-language plpython3u volatile
-as
-$$
-    from shapely import wkb
-    from shapely import geos
-    geos.WKBWriter.defaults['include_srid'] = True
-    from fourmy import tessellate
-
-    polygon = wkb.loads(bytes.fromhex(polygon_))
-    lines = wkb.loads(bytes.fromhex(lines_)) if lines_ else None
-    points = wkb.loads(bytes.fromhex(points_)) if points_ else None
-    result = tessellate(polygon, lines, points)
-
-    geos.lgeos.GEOSSetSRID(result._geom, geos.lgeos.GEOSGetSRID(polygon._geom))
-    return result.wkb_hex
-$$
-;
+CREATE OR REPLACE FUNCTION tesselate (polygon_ geometry, lines_ geometry, points_ geometry)
+    RETURNS geometry
+    LANGUAGE plpgsql
+    VOLATILE
+    AS $$
+BEGIN
+    RETURN ( WITH a_collection_to_triangulate AS (
+            SELECT
+                st_collect (ARRAY[polygon_, lines_, points_]) AS geom),
+            b_triangulation_dumped_rebuillt_as_simple AS --Triangulate then dump and rebuild as "simple features" to avoid errors with other ST functions
+            (
+                SELECT
+                    (st_dump (st_makepolygon (st_exteriorring ((st_dump (ST_ConstrainedDelaunayTriangles (ST_makevalid (geom)))).geom)))).geom AS geom
+                FROM
+                    a_collection_to_triangulate)
+                --Constrained, exterior removed triangulation
+                SELECT
+                    st_collect (b_triangulation_dumped_rebuillt_as_simple.geom)
+                FROM
+                    b_triangulation_dumped_rebuillt_as_simple
+                    INNER JOIN a_collection_to_triangulate ON st_intersects (b_triangulation_dumped_rebuillt_as_simple.geom, a_collection_to_triangulate.geom)
+                        AND NOT st_touches (b_triangulation_dumped_rebuillt_as_simple.geom, a_collection_to_triangulate.geom));
+END;
+$$;
 
 create or replace function albion.triangulate()
 returns integer
