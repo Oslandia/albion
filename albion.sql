@@ -261,7 +261,7 @@ create trigger cell_after_trig
        for each statement execute procedure albion.cell_after_fct()
 ;
 
-CREATE OR REPLACE FUNCTION tesselate (polygon_ geometry, lines_ geometry, points_ geometry)
+CREATE OR REPLACE FUNCTION albion.tesselate (polygon_ geometry, lines_ geometry, points_ geometry)
     RETURNS geometry
     LANGUAGE plpgsql
     VOLATILE

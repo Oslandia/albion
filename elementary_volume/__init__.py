@@ -13,7 +13,8 @@ from numpy import array, cross, argmin, argmax, dot, average
 from numpy.linalg import norm
 from collections import defaultdict
 from itertools import product
-from shapely.geometry import MultiPolygon, Polygon, LineString, MultiLineString, Point, MultiPoint
+from shapely.geometry import (MultiPolygon, Polygon, LineString, MultiLineString,
+                              Point, MultiPoint, mapping)
 from shapely import wkb
 from shapely.ops import unary_union, polygonize
 from shapely.ops import transform
@@ -426,16 +427,17 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
         for p in polygons:
             p = p if p.exterior.is_ccw else Polygon(p.exterior.coords[::-1])
             assert(p.exterior.is_ccw)
-        t_sfcgal = sfcgal.shape(p.asShape).tessellate()
-        for t in t_sfcgal.geoms:
-            tri = t.coords
-            q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]]) \
-                if direct_orientation else \
-                Polygon([node_map[tri[2]], node_map[tri[1]], node_map[tri[0]]])
-            if Point(average(tri, (0,))).intersects(domain):
-                domain_tri.append(q)
-            else:
-                term_tri.append(q)
+            t_sfcgal = sfcgal.shape(mapping(p)).tessellate()
+            for t in t_sfcgal.geoms:
+                tri = t.coords
+                q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]]) \
+                    if direct_orientation else \
+                    Polygon(
+                        [node_map[tri[2]], node_map[tri[1]], node_map[tri[0]]])
+                if Point(average(tri, (0,))).intersects(domain):
+                    domain_tri.append(q)
+                else:
+                    term_tri.append(q)
 
         result += domain_tri
         faces[(hl, hr)] += domain_tri
@@ -537,7 +539,8 @@ def elementary_volumes(holes_, starts_, ends_, hole_ids_, node_ids_, nodes_, end
                     p = p if p.exterior.is_ccw else Polygon(
                         p.exterior.coords[::-1])
                     assert(p.exterior.is_ccw)
-                    t_sfcgal = sfcgal.shape(p.asShape).tessellate()
+                    t_sfcgal = sfcgal.shape(
+                        mapping(p)).tessellate()
                     for t in t_sfcgal.geoms:
                         tri = t.coords
                         q = Polygon([node_map[tri[0]], node_map[tri[1]], node_map[tri[2]]]) \
