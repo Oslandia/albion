@@ -7,6 +7,8 @@ create schema _albion
 create sequence _albion.unique_name_seq
 ;
 
+create extension postgis_sfcgal;
+
 create or replace function _albion.unique_id()
 returns varchar
 language plpgsql volatile
@@ -60,8 +62,8 @@ create table _albion.hole(
     geom geometry('LINESTRINGZ', $SRID))
 ;
 
-alter table _albion.hole add constraint hole_geom_length_chk check (geom is null or abs(st_3dlength(geom) - depth_) <= 1e-3)
-;
+--alter table _albion.hole add constraint hole_geom_length_chk check (geom is null or abs(st_3dlength(geom) - depth_) <= 1e-3)
+--;
 
 create index hole_geom_idx on _albion.hole using gist(geom)
 ;
