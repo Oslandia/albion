@@ -145,15 +145,15 @@ class Plugin(QObject):
         return act
 
     def __create_menu_entries(self):
-        
+
         self.__menu.clear()
 
         self.__add_menu_entry("New &Project", self.__new_project)
-        
+
         self.__add_menu_entry("Import Project", self.__import_project)
-        
+
         self.__add_menu_entry("Export Project", self.__export_project, self.project is not None)
-        
+
         self.__add_menu_entry("Upgrade Project", self.__upgrade_project)
 
         self.__menu.addSeparator()
@@ -244,7 +244,7 @@ class Plugin(QObject):
         self.__add_menu_entry(
             "Accept graph possible edges", self.__accept_possible_edge, self.project is not None and self.project.has_graph
         )
-        
+
         self.__add_menu_entry(
             "Create terminations",
             self.__create_terminations,
@@ -253,7 +253,7 @@ class Plugin(QObject):
         )
 
         self.__menu.addSeparator()
-        
+
         self.__add_menu_entry(
             "Create volumes",
             self.__create_volumes,
@@ -588,7 +588,7 @@ class Plugin(QObject):
                 values.append((f[hole_id_idx], f[from_idx], f[to_idx]) +
                         tuple((f[i] for i in other_idx)))
             self.project.add_table(table, values)
-            
+
 
 
     def __new_graph(self):
@@ -668,8 +668,10 @@ class Plugin(QObject):
 
     def __create_cells(self):
         assert(self.project)
-        
+        createAlbionRaster = True
+
         if self.project.has_cell:
+            createAlbionRaster = False
             if (
                 QMessageBox.Yes
                 != QMessageBox(
@@ -681,7 +683,7 @@ class Plugin(QObject):
             ):
                 return
 
-        self.project.triangulate()
+        self.project.triangulate(createAlbionRaster)
         self.__refresh_layers()
 
     def __create_sections(self):
@@ -690,7 +692,7 @@ class Plugin(QObject):
 
     def __refresh_selected_layers_sections(self):
         assert(self.project)
-        for l in self.__iface.layerTreeView().selectedLayers(): 
+        for l in self.__iface.layerTreeView().selectedLayers():
             uri = QgsDataSourceUri(l.dataProvider().dataSourceUri())
             table = uri.table()
             if table.endswith('_section'):
@@ -788,7 +790,7 @@ class Plugin(QObject):
         assert(self.project)
 
         table = None
-        for l in self.__iface.layerTreeView().selectedLayers(): 
+        for l in self.__iface.layerTreeView().selectedLayers():
             uri = QgsDataSourceUri(l.dataProvider().dataSourceUri())
             table = uri.table()
             if table.endswith('_section'):
