@@ -91,7 +91,7 @@ $$
                             st_x(s.end_) + (depth_max_-st_3dlength(hole_geom_))*d.x,
                             st_y(s.end_) + (depth_max_-st_3dlength(hole_geom_))*d.y,
                             st_z(s.end_) + (depth_max_-st_3dlength(hole_geom_))*d.z
-                        ), st_numpoints(hole_geom_))
+                        ))
             from direction as d, last_segment as s
             into hole_geom_;
 
