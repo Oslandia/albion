@@ -15,6 +15,7 @@ import tempfile
 
 from .project import ProgressBar, Project, find_in_dir
 from .mineralization import MineralizationDialog
+from .export_raster import ExportRasterDialog
 
 from .viewer_3d.viewer_3d import Viewer3d
 from .viewer_3d.viewer_controls import ViewerControls
@@ -281,6 +282,14 @@ class Plugin(QObject):
             self.project is not None and bool(self.__current_graph.currentText()) and self.project.has_section and self.project.has_volume,
             "Export triangulated section in .obj or .dxf format",
         )
+
+        self.__add_menu_entry(
+            "Export Raster",
+            self.__export_raster,
+            self.project is not None and self.project.has_cell,
+            "Export rasters from cells",
+        )
+
 
         self.__menu.addSeparator()
 
@@ -896,6 +905,9 @@ class Plugin(QObject):
                 QgsProject.instance().fileName(),
                 os.path.split(QgsProject.instance().fileName())[1],
             )
+
+    def __export_raster(self):
+        ret = ExportRasterDialog(self.project).exec_()
 
     #def __log_strati_clicked(self):
     #    # @todo switch behavior when in section view -> ortho
