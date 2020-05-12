@@ -10,6 +10,7 @@ import atexit
 import binascii
 import string
 from qgis import processing
+from qgis.core import QgsDataSourceUri, QgsVectorLayer, QgsWkbTypes
 from shapely import wkb
 from dxfwrite import DXFEngine as dxf
 
@@ -1120,7 +1121,6 @@ class Project(object):
                 """,
                 (graph,))
 
-
     def export_raster(self, code, level, outDir, xspacing, yspacing):
         with self.connect() as con:
             cur = con.cursor()
@@ -1129,9 +1129,10 @@ class Project(object):
                             ( WITH maformation as (SELECT cell_id, code, lvl FROM _albion.cells WHERE code={code_} and lvl='{lvl_}')
                             SELECT row_number() over() id, ST_SetSRID((_albion.ST_CreateRegularGridZ(cell_id, code, lvl, {xspacing_}, {yspacing_})).geom, (SELECT srid FROM _albion.metadata)) geom, (_albion.ST_CreateRegularGridZ(cell_id, code, lvl, {xspacing_}, {yspacing_})).z
                             FROM maformation)""".format(code_=code, lvl_=level, xspacing_=xspacing, yspacing_=yspacing))
-            conn.commit()
+            con.commit()
+
             uri = QgsDataSourceUri()
-            uri.setConnection(conn.info.host, str(conn.info.port), conn.info.dbname, conn.info.user, conn.info.password)
+            uri.setConnection(con.info.host, str(con.info.port), con.info.dbname, con.info.user, con.info.password)
             uri.setDataSource("_albion", "current_raster", "geom")
             uri.setParam("key", "id")
             uri.setParam("checkPrimaryKeyUnicity", "1")
