@@ -1121,7 +1121,7 @@ class Project(object):
                 """,
                 (graph,))
 
-    def export_raster(self, code, level, outDir, xspacing, yspacing):
+    def create_raster_from_formation(self, code, level, outDir, xspacing, yspacing):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
@@ -1130,16 +1130,38 @@ class Project(object):
                             SELECT row_number() over() id, ST_SetSRID((_albion.ST_CreateRegularGridZ(cell_id, code, lvl, {xspacing_}, {yspacing_})).geom, (SELECT srid FROM _albion.metadata)) geom, (_albion.ST_CreateRegularGridZ(cell_id, code, lvl, {xspacing_}, {yspacing_})).z
                             FROM maformation)""".format(code_=code, lvl_=level, xspacing_=xspacing, yspacing_=yspacing))
             con.commit()
+            self.__export_raster(outDir, 'z', xspacing, yspacing)
 
+            cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
+            con.commit()
+
+    def create_raster_from_collar(self, isDepth, outDir, xspacing, yspacing):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
+            cur.execute("""
+CREATE TABLE _albion.current_raster AS (
+WITH maformation as (SELECT id FROM albion.cell)
+SELECT ST_SetSRID((_albion.st_createregulargridz_collar(id, {isDepth_}, {xspacing_}, {yspacing_})).geom, (SELECT srid FROM _albion.metadata)) geom,
+(_albion.st_createregulargridz_collar(id, {isDepth_}, {xspacing_}, {yspacing_})).val
+FROM maformation
+)
+                        """.format(isDepth_=isDepth, xspacing_=xspacing, yspacing_=yspacing))
+            con.commit()
+            self.__export_raster(outDir, 'val', xspacing, yspacing)
+            cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
+            con.commit()
+
+    def __export_raster(self, outDir, field, xspacing, yspacing):
+        with self.connect() as con:
             uri = QgsDataSourceUri()
             uri.setConnection(con.info.host, str(con.info.port), con.info.dbname, con.info.user, con.info.password)
             uri.setDataSource("_albion", "current_raster", "geom")
-            uri.setParam("key", "id")
-            uri.setParam("checkPrimaryKeyUnicity", "1")
+            uri.setParam("checkPrimaryKeyUnicity", "0")
             uri.setSrid("32632")
             uri.setWkbType(QgsWkbTypes.Point)
             v = QgsVectorLayer(uri.uri(), "current_raster", "postgres")
-            res = processing.run("gdal:rasterize", {'INPUT':v,'FIELD':'z','BURN':0,'UNITS':1,'WIDTH':xspacing,'HEIGHT':yspacing,'EXTENT':v.extent(),'NODATA':-9999,'OPTIONS':'','DATA_TYPE':5,'INIT':None,'INVERT':False,'EXTRA':'','OUTPUT':os.path.join(outDir, 'dem.tif')})
+            res = processing.run("gdal:rasterize", {'INPUT':v,'FIELD':field,'BURN':0,'UNITS':1,'WIDTH':xspacing,'HEIGHT':yspacing,'EXTENT':v.extent(),'NODATA':-9999,'OPTIONS':'','DATA_TYPE':5,'INIT':None,'INVERT':False,'EXTRA':'','OUTPUT':os.path.join(outDir, 'dem.tif')})
             processing.run("qgis:slope", {'INPUT':res['OUTPUT'],'Z_FACTOR':1,'OUTPUT':os.path.join(outDir, 'slope.tif')})
             processing.run("qgis:aspect", {'INPUT':res['OUTPUT'],'Z_FACTOR':1,'OUTPUT':os.path.join(outDir, 'aspect.tif')})
             processing.run("qgis:ruggednessindex", {'INPUT':res['OUTPUT'],'Z_FACTOR':1,'OUTPUT':os.path.join(outDir, 'ruggednessindex.tif')})

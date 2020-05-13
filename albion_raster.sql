@@ -98,17 +98,7 @@ BEGIN
         ymax;
     width := xmax - xmin;
     height := ymax - ymin;
-    RETURN QUERY WITH f AS (
-        SELECT
-            cell_id_,
-            c.geom AS geom_
-        FROM
-            _albion.cells c
-        WHERE
-            c.cell_id = cell_id_
-            AND code = code_
-            AND lvl = lvl_
-)
+    RETURN QUERY
     SELECT
         row_number() OVER () AS id,
         cell_id_,
@@ -119,6 +109,84 @@ BEGIN
     FROM
         generate_series(0, (width / xspacing_)::integer) AS i,
     generate_series(0, (height / yspacing_)::integer) AS j
+WHERE
+    ST_Intersects (ST_SetSRID (ST_Translate (ST_MakePoint (xmin, ymin), i * xspacing_, j * yspacing_), ST_SRID (geomin)), geomin);
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION _albion.collar_cell (isDepthValue_ boolean)
+    RETURNS TABLE (
+        id varchar,
+        geom geometry
+    )
+    AS $BODY$
+BEGIN
+    RETURN QUERY
+    SELECT
+        c.id,
+        ST_MakePolygon (ST_AddPoint (ST_AddPoint (ST_MakeLine (
+        ST_MakePoint(ST_X(ma.geom), ST_Y(ma.geom), CASE WHEN isDepthValue_ IS TRUE THEN ma.depth_ ELSE ST_Z(ma.geom) END),
+        ST_MakePoint(ST_X(mb.geom), ST_Y(mb.geom), CASE WHEN isDepthValue_ IS TRUE  THEN mb.depth_ ELSE ST_Z(mb.geom) END)),
+        ST_MakePoint(ST_X(mc.geom), ST_Y(mc.geom), CASE WHEN isDepthValue_ IS TRUE  THEN mc.depth_ ELSE ST_Z(mc.geom) END)),
+        ST_MakePoint(ST_X(ma.geom), ST_Y(ma.geom), CASE WHEN isDepthValue_ IS TRUE  THEN ma.depth_ ELSE ST_Z(ma.geom) END))) geom
+    FROM
+        albion.cell c
+    LEFT JOIN albion.collar ma ON (c.a = ma.id)
+    LEFT JOIN albion.collar mb ON (c.b = mb.id)
+    LEFT JOIN albion.collar mc ON (c.c = mc.id);
+END;
+$BODY$
+LANGUAGE plpgsql
+;
+
+
+CREATE OR REPLACE FUNCTION _albion.st_createregulargridz_collar (cell_id_ character varying, isDepthValue_ boolean, xspacing_ double precision, yspacing_ double precision)
+    RETURNS TABLE (
+        id bigint,
+        cell_id character varying,
+        "row" integer,
+        col integer,
+        geom geometry,
+        val double precision)
+    LANGUAGE plpgsql
+    AS $function$
+DECLARE
+    xmin integer;
+    xmax integer;
+    ymin integer;
+    ymax integer;
+    width integer;
+    height integer;
+    geomin geometry;
+BEGIN
+    SELECT
+        c.geom,
+        floor(ST_Xmin (c.geom)),
+        ceil(ST_Xmax (c.geom)),
+        floor(ST_Ymin (c.geom)),
+        ceil(ST_Ymax (c.geom))
+    FROM
+        (SELECT * FROM _albion.collar_cell(isDepthValue_)) c
+    WHERE c.id = cell_id_
+    INTO geomin,
+        xmin,
+        xmax,
+        ymin,
+        ymax;
+    width := xmax - xmin;
+    height := ymax - ymin;
+    RETURN QUERY
+    SELECT
+        row_number() OVER () AS id,
+        cell_id_,
+        i + 1 AS ROW,
+        j + 1 AS col,
+        st_interpolate_from_tin (ST_Translate (ST_MakePoint (xmin, ymin), i * xspacing_, j * yspacing_), geomin) AS geom,
+        st_z (st_interpolate_from_tin (ST_Translate (ST_MakePoint (xmin, ymin), i * xspacing_, j * yspacing_), geomin)) z
+    FROM
+        generate_series(0, (width / xspacing_)::integer) AS i,
+        generate_series(0, (height / yspacing_)::integer) AS j
 WHERE
     ST_Intersects (ST_SetSRID (ST_Translate (ST_MakePoint (xmin, ymin), i * xspacing_, j * yspacing_), ST_SRID (geomin)), geomin);
 END;

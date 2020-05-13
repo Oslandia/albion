@@ -15,7 +15,8 @@ import tempfile
 
 from .project import ProgressBar, Project, find_in_dir
 from .mineralization import MineralizationDialog
-from .export_raster import ExportRasterDialog
+from .export_raster_formation import ExportRasterFormationDialog
+from .export_raster_collar import ExportRasterCollarDialog
 
 from .viewer_3d.viewer_3d import Viewer3d
 from .viewer_3d.viewer_controls import ViewerControls
@@ -284,10 +285,17 @@ class Plugin(QObject):
         )
 
         self.__add_menu_entry(
-            "Export Raster",
-            self.__export_raster,
+            "Export rasters from formation",
+            self.__export_raster_formation,
             self.project is not None and self.project.has_cell,
-            "Export rasters from cells",
+            "Export rasters (DEM, aspect, slope, ruggedness index) from formation",
+        )
+
+        self.__add_menu_entry(
+            "Export rasters from collar",
+            self.__export_raster_collar,
+            self.project is not None and self.project.has_cell,
+            "Export rasters (DEM, aspect, slope, ruggedness index) from collar",
         )
 
 
@@ -906,8 +914,11 @@ class Plugin(QObject):
                 os.path.split(QgsProject.instance().fileName())[1],
             )
 
-    def __export_raster(self):
-        ret = ExportRasterDialog(self.project).exec_()
+    def __export_raster_formation(self):
+        ret = ExportRasterFormationDialog(self.project).exec_()
+
+    def __export_raster_collar(self):
+        ret = ExportRasterCollarDialog(self.project).exec_()
 
     #def __log_strati_clicked(self):
     #    # @todo switch behavior when in section view -> ortho
