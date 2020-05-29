@@ -9,6 +9,8 @@ import sys
 import atexit
 import binascii
 import string
+from qgis import processing
+from qgis.core import QgsDataSourceUri, QgsVectorLayer, QgsWkbTypes
 from shapely import wkb
 from dxfwrite import DXFEngine as dxf
 
@@ -220,7 +222,7 @@ class Project(object):
 
 
     def add_table(self, table, values=None, view_only=False):
-        """ 
+        """
         table: a dict with keys
             NAME: the name of the table to create
             FIELDS_DEFINITION: the sql definition (name type) of the "additional" fields (i.e. excludes hole_id, from_ and to_)
@@ -268,7 +270,7 @@ class Project(object):
 
             # test if version number is in metadata
             cur.execute("""
-                select column_name                                                       
+                select column_name
                 from information_schema.columns where table_name = 'metadata'
                 and column_name='version'
                 """);
@@ -312,7 +314,7 @@ class Project(object):
         self.vacuum()
 
     def export_sections_obj(self, graph, filename):
-        
+
         with self.connect() as con:
             cur = con.cursor()
             cur.execute(
@@ -335,7 +337,7 @@ class Project(object):
             open(filename, "w").write(cur.fetchone()[0])
 
     def export_sections_dxf(self, graph, filename):
-        
+
         with self.connect() as con:
             cur = con.cursor()
             cur.execute(
@@ -550,10 +552,18 @@ class Project(object):
 
         self.vacuum()
 
-    def triangulate(self):
+    def triangulate(self, createAlbionRaster):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select albion.triangulate()")
+            if createAlbionRaster:
+                with open(os.path.join(os.path.dirname(__file__),
+                                    "albion_raster.sql")) as f:
+                    for statement in f.read().split("\n;\n")[:-1]:
+                        cur.execute(statement)
+            else:
+                cur.execute("REFRESH MATERIALIZED VIEW _albion.hole_nodes")
+                cur.execute("REFRESH MATERIALIZED VIEW _albion.cells")
             con.commit()
 
     def create_sections(self):
@@ -618,11 +628,11 @@ class Project(object):
             cur = con.cursor()
             cur.execute(
                 """
-                    select sg.group_id 
-                    from albion.section_geom sg 
-                    join albion.section s on s.id=sg.section_id 
-                    where s.id='{section}' 
-                    order by st_distance(s.geom, sg.geom), st_HausdorffDistance(s.geom, sg.geom) asc 
+                    select sg.group_id
+                    from albion.section_geom sg
+                    join albion.section s on s.id=sg.section_id
+                    where s.id='{section}'
+                    order by st_distance(s.geom, sg.geom), st_HausdorffDistance(s.geom, sg.geom) asc
                     limit 1
                 """.format(section=section))
             res = cur.fetchone()
@@ -653,11 +663,11 @@ class Project(object):
             cur = con.cursor()
             cur.execute(
                 """
-                    select sg.group_id 
-                    from albion.section_geom sg 
-                    join albion.section s on s.id=sg.section_id 
-                    where s.id='{section}' 
-                    order by st_distance(s.geom, sg.geom), st_HausdorffDistance(s.geom, sg.geom) asc 
+                    select sg.group_id
+                    from albion.section_geom sg
+                    join albion.section s on s.id=sg.section_id
+                    where s.id='{section}'
+                    order by st_distance(s.geom, sg.geom), st_HausdorffDistance(s.geom, sg.geom) asc
                     limit 1
                 """.format(section=section))
             res = cur.fetchone()
@@ -747,7 +757,7 @@ class Project(object):
             )
             cur.execute("refresh materialized view albion.mineralization_section_geom_cache")
             con.commit()
-        
+
 
     def export_obj(self, graph_id, filename):
         with self.connect() as con:
@@ -770,9 +780,9 @@ class Project(object):
             cur = con.cursor()
             cur.execute(
                 """
-                select cell_id, row_number() over(partition by cell_id order by closed desc), obj, closed 
+                select cell_id, row_number() over(partition by cell_id order by closed desc), obj, closed
                 from (
-                    select cell_id, albion.to_obj(triangulation) as obj, albion.is_closed_volume(triangulation) as closed 
+                    select cell_id, albion.to_obj(triangulation) as obj, albion.is_closed_volume(triangulation) as closed
                     from albion.volume
                     where cell_id in ({}) and graph_id='{}'
                     ) as t
@@ -786,16 +796,16 @@ class Project(object):
                 filename = '{}_{}_{}_{}.obj'.format(cell_id, graph_id, "closed" if closed else "opened", i)
                 path = os.path.join(outdir, filename)
                 open(path, "w").write(obj[0])
-            
+
 
     def export_elementary_volume_dxf(self, graph_id, cell_ids, outdir, closed_only=False):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute(
                 """
-                select cell_id, row_number() over(partition by cell_id order by closed desc), geom, closed 
+                select cell_id, row_number() over(partition by cell_id order by closed desc), geom, closed
                 from (
-                    select cell_id, triangulation as geom, albion.is_closed_volume(triangulation) as closed 
+                    select cell_id, triangulation as geom, albion.is_closed_volume(triangulation) as closed
                     from albion.volume
                     where cell_id in ({}) and graph_id='{}'
                     ) as t
@@ -1069,7 +1079,7 @@ class Project(object):
             srid, = cur.fetchone()
             cur.execute(
                 """
-                insert into albion.named_section(geom, section) 
+                insert into albion.named_section(geom, section)
                 values (ST_SetSRID('{wkb_hex}'::geometry, {srid}), '{section_id}')
                 """.format(
                     srid=srid, wkb_hex=geom.wkb_hex, section_id=section_id
@@ -1099,7 +1109,7 @@ class Project(object):
                 insert into albion.node(from_, to_, hole_id, graph_id) values(%s, %s, %s, %s)
                 """,
                 [(f['from_'], f['to_'], f['hole_id'], graph) for f in features])
-            
+
     def accept_possible_edge(self, graph):
         with self.connect() as con:
             cur = con.cursor()
@@ -1111,4 +1121,47 @@ class Project(object):
                 """,
                 (graph,))
 
+    def create_raster_from_formation(self, code, level, outDir, xspacing, yspacing):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
+            cur.execute("""CREATE TABLE _albion.current_raster as
+                            ( WITH maformation as (SELECT cell_id, code, lvl FROM _albion.cells WHERE code={code_} and lvl='{lvl_}')
+                            SELECT row_number() over() id, ST_SetSRID((_albion.ST_CreateRegularGridZ(cell_id, code, lvl, {xspacing_}, {yspacing_})).geom, (SELECT srid FROM _albion.metadata)) geom, (_albion.ST_CreateRegularGridZ(cell_id, code, lvl, {xspacing_}, {yspacing_})).z
+                            FROM maformation)""".format(code_=code, lvl_=level, xspacing_=xspacing, yspacing_=yspacing))
+            con.commit()
+            self.__export_raster(outDir, 'z', xspacing, yspacing)
 
+            cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
+            con.commit()
+
+    def create_raster_from_collar(self, isDepth, outDir, xspacing, yspacing):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
+            cur.execute("""
+CREATE TABLE _albion.current_raster AS (
+WITH maformation as (SELECT id FROM albion.cell)
+SELECT ST_SetSRID((_albion.st_createregulargridz_collar(id, {isDepth_}, {xspacing_}, {yspacing_})).geom, (SELECT srid FROM _albion.metadata)) geom,
+(_albion.st_createregulargridz_collar(id, {isDepth_}, {xspacing_}, {yspacing_})).val
+FROM maformation
+)
+                        """.format(isDepth_=isDepth, xspacing_=xspacing, yspacing_=yspacing))
+            con.commit()
+            self.__export_raster(outDir, 'val', xspacing, yspacing)
+            cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
+            con.commit()
+
+    def __export_raster(self, outDir, field, xspacing, yspacing):
+        with self.connect() as con:
+            uri = QgsDataSourceUri()
+            uri.setConnection(con.info.host, str(con.info.port), con.info.dbname, con.info.user, con.info.password)
+            uri.setDataSource("_albion", "current_raster", "geom")
+            uri.setParam("checkPrimaryKeyUnicity", "0")
+            uri.setSrid("32632")
+            uri.setWkbType(QgsWkbTypes.Point)
+            v = QgsVectorLayer(uri.uri(), "current_raster", "postgres")
+            res = processing.run("gdal:rasterize", {'INPUT':v,'FIELD':field,'BURN':0,'UNITS':1,'WIDTH':xspacing,'HEIGHT':yspacing,'EXTENT':v.extent(),'NODATA':-9999,'OPTIONS':'','DATA_TYPE':5,'INIT':None,'INVERT':False,'EXTRA':'','OUTPUT':os.path.join(outDir, 'dem.tif')})
+            processing.run("qgis:slope", {'INPUT':res['OUTPUT'],'Z_FACTOR':1,'OUTPUT':os.path.join(outDir, 'slope.tif')})
+            processing.run("qgis:aspect", {'INPUT':res['OUTPUT'],'Z_FACTOR':1,'OUTPUT':os.path.join(outDir, 'aspect.tif')})
+            processing.run("qgis:ruggednessindex", {'INPUT':res['OUTPUT'],'Z_FACTOR':1,'OUTPUT':os.path.join(outDir, 'ruggednessindex.tif')})

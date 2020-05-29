@@ -15,6 +15,8 @@ import tempfile
 
 from .project import ProgressBar, Project, find_in_dir
 from .mineralization import MineralizationDialog
+from .export_raster_formation import ExportRasterFormationDialog
+from .export_raster_collar import ExportRasterCollarDialog
 
 from .viewer_3d.viewer_3d import Viewer3d
 from .viewer_3d.viewer_controls import ViewerControls
@@ -145,15 +147,15 @@ class Plugin(QObject):
         return act
 
     def __create_menu_entries(self):
-        
+
         self.__menu.clear()
 
         self.__add_menu_entry("New &Project", self.__new_project)
-        
+
         self.__add_menu_entry("Import Project", self.__import_project)
-        
+
         self.__add_menu_entry("Export Project", self.__export_project, self.project is not None)
-        
+
         self.__add_menu_entry("Upgrade Project", self.__upgrade_project)
 
         self.__menu.addSeparator()
@@ -244,7 +246,7 @@ class Plugin(QObject):
         self.__add_menu_entry(
             "Accept graph possible edges", self.__accept_possible_edge, self.project is not None and self.project.has_graph
         )
-        
+
         self.__add_menu_entry(
             "Create terminations",
             self.__create_terminations,
@@ -253,7 +255,7 @@ class Plugin(QObject):
         )
 
         self.__menu.addSeparator()
-        
+
         self.__add_menu_entry(
             "Create volumes",
             self.__create_volumes,
@@ -281,6 +283,21 @@ class Plugin(QObject):
             self.project is not None and bool(self.__current_graph.currentText()) and self.project.has_section and self.project.has_volume,
             "Export triangulated section in .obj or .dxf format",
         )
+
+        self.__add_menu_entry(
+            "Export rasters from formation",
+            self.__export_raster_formation,
+            self.project is not None and self.project.has_cell,
+            "Export rasters (DEM, aspect, slope, ruggedness index) from formation",
+        )
+
+        self.__add_menu_entry(
+            "Export rasters from collar",
+            self.__export_raster_collar,
+            self.project is not None and self.project.has_cell,
+            "Export rasters (DEM, aspect, slope, ruggedness index) from collar",
+        )
+
 
         self.__menu.addSeparator()
 
@@ -588,7 +605,7 @@ class Plugin(QObject):
                 values.append((f[hole_id_idx], f[from_idx], f[to_idx]) +
                         tuple((f[i] for i in other_idx)))
             self.project.add_table(table, values)
-            
+
 
 
     def __new_graph(self):
@@ -668,8 +685,10 @@ class Plugin(QObject):
 
     def __create_cells(self):
         assert(self.project)
-        
+        createAlbionRaster = True
+
         if self.project.has_cell:
+            createAlbionRaster = False
             if (
                 QMessageBox.Yes
                 != QMessageBox(
@@ -681,7 +700,7 @@ class Plugin(QObject):
             ):
                 return
 
-        self.project.triangulate()
+        self.project.triangulate(createAlbionRaster)
         self.__refresh_layers()
 
     def __create_sections(self):
@@ -690,7 +709,7 @@ class Plugin(QObject):
 
     def __refresh_selected_layers_sections(self):
         assert(self.project)
-        for l in self.__iface.layerTreeView().selectedLayers(): 
+        for l in self.__iface.layerTreeView().selectedLayers():
             uri = QgsDataSourceUri(l.dataProvider().dataSourceUri())
             table = uri.table()
             if table.endswith('_section'):
@@ -788,7 +807,7 @@ class Plugin(QObject):
         assert(self.project)
 
         table = None
-        for l in self.__iface.layerTreeView().selectedLayers(): 
+        for l in self.__iface.layerTreeView().selectedLayers():
             uri = QgsDataSourceUri(l.dataProvider().dataSourceUri())
             table = uri.table()
             if table.endswith('_section'):
@@ -894,6 +913,12 @@ class Plugin(QObject):
                 QgsProject.instance().fileName(),
                 os.path.split(QgsProject.instance().fileName())[1],
             )
+
+    def __export_raster_formation(self):
+        ret = ExportRasterFormationDialog(self.project).exec_()
+
+    def __export_raster_collar(self):
+        ret = ExportRasterCollarDialog(self.project).exec_()
 
     #def __log_strati_clicked(self):
     #    # @todo switch behavior when in section view -> ortho
