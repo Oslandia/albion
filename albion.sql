@@ -25,7 +25,7 @@ $$
         c := st_distance(st_pointn(st_exteriorring(geom), 3), st_pointn(st_exteriorring(geom), 1));
         s := (a+b+c)/2;
         return a*b*c/(8*(s-a)*(s-b)*(s-c));
-        
+
     end;
 $$
 ;
@@ -253,7 +253,7 @@ $$
 ;
 
 -- this trigger should work on the view instead of the table, but for unknown reason it doesn't, so we put it on the table
-drop trigger if exists cell_after_trig ON _albion.cell 
+drop trigger if exists cell_after_trig ON _albion.cell
 ;
 
 create trigger cell_after_trig
@@ -291,7 +291,7 @@ $$
         insert into _albion.cell(a, b, c, geom)
         with cell as (
             select albion.tesselate(
-                st_convexhull((select st_collect(st_force2d(geom)) from albion.collar)), 
+                st_convexhull((select st_collect(st_force2d(geom)) from albion.collar)),
                 st_multi((select st_collectionhomogenize(st_collect(cut)) from albion.named_section)),
                 st_multi((select st_collect(st_force2d(geom)) from albion.collar))
             ) as geom
@@ -493,7 +493,7 @@ $$
                 returning id, geom into new.id, new.geom;
             return new;
         elsif tg_op = 'UPDATE' then
-            update _albion.section set id=new.id, anchor=new.anchor, geom=new.geom, scale=new.scale 
+            update _albion.section set id=new.id, anchor=new.anchor, geom=new.geom, scale=new.scale
             where id=old.id;
             return new;
         elsif tg_op = 'DELETE' then
@@ -872,9 +872,9 @@ and
     or
     (
         abs(ns.from_-ns.to_) < abs(ne.from_-ne.to_)
-        and st_z(st_startpoint(ne.geom)) + st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value  + (st_z(st_3dlineinterpolatepoint(pns.geom, .5)) - st_z(st_3dlineinterpolatepoint(pne.geom, .5))) >= st_z(st_startpoint(ns.geom)) 
+        and st_z(st_startpoint(ne.geom)) + st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value  + (st_z(st_3dlineinterpolatepoint(pns.geom, .5)) - st_z(st_3dlineinterpolatepoint(pne.geom, .5))) >= st_z(st_startpoint(ns.geom))
 
-        and st_z(st_endpoint(ne.geom)) - st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value + (st_z(st_3dlineinterpolatepoint(pns.geom, .5)) - st_z(st_3dlineinterpolatepoint(pne.geom, .5)) ) <= st_z(st_endpoint(ns.geom)) 
+        and st_z(st_endpoint(ne.geom)) - st_distance(st_startpoint(ns.geom), st_startpoint(ne.geom))*tan_ang.parent_value + (st_z(st_3dlineinterpolatepoint(pns.geom, .5)) - st_z(st_3dlineinterpolatepoint(pne.geom, .5)) ) <= st_z(st_endpoint(ns.geom))
 
     )
     )
@@ -1002,7 +1002,7 @@ $$
                             where ns.id = new.start_ and ne.id = new.end_) then
                 raise 'impossible edge';
             end if;
-            
+
         end if;
 
         if tg_op = 'INSERT' then
@@ -1040,7 +1040,7 @@ join _albion.section as s on s.geom && hs.geom and st_intersects(s.geom, st_star
 ;
 
 create type albion.volume_row as (
-    geom geometry('MULTIPOLYGONZ', $SRID), 
+    geom geometry('MULTIPOLYGONZ', $SRID),
     face1 geometry('MULTIPOLYGONZ', $SRID),
     face2 geometry('MULTIPOLYGONZ', $SRID),
     face3 geometry('MULTIPOLYGONZ', $SRID))
@@ -1354,7 +1354,7 @@ from _albion.edge as e
 ;
 
 create or replace view albion.average_normal as
-with nrml as ( 
+with nrml as (
     select avg(nx) as nx, avg(ny) as ny, avg(nz) as nz, n.id
     from _albion.node as n
     left join albion.normal as e on e.start_=n.id or e.end_=n.id
@@ -1436,7 +1436,7 @@ edge as (
     select graph_id, section_id, start_, end_ from albion.edge_section
 ),
 poly as (
-    select 
+    select
         ('SRID=$SRID; POLYGON(('||
                     st_x(st_startpoint(ns.geom)) ||' '||st_y(st_startpoint(ns.geom))||','||
                     st_x(st_endpoint(ns.geom))   ||' '||st_y(st_endpoint(ns.geom))  ||','||
@@ -1513,11 +1513,11 @@ join lateral (
     and en.graph_id=g.id
 ) as en on true
 )
-select cell_id, graph_id, 
-    t.geom::geometry('MULTIPOLYGONZ', $SRID), 
-    t.face1::geometry('MULTIPOLYGONZ', $SRID), 
+select cell_id, graph_id,
+    t.geom::geometry('MULTIPOLYGONZ', $SRID),
+    t.face1::geometry('MULTIPOLYGONZ', $SRID),
     t.face2::geometry('MULTIPOLYGONZ', $SRID),
-    t.face3::geometry('MULTIPOLYGONZ', $SRID), 
+    t.face3::geometry('MULTIPOLYGONZ', $SRID),
     starts, ends, holes, hole_ids, node_ids, end_ids, end_geoms
 from res, albion.metadata m
 join  lateral albion.elementary_volumes(cell_id, graph_id, st_force3d(geom), holes, starts, ends, hole_ids, node_ids, node_geoms, end_ids, end_geoms, end_holes, m.end_node_relative_distance, m.end_node_relative_thickness) as t on true
@@ -1597,7 +1597,7 @@ $$
 --as
 --$$
 --    begin
---        return (select st_collect(geom) from 
+--        return (select st_collect(geom) from
 --            ( select a.geom
 --                from st_dump(t1_) a, st_dump(t2_) b
 --                where a.geom = st_reverse(b.geom)
@@ -1612,8 +1612,8 @@ $$
 --with touching_cell as (
 --    select c.id, st_intersection(s.geom, c.geom) as geom, v.triangulation, s.id as section_id, v.graph_id
 --    from _albion.section as s
---    join _albion.cell as c on c.geom && s.geom 
---    and st_intersects(c.geom, s.geom) 
+--    join _albion.cell as c on c.geom && s.geom
+--    and st_intersects(c.geom, s.geom)
 --    and st_length(st_intersection(s.geom, c.geom)) > 0
 --    join _albion.volume as v on v.cell_id = c.id
 --),
@@ -1665,8 +1665,8 @@ group by se.section_id, ef.graph_id
 ;
 
 
-create or replace view albion.named_section as 
-select s.id, s.geom, s.section, rank() over (partition by section order by st_distance(s.geom, a.anchor)) as rank_, s.cut 
+create or replace view albion.named_section as
+select s.id, s.geom, s.section, rank() over (partition by section order by st_distance(s.geom, a.anchor)) as rank_, s.cut
 from _albion.named_section as s
 join _albion.section as a on s.section = a.id
 ;
@@ -1689,10 +1689,10 @@ $$
                 filtered as (
                     select geom from segment as s
                     except
-                    select s.geom from segment as s 
-                    join _albion.named_section as o 
-                    on st_intersects(o.cut, s.geom) 
-                    and st_linelocatepoint(s.geom, st_intersection(o.cut, s.geom)) not in (0.0, 1.0) 
+                    select s.geom from segment as s
+                    join _albion.named_section as o
+                    on st_intersects(o.cut, s.geom)
+                    and st_linelocatepoint(s.geom, st_intersection(o.cut, s.geom)) not in (0.0, 1.0)
                     and st_geometrytype(st_intersection(o.cut, s.geom)) = 'ST_Point'
                 )
                 select st_multi(st_linemerge(st_collect(geom))) from filtered
@@ -1723,14 +1723,14 @@ create trigger named_section_instead_trig
 ;
 
 
-create or replace function albion.next_section(section_ varchar) 
+create or replace function albion.next_section(section_ varchar)
 returns geometry
 language plpgsql stable
 as
 $$
     begin
         return (
-            select n.cut 
+            select n.cut
             from albion.named_section as n
             join albion.section as s on s.id=n.section
             where s.id=section_ and st_distance(n.cut, s.anchor) > coalesce(st_distance(s.geom, s.anchor), 0)
@@ -1741,14 +1741,14 @@ $$
 $$
 ;
 
-create or replace function albion.previous_section(section_ varchar) 
+create or replace function albion.previous_section(section_ varchar)
 returns geometry
 language plpgsql stable
 as
 $$
     begin
         return (
-            select n.cut 
+            select n.cut
             from albion.named_section as n
             join albion.section as s on s.id=n.section
             where s.id=section_ and st_distance(n.cut, s.anchor) < coalesce(st_distance(s.geom, s.anchor), 9999999)
@@ -1761,7 +1761,7 @@ $$
 
 
 -- TODO
--- [x] ajout de collar stérile (avec note) 
+-- [x] ajout de collar stérile (avec note)
 -- [x] polygone de maillage convex hull ou un trou
 -- supprimer des cellules et les edges associés
 

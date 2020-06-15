@@ -390,6 +390,8 @@ class Project(object):
             return self.__has_radiometry()
         elif name == "has_cell":
             return self.__has_cell()
+        elif name == "has_grid":
+            return self.__has_grid()
         elif name == "name":
             return self.__name
         elif name == "srid":
@@ -401,6 +403,12 @@ class Project(object):
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("select count(1) from albion.cell")
+            return cur.fetchone()[0] > 0
+
+    def __has_grid(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("select count(1) from _albion.grid")
             return cur.fetchone()[0] > 0
 
     def __has_hole(self):
@@ -1121,38 +1129,106 @@ class Project(object):
                 """,
                 (graph,))
 
-    def create_raster_from_formation(self, code, level, outDir, xspacing, yspacing):
+    def create_grid(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""DROP TABLE IF EXISTS _albion.grid""")
+            cur.execute("""CREATE TABLE _albion.grid as (
+                        SELECT id, geom FROM ST_CreateRegularGrid());""")
+            cur.execute("""ALTER TABLE _albion.grid ADD CONSTRAINT
+                        albion_grid_pkey PRIMARY KEY (id);""")
+            cur.execute("""CREATE INDEX sidx_grid_geom ON _albion.grid USING
+                        gist (geom);""")
+            con.commit()
+
+    def create_raster_from_formation(self, code, level, outDir):
+        if not self.__has_grid():
+            self.create_grid()
+
         with self.connect() as con:
             cur = con.cursor()
             cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
             cur.execute("""CREATE TABLE _albion.current_raster as
-                            ( WITH maformation as (SELECT cell_id, code, lvl FROM _albion.cells WHERE code={code_} and lvl='{lvl_}')
-                            SELECT row_number() over() id, ST_SetSRID((_albion.ST_CreateRegularGridZ(cell_id, code, lvl, {xspacing_}, {yspacing_})).geom, (SELECT srid FROM _albion.metadata)) geom, (_albion.ST_CreateRegularGridZ(cell_id, code, lvl, {xspacing_}, {yspacing_})).z
-                            FROM maformation)""".format(code_=code, lvl_=level, xspacing_=xspacing, yspacing_=yspacing))
+  ( WITH points as
+     ( SELECT g.id,
+              CASE
+                  WHEN ST_Intersects(g.geom, c.geom) THEN ST_Z(st_interpolate_from_tin(g.geom, c.geom))
+                  ELSE -9999::float
+              END AS z,
+              g.geom geom
+      FROM _albion.grid g,
+           _albion.cells c
+      WHERE c.code = {code_}
+        and c.lvl = '{lvl_}'
+        and ST_Intersects(g.geom, c.geom)) SELECT *
+   FROM points
+   UNION SELECT g.id,
+                -9999::float z,
+                g.geom geom
+   FROM _albion.grid g
+   WHERE id not in
+       (SELECT id
+        FROM points));""".format(code_=code, lvl_=level))
             con.commit()
-            self.__export_raster(outDir, 'z', xspacing, yspacing)
+            self.__export_raster(outDir, 'z')
 
             cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
             con.commit()
 
-    def create_raster_from_collar(self, isDepth, outDir, xspacing, yspacing):
+    def create_raster_from_collar(self, isDepth, outDir):
+        if not self.__has_grid():
+            self.create_grid()
+
         with self.connect() as con:
             cur = con.cursor()
+            cur.execute("""DROP TABLE IF EXISTS _albion.collar_cell""")
             cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
+            cur.execute("""CREATE TABLE _albion.collar_cell AS SELECT id,
+            ST_SetSRID(geom, (SELECT srid FROM _albion.metadata)) geom FROM
+            _albion.collar_cell({isDepth_})""".format(isDepth_=isDepth))
             cur.execute("""
-CREATE TABLE _albion.current_raster AS (
-WITH maformation as (SELECT id FROM albion.cell)
-SELECT ST_SetSRID((_albion.st_createregulargridz_collar(id, {isDepth_}, {xspacing_}, {yspacing_})).geom, (SELECT srid FROM _albion.metadata)) geom,
-(_albion.st_createregulargridz_collar(id, {isDepth_}, {xspacing_}, {yspacing_})).val
-FROM maformation
-)
-                        """.format(isDepth_=isDepth, xspacing_=xspacing, yspacing_=yspacing))
+CREATE TABLE _albion.current_raster as
+   ( WITH points as
+      ( SELECT g.id,
+              CASE
+                 WHEN ST_Intersects(g.geom, c.geom) THEN ST_Z(st_interpolate_from_tin(g.geom, c.geom))
+                ELSE -9999::float
+              END AS val,
+              g.geom geom
+     FROM _albion.grid g,
+            _albion.collar_cell c
+      WHERE  ST_Intersects(g.geom, c.geom)) SELECT *
+   FROM points
+    UNION SELECT g.id,
+                 -9999::float val,
+                 g.geom geom
+   FROM _albion.grid g
+   WHERE id not in
+        (SELECT id
+         FROM points));
+         """);
             con.commit()
-            self.__export_raster(outDir, 'val', xspacing, yspacing)
+            self.__export_raster(outDir, 'val')
             cur.execute("""DROP TABLE IF EXISTS _albion.current_raster""")
+            cur.execute("""DROP TABLE IF EXISTS _albion.collar_cell""")
             con.commit()
 
-    def __export_raster(self, outDir, field, xspacing, yspacing):
+    def __xspacing(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""SELECT xspacing from _albion.metadata""")
+            return cur.fetchone()[0]
+
+    def __yspacing(self):
+        with self.connect() as con:
+            cur = con.cursor()
+            cur.execute("""SELECT yspacing from _albion.metadata""")
+            return cur.fetchone()[0]
+
+    def __export_raster(self, outDir, field):
+        xspacing = self.__xspacing()
+        yspacing = self.__yspacing()
+
         with self.connect() as con:
             uri = QgsDataSourceUri()
             uri.setConnection(con.info.host, str(con.info.port), con.info.dbname, con.info.user, con.info.password)

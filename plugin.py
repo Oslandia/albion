@@ -285,6 +285,13 @@ class Plugin(QObject):
         )
 
         self.__add_menu_entry(
+            "(Re)create grid points for raster export",
+            self.__export_create_grid,
+            self.project is not None and self.project.has_cell,
+            """(re)create grid points for raster export. Only needed if xspacing
+            and yspacing metadata changed""",
+        )
+        self.__add_menu_entry(
             "Export rasters from formation",
             self.__export_raster_formation,
             self.project is not None and self.project.has_cell,
@@ -913,6 +920,12 @@ class Plugin(QObject):
                 QgsProject.instance().fileName(),
                 os.path.split(QgsProject.instance().fileName())[1],
             )
+
+    def __export_create_grid(self):
+        if self.project is None:
+            return
+
+        self.project.create_grid()
 
     def __export_raster_formation(self):
         ret = ExportRasterFormationDialog(self.project).exec_()

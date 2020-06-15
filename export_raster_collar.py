@@ -12,9 +12,8 @@ class ExportRasterCollarDialog(QDialog):
 
     def accept(self):
         self.__project.create_raster_from_collar(self.useDepth.isChecked(),
-                                     self.outDir.filePath(),
-                                     self.xspacing.value(),
-                                     self.yspacing.value())
+                                     self.outDir.filePath()
+                                     )
         iface.messageBar().pushMessage("Export raster completed",
                                        """<a href="file:///{dir}">{dir}</a>""".format(dir=self.outDir.filePath()),
                                        level=Qgis.Info, duration=5)

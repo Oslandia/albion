@@ -26,9 +26,8 @@ class ExportRasterFormationDialog(QDialog):
     def accept(self):
         self.__project.create_raster_from_formation(self.formation.currentData(),
                                      self.level.currentText(),
-                                     self.outDir.filePath(),
-                                     self.xspacing.value(),
-                                     self.yspacing.value())
+                                     self.outDir.filePath()
+                                     )
         iface.messageBar().pushMessage("Export raster completed",
                                        """<a href="file:///{dir}">{dir}</a>""".format(dir=self.outDir.filePath()),
                                        level=Qgis.Info, duration=5)

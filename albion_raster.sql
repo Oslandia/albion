@@ -2,6 +2,9 @@
 -- Nodes/Cells from hole -> Used to create raster
 -------------------------------------------------------------------------------
 
+ALTER TABLE _albion.metadata ADD COLUMN xspacing real default 5 NOT NULL;
+ALTER TABLE _albion.metadata ADD COLUMN yspacing real default 5 NOT NULL;
+
 CREATE OR REPLACE FUNCTION st_interpolate_from_tin (LOCATION geometry, tin geometry)
     RETURNS geometry
     AS $body$
@@ -61,59 +64,27 @@ COMMENT ON FUNCTION st_interpolate_from_tin (geometry, geometry) IS 'Linear inte
 
 -- original from https://lists.osgeo.org/pipermail/postgis-users/2006-February/010984.html
 
-CREATE OR REPLACE FUNCTION _albion.st_createregulargridz (cell_id_ character varying, code_ integer, lvl_ text, xspacing_ double precision, yspacing_ double precision)
-    RETURNS TABLE (
-        id bigint,
-        cell_id character varying,
-        "row" integer,
-        col integer,
-        geom geometry,
-        z double precision)
-    LANGUAGE plpgsql
-    AS $function$
+CREATE OR REPLACE FUNCTION ST_CreateRegularGrid() RETURNS TABLE (id bigint, "row" integer, col integer, geom geometry) as $BODY$
 DECLARE
-    xmin integer;
-    xmax integer;
-    ymin integer;
-    ymax integer;
-    width integer;
-    height integer;
-    geomin geometry;
+xspacing float;
+yspacing float;
+width integer;
+height integer;
+geomin geometry;
+srid integer;
+
 BEGIN
-    SELECT
-        c.geom,
-        floor(ST_Xmin (c.geom)),
-        ceil(ST_Xmax (c.geom)),
-        floor(ST_Ymin (c.geom)),
-        ceil(ST_Ymax (c.geom))
-    FROM
-        _albion.cells c
-    WHERE
-        c.cell_id = cell_id_
-        AND code = code_
-        AND lvl = lvl_ INTO geomin,
-        xmin,
-        xmax,
-        ymin,
-        ymax;
-    width := xmax - xmin;
-    height := ymax - ymin;
-    RETURN QUERY
-    SELECT
-        row_number() OVER () AS id,
-        cell_id_,
-        i + 1 AS ROW,
-        j + 1 AS col,
-        st_interpolate_from_tin (ST_Translate (ST_MakePoint (xmin, ymin), i * xspacing_, j * yspacing_), geomin) AS geom,
-        st_z (st_interpolate_from_tin (ST_Translate (ST_MakePoint (xmin, ymin), i * xspacing_, j * yspacing_), geomin)) z
-    FROM
-        generate_series(0, (width / xspacing_)::integer) AS i,
-    generate_series(0, (height / yspacing_)::integer) AS j
-WHERE
-    ST_Intersects (ST_SetSRID (ST_Translate (ST_MakePoint (xmin, ymin), i * xspacing_, j * yspacing_), ST_SRID (geomin)), geomin);
+    SELECT ST_Collect(c.geom) FROM _albion.cell c INTO geomin;
+    SELECT m.xspacing FROM _albion.metadata m INTO xspacing;
+    SELECT m.yspacing FROM _albion.metadata m INTO yspacing;
+    SELECT m.srid FROM _albion.metadata m INTO srid;
+    width := ST_Xmax(geomin) - ST_XMin(geomin);
+    height := ST_Ymax(geomin) - ST_Ymin(geomin);
+    RETURN QUERY SELECT row_number() over() as id, i + 1 AS row, j + 1 AS col, ST_SetSRID(ST_Translate(ST_MakePoint(ST_Xmin(geomin), ST_Ymin(geomin)), i * xspacing, j * yspacing), srid) AS geom
+    FROM generate_series(0, ceil(width / xspacing)::integer) AS i,
+        generate_series(0, ceil(height / yspacing)::integer) AS j;
 END;
-$function$
-;
+$BODY$ language plpgsql;
 
 CREATE OR REPLACE FUNCTION _albion.collar_cell (isDepthValue_ boolean)
     RETURNS TABLE (
@@ -138,59 +109,6 @@ BEGIN
 END;
 $BODY$
 LANGUAGE plpgsql
-;
-
-
-CREATE OR REPLACE FUNCTION _albion.st_createregulargridz_collar (cell_id_ character varying, isDepthValue_ boolean, xspacing_ double precision, yspacing_ double precision)
-    RETURNS TABLE (
-        id bigint,
-        cell_id character varying,
-        "row" integer,
-        col integer,
-        geom geometry,
-        val double precision)
-    LANGUAGE plpgsql
-    AS $function$
-DECLARE
-    xmin integer;
-    xmax integer;
-    ymin integer;
-    ymax integer;
-    width integer;
-    height integer;
-    geomin geometry;
-BEGIN
-    SELECT
-        c.geom,
-        floor(ST_Xmin (c.geom)),
-        ceil(ST_Xmax (c.geom)),
-        floor(ST_Ymin (c.geom)),
-        ceil(ST_Ymax (c.geom))
-    FROM
-        (SELECT * FROM _albion.collar_cell(isDepthValue_)) c
-    WHERE c.id = cell_id_
-    INTO geomin,
-        xmin,
-        xmax,
-        ymin,
-        ymax;
-    width := xmax - xmin;
-    height := ymax - ymin;
-    RETURN QUERY
-    SELECT
-        row_number() OVER () AS id,
-        cell_id_,
-        i + 1 AS ROW,
-        j + 1 AS col,
-        st_interpolate_from_tin (ST_Translate (ST_MakePoint (xmin, ymin), i * xspacing_, j * yspacing_), geomin) AS geom,
-        st_z (st_interpolate_from_tin (ST_Translate (ST_MakePoint (xmin, ymin), i * xspacing_, j * yspacing_), geomin)) z
-    FROM
-        generate_series(0, (width / xspacing_)::integer) AS i,
-        generate_series(0, (height / yspacing_)::integer) AS j
-WHERE
-    ST_Intersects (ST_SetSRID (ST_Translate (ST_MakePoint (xmin, ymin), i * xspacing_, j * yspacing_), ST_SRID (geomin)), geomin);
-END;
-$function$
 ;
 
 CREATE MATERIALIZED VIEW _albion.hole_nodes AS (
