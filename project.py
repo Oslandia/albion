@@ -277,6 +277,13 @@ class Project(object):
             if cur.fetchone():
                 # here goes future upgrades
                 cur.execute("select version from _albion.metadata")
+                if cur.fetchone()[0] == "2.0" and self.__has_cell():
+                    with open(os.path.join(os.path.dirname(__file__),
+                                        "albion_raster.sql")) as f:
+                        for statement in f.read().split("\n;\n")[:-1]:
+                            cur.execute(statement)
+                cur.execute("UPDATE _albion.metadata SET version = '2.3'")
+
             else:
                 # old albion version, we upgrade the data
                 for statement in (
