@@ -264,9 +264,6 @@ class Project(object):
 
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("select srid from albion.metadata")
-            srid, = cur.fetchone()
-            cur.execute("drop schema if exists albion cascade")
 
             # test if version number is in metadata
             cur.execute("""
@@ -283,8 +280,12 @@ class Project(object):
                         for statement in f.read().split("\n;\n")[:-1]:
                             cur.execute(statement)
                 cur.execute("UPDATE _albion.metadata SET version = '2.3'")
+                con.commit()
 
             else:
+                cur.execute("select srid from albion.metadata")
+                srid, = cur.fetchone()
+                cur.execute("drop schema if exists albion cascade")
                 # old albion version, we upgrade the data
                 for statement in (
                     open(os.path.join(os.path.dirname(__file__), "_albion_v1_to_v2.sql"))
@@ -293,32 +294,32 @@ class Project(object):
                 ):
                     cur.execute(statement.replace("$SRID", str(srid)))
 
-            include_elementary_volume = open(
-                os.path.join(
-                    os.path.dirname(__file__), "elementary_volume", "__init__.py"
-                )
-            ).read()
-            for statement in (
-                open(os.path.join(os.path.dirname(__file__), "albion.sql"))
-                .read()
-                .split("\n;\n")[:-1]
-            ):
-                cur.execute(
-                    statement.replace("$SRID", str(srid)).replace(
-                        "$INCLUDE_ELEMENTARY_VOLUME", include_elementary_volume
+                include_elementary_volume = open(
+                    os.path.join(
+                        os.path.dirname(__file__), "elementary_volume", "__init__.py"
                     )
-                )
+                ).read()
+                for statement in (
+                    open(os.path.join(os.path.dirname(__file__), "albion.sql"))
+                    .read()
+                    .split("\n;\n")[:-1]
+                ):
+                    cur.execute(
+                        statement.replace("$SRID", str(srid)).replace(
+                            "$INCLUDE_ELEMENTARY_VOLUME", include_elementary_volume
+                        )
+                    )
 
-            con.commit()
+                con.commit()
 
-            cur.execute("select name, fields_definition from albion.layer")
-            tables = [{'NAME': r[0], 'FIELDS_DEFINITION': r[1]} for r in cur.fetchall()]
+                cur.execute("select name, fields_definition from albion.layer")
+                tables = [{'NAME': r[0], 'FIELDS_DEFINITION': r[1]} for r in cur.fetchall()]
 
-        for table in tables:
-            table['SRID'] = str(srid)
-            self.add_table(table, view_only=True)
+                for table in tables:
+                    table['SRID'] = str(srid)
+                    self.add_table(table, view_only=True)
 
-        self.vacuum()
+                self.vacuum()
 
     def export_sections_obj(self, graph, filename):
 
@@ -415,8 +416,8 @@ class Project(object):
     def __has_grid(self):
         with self.connect() as con:
             cur = con.cursor()
-            cur.execute("select count(1) from _albion.grid")
-            return cur.fetchone()[0] > 0
+            cur.execute("select exists(select * from information_schema.tables where table_schema='_albion' and table_name='grid')")
+            return cur.fetchone()[0]
 
     def __has_hole(self):
         with self.connect() as con:

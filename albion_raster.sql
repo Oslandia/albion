@@ -84,7 +84,8 @@ BEGIN
     FROM generate_series(0, ceil(width / xspacing)::integer) AS i,
         generate_series(0, ceil(height / yspacing)::integer) AS j;
 END;
-$BODY$ language plpgsql;
+$BODY$ language plpgsql
+;
 
 CREATE OR REPLACE FUNCTION _albion.collar_cell (isDepthValue_ boolean)
     RETURNS TABLE (
