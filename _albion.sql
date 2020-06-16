@@ -40,7 +40,7 @@ create table _albion.metadata(
     version varchar)
 ;
 
-insert into _albion.metadata(srid, version) select $SRID, '2.0'
+insert into _albion.metadata(srid, version) select $SRID, '2.3'
 ;
 
 create table _albion.layer(
